@@ -21,131 +21,79 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
 
 var (
-	logsFollow    bool
-	logsTail      int64
-	logsContainer string
+	logsFollow bool
+	logsTail   int64
 )
 
 var logsCmd = &cobra.Command{
 	Use:   "logs <task-name>",
-	Short: "Get logs from an agent task",
-	Long: `Get logs from the agent pod associated with a task.
+	Short: "View logs from an agent task",
+	Long: `View the logs from an agent task's pod.
 
 Examples:
-  # Get logs from a task
   hortator logs my-task
-
-  # Follow logs in real-time
   hortator logs my-task -f
-
-  # Get last N lines
   hortator logs my-task --tail 100`,
 	Args: cobra.ExactArgs(1),
 	RunE: runLogs,
 }
 
 func init() {
-	rootCmd.AddCommand(logsCmd)
-
 	logsCmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, "Follow log output")
-	logsCmd.Flags().Int64Var(&logsTail, "tail", -1, "Number of lines to show from the end")
-	logsCmd.Flags().StringVar(&logsContainer, "container", "agent", "Container name")
+	logsCmd.Flags().Int64Var(&logsTail, "tail", -1, "Lines from end")
+	rootCmd.AddCommand(logsCmd)
 }
 
 func runLogs(cmd *cobra.Command, args []string) error {
-	taskName := args[0]
 	ctx := context.Background()
+	taskName := args[0]
 
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	if kubeconfig != "" {
-		loadingRules.ExplicitPath = kubeconfig
-	}
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-
-	config, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return fmt.Errorf("failed to build kubeconfig: %w", err)
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
-	k8sClientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create clientset: %w", err)
-	}
-
-	ns := getNamespace()
-
-	gvr := schema.GroupVersionResource{
-		Group:    "core.hortator.io",
-		Version:  "v1alpha1",
-		Resource: "agenttasks",
-	}
-
-	task, err := dynamicClient.Resource(gvr).Namespace(ns).Get(ctx, taskName, metav1.GetOptions{})
-	if err != nil {
+	task := &corev1alpha1.AgentTask{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{
+		Namespace: getNamespace(),
+		Name:      taskName,
+	}, task); err != nil {
 		return fmt.Errorf("failed to get task: %w", err)
 	}
 
-	status, found, _ := unstructured.NestedMap(task.Object, "status")
-	if !found {
-		return fmt.Errorf("task has no status yet")
+	if task.Status.PodName == "" {
+		return fmt.Errorf("task has no associated pod (phase: %s)", task.Status.Phase)
 	}
 
-	podName, found, _ := unstructured.NestedString(status, "podName")
-	if !found || podName == "" {
-		return fmt.Errorf("task has no associated pod yet")
-	}
-
-	logOptions := &corev1.PodLogOptions{
-		Container: logsContainer,
+	opts := &corev1.PodLogOptions{
+		Container: "agent",
 		Follow:    logsFollow,
 	}
 	if logsTail > 0 {
-		logOptions.TailLines = &logsTail
+		opts.TailLines = &logsTail
 	}
 
-	req := k8sClientset.CoreV1().Pods(ns).GetLogs(podName, logOptions)
+	req := clientset.CoreV1().Pods(getNamespace()).GetLogs(task.Status.PodName, opts)
 	stream, err := req.Stream(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get logs: %w", err)
 	}
 	defer stream.Close()
 
-	if logsFollow {
-		reader := bufio.NewReader(stream)
-		for {
-			line, err := reader.ReadBytes('\n')
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				return err
-			}
-			os.Stdout.Write(line)
-		}
-	} else {
-		_, err = io.Copy(os.Stdout, stream)
+	reader := bufio.NewReader(stream)
+	for {
+		line, err := reader.ReadString('\n')
 		if err != nil {
-			return fmt.Errorf("failed to read logs: %w", err)
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("error reading logs: %w", err)
 		}
+		fmt.Print(line)
 	}
 
 	return nil
