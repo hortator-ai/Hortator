@@ -1,0 +1,108 @@
+# Default values for hortator.
+
+# Operator configuration
+operator:
+  # Number of operator replicas
+  replicas: 1
+  
+  # Container image
+  image:
+    repository: ghcr.io/hortator-ai/operator
+    tag: ""  # Defaults to appVersion
+    pullPolicy: IfNotPresent
+  
+  # Image pull secrets
+  imagePullSecrets: []
+  
+  # Resource requests/limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  
+  # Pod security context
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  
+  # Container security context
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  
+  # Node selector
+  nodeSelector: {}
+  
+  # Tolerations
+  tolerations: []
+  
+  # Affinity rules
+  affinity: {}
+  
+  # Service account
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  
+  # Leader election
+  leaderElection:
+    enabled: true
+
+# Agent defaults
+agent:
+  # Default agent image
+  image: ghcr.io/hortator-ai/agent:latest
+  
+  # Default timeout
+  timeout: 30m
+  
+  # Default resources for agent pods
+  resources:
+    limits:
+      cpu: "1"
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Metrics
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    labels: {}
+    interval: 30s
+
+# RBAC
+rbac:
+  create: true
+
+# CRD management
+crds:
+  install: true
+  keep: true  # Keep CRDs on uninstall
+
+# Namespace to watch (empty = all namespaces)
+watchNamespace: ""
+
+# Log level (debug, info, error)
+logLevel: info
+
+# Health probes
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readiness:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10

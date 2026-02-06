@@ -1,0 +1,32 @@
+🎉 Hortator has been deployed!
+
+1. Verify the operator is running:
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "hortator.name" . }}
+
+2. Install the CLI:
+   go install github.com/michael-niemand/Hortator/cmd/hortator@latest
+
+3. Create your first agent task:
+   hortator spawn --prompt "Hello, world!"
+
+   Or with kubectl:
+   kubectl apply -f - <<EOF
+   apiVersion: core.hortator.ai/v1alpha1
+   kind: AgentTask
+   metadata:
+     name: hello-world
+   spec:
+     prompt: "Say hello and introduce yourself"
+     timeout: 5m
+   EOF
+
+4. Check task status:
+   hortator status hello-world
+   # or
+   kubectl get agenttasks
+
+5. View task logs:
+   hortator logs hello-world
+
+For more information, visit:
+  https://github.com/michael-niemand/Hortator

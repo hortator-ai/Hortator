@@ -1,0 +1,18 @@
+apiVersion: v2
+name: hortator
+description: Hortator - Kubernetes-native AI agent orchestration operator
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - agent
+  - kubernetes
+  - operator
+  - orchestration
+home: https://github.com/michael-niemand/Hortator
+sources:
+  - https://github.com/michael-niemand/Hortator
+maintainers:
+  - name: Hortator Team
+    url: https://github.com/michael-niemand/Hortator

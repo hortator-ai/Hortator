@@ -1,0 +1,9 @@
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  labels:
+    app.kubernetes.io/name: hortator
+    app.kubernetes.io/managed-by: kustomize
+  name: agenttask-sample
+spec:
+  # TODO(user): Add fields here

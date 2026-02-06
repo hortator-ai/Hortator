@@ -1,0 +1,50 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+- apiGroups:
+  - core.hortator.ai
+  resources:
+  - agenttasks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.hortator.ai
+  resources:
+  - agenttasks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.hortator.ai
+  resources:
+  - agenttasks/status
+  verbs:
+  - get
+  - patch
+  - update
