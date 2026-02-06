@@ -17,21 +17,34 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
 
 var (
-	// kubeconfig is the path to the kubeconfig file
-	kubeconfig string
-	// namespace is the target namespace
-	namespace string
-	// outputFormat is the output format (json, yaml, table)
+	kubeconfig   string
+	namespace    string
 	outputFormat string
+	k8sClient    client.Client
+	clientset    *kubernetes.Clientset
+	scheme       = runtime.NewScheme()
 )
 
-// rootCmd represents the base command when called without any subcommands
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(corev1alpha1.AddToScheme(scheme))
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "hortator",
 	Short: "CLI for Hortator - AI Agent Orchestration for Kubernetes",
@@ -56,21 +69,61 @@ Examples:
   # List all tasks
   hortator list`,
 	Version: "0.1.0",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Name() == "version" || cmd.Name() == "help" {
+			return nil
+		}
+		return initClient()
+	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() error {
 	return rootCmd.Execute()
 }
 
 func init() {
-	// Global flags
-	rootCmd.PersistentFlags().StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig file (defaults to $KUBECONFIG or ~/.kube/config)")
-	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "Target namespace (defaults to current context namespace)")
+	rootCmd.PersistentFlags().StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig file")
+	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "Target namespace")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table", "Output format: table, json, yaml")
 }
 
-// getNamespace returns the namespace to use, falling back to default
+func initClient() error {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if kubeconfig != "" {
+		loadingRules.ExplicitPath = kubeconfig
+	}
+
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+
+	config, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load kubeconfig: %w", err)
+	}
+
+	// Set namespace from kubeconfig if not specified
+	if namespace == "" {
+		ns, _, err := kubeConfig.Namespace()
+		if err == nil && ns != "" {
+			namespace = ns
+		} else {
+			namespace = "default"
+		}
+	}
+
+	k8sClient, err = client.New(config, client.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+
+	clientset, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create clientset: %w", err)
+	}
+
+	return nil
+}
+
 func getNamespace() string {
 	if namespace != "" {
 		return namespace
