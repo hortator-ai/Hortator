@@ -18,35 +18,25 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
 
 var statusCmd = &cobra.Command{
-	Use:   "status <task-name>",
-	Short: "Get the status of an agent task",
-	Long: `Get detailed status information about an agent task.
+	Use:   "status [task-name]",
+	Short: "Get status of an agent task",
+	Long: `Get the current status of an agent task.
 
 Examples:
-  # Get status of a task
   hortator status my-task
-
-  # Get status in JSON format
-  hortator status my-task -o json
-
-  # Get status in YAML format
-  hortator status my-task -o yaml`,
-	Args: cobra.ExactArgs(1),
+  hortator status`,
 	RunE: runStatus,
 }
 
@@ -55,105 +45,78 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	taskName := args[0]
 	ctx := context.Background()
 
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	if kubeconfig != "" {
-		loadingRules.ExplicitPath = kubeconfig
+	if len(args) > 0 {
+		return showTaskStatus(ctx, args[0])
 	}
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	return showAllTasks(ctx)
+}
 
-	config, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return fmt.Errorf("failed to build kubeconfig: %w", err)
-	}
-
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
-	}
-
-	ns := getNamespace()
-
-	gvr := schema.GroupVersionResource{
-		Group:    "core.hortator.io",
-		Version:  "v1alpha1",
-		Resource: "agenttasks",
-	}
-
-	task, err := client.Resource(gvr).Namespace(ns).Get(ctx, taskName, metav1.GetOptions{})
-	if err != nil {
+func showTaskStatus(ctx context.Context, name string) error {
+	task := &corev1alpha1.AgentTask{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{
+		Namespace: getNamespace(),
+		Name:      name,
+	}, task); err != nil {
 		return fmt.Errorf("failed to get task: %w", err)
 	}
 
-	switch outputFormat {
-	case "json":
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(task.Object)
-	case "yaml":
-		data, err := yaml.Marshal(task.Object)
-		if err != nil {
-			return err
-		}
-		fmt.Print(string(data))
-		return nil
-	default:
-		return printStatus(task)
+	fmt.Printf("Name:       %s\n", task.Name)
+	fmt.Printf("Namespace:  %s\n", task.Namespace)
+	fmt.Printf("Phase:      %s\n", task.Status.Phase)
+	fmt.Printf("Message:    %s\n", task.Status.Message)
+	fmt.Printf("Pod:        %s\n", task.Status.PodName)
+
+	if task.Status.StartTime != nil {
+		fmt.Printf("Started:    %s\n", task.Status.StartTime.Format(time.RFC3339))
 	}
+	if task.Status.CompletionTime != nil {
+		fmt.Printf("Completed:  %s\n", task.Status.CompletionTime.Format(time.RFC3339))
+	}
+	if task.Status.StartTime != nil && task.Status.CompletionTime != nil {
+		duration := task.Status.CompletionTime.Sub(task.Status.StartTime.Time)
+		fmt.Printf("Duration:   %s\n", duration.Round(time.Second))
+	}
+
+	fmt.Println("\nSpec:")
+	fmt.Printf("  Prompt:       %s\n", truncate(task.Spec.Prompt, 60))
+	fmt.Printf("  Image:        %s\n", task.Spec.Image)
+	fmt.Printf("  Timeout:      %s\n", task.Spec.Timeout)
+	if len(task.Spec.Capabilities) > 0 {
+		fmt.Printf("  Capabilities: %v\n", task.Spec.Capabilities)
+	}
+
+	return nil
 }
 
-func printStatus(task *unstructured.Unstructured) error {
+func showAllTasks(ctx context.Context) error {
+	taskList := &corev1alpha1.AgentTaskList{}
+	if err := k8sClient.List(ctx, taskList, client.InNamespace(getNamespace())); err != nil {
+		return fmt.Errorf("failed to list tasks: %w", err)
+	}
+
+	if len(taskList.Items) == 0 {
+		fmt.Printf("No tasks found in namespace '%s'\n", getNamespace())
+		return nil
+	}
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "NAME\tPHASE\tAGE\tPOD\tMESSAGE")
 
-	name := task.GetName()
-	namespace := task.GetNamespace()
-	createdAt := task.GetCreationTimestamp().Format("2006-01-02 15:04:05")
-
-	spec, _, _ := unstructured.NestedMap(task.Object, "spec")
-	prompt, _, _ := unstructured.NestedString(spec, "prompt")
-	timeout, _, _ := unstructured.NestedString(spec, "timeout")
-	image, _, _ := unstructured.NestedString(spec, "image")
-	model, _, _ := unstructured.NestedString(spec, "model")
-
-	status, _, _ := unstructured.NestedMap(task.Object, "status")
-	phase, _, _ := unstructured.NestedString(status, "phase")
-	podName, _, _ := unstructured.NestedString(status, "podName")
-	message, _, _ := unstructured.NestedString(status, "message")
-	startTime, _, _ := unstructured.NestedString(status, "startTime")
-	completionTime, _, _ := unstructured.NestedString(status, "completionTime")
-
-	fmt.Fprintf(w, "Name:\t%s\n", name)
-	fmt.Fprintf(w, "Namespace:\t%s\n", namespace)
-	fmt.Fprintf(w, "Created:\t%s\n", createdAt)
-	fmt.Fprintf(w, "Phase:\t%s\n", phase)
-	fmt.Fprintln(w)
-
-	if len(prompt) > 80 {
-		prompt = prompt[:77] + "..."
-	}
-	fmt.Fprintf(w, "Prompt:\t%s\n", prompt)
-	fmt.Fprintf(w, "Timeout:\t%s\n", timeout)
-	if image != "" {
-		fmt.Fprintf(w, "Image:\t%s\n", image)
-	}
-	if model != "" {
-		fmt.Fprintf(w, "Model:\t%s\n", model)
-	}
-	fmt.Fprintln(w)
-
-	fmt.Fprintf(w, "Pod:\t%s\n", podName)
-	if startTime != "" {
-		fmt.Fprintf(w, "Started:\t%s\n", startTime)
-	}
-	if completionTime != "" {
-		fmt.Fprintf(w, "Completed:\t%s\n", completionTime)
-	}
-	if message != "" {
-		fmt.Fprintf(w, "Message:\t%s\n", message)
+	for _, task := range taskList.Items {
+		age := time.Since(task.CreationTimestamp.Time).Round(time.Second)
+		message := truncate(task.Status.Message, 40)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			task.Name, task.Status.Phase, age, task.Status.PodName, message)
 	}
 
 	return w.Flush()
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }

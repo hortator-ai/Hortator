@@ -19,17 +19,14 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
 
 var (
@@ -38,9 +35,8 @@ var (
 	spawnTimeout      string
 	spawnImage        string
 	spawnModel        string
-	spawnWait         bool
 	spawnName         string
-	spawnParentTask   string
+	spawnWait         bool
 )
 
 var spawnCmd = &cobra.Command{
@@ -48,150 +44,95 @@ var spawnCmd = &cobra.Command{
 	Short: "Spawn a new agent task",
 	Long: `Spawn a new agent task in the cluster.
 
-The task will be scheduled as a Pod running an agent container.
-Use --wait to block until the task completes.
-
 Examples:
-  # Spawn a task with a prompt
-  hortator spawn --prompt "Analyze the application logs"
-
-  # Spawn with specific capabilities
-  hortator spawn --prompt "Search for..." --capabilities web-search,file-access
-
-  # Spawn and wait for completion
-  hortator spawn --prompt "Run tests" --wait
-
-  # Spawn with custom timeout
-  hortator spawn --prompt "Long running analysis" --timeout 2h`,
+  hortator spawn --prompt "Write a hello world in Python"
+  hortator spawn --prompt "Deploy the app" --capabilities exec,kubernetes
+  hortator spawn --prompt "Run tests" --image myregistry/agent:v1 --timeout 1h
+  hortator spawn --prompt "Quick task" --wait`,
 	RunE: runSpawn,
 }
 
 func init() {
+	spawnCmd.Flags().StringVarP(&spawnPrompt, "prompt", "p", "", "Task prompt (required)")
+	spawnCmd.Flags().StringSliceVarP(&spawnCapabilities, "capabilities", "c", nil, "Agent capabilities")
+	spawnCmd.Flags().StringVarP(&spawnTimeout, "timeout", "t", "30m", "Task timeout")
+	spawnCmd.Flags().StringVarP(&spawnImage, "image", "i", "", "Agent container image")
+	spawnCmd.Flags().StringVarP(&spawnModel, "model", "m", "", "LLM model")
+	spawnCmd.Flags().StringVar(&spawnName, "name", "", "Task name")
+	spawnCmd.Flags().BoolVarP(&spawnWait, "wait", "w", false, "Wait for completion")
+	spawnCmd.MarkFlagRequired("prompt")
 	rootCmd.AddCommand(spawnCmd)
-
-	spawnCmd.Flags().StringVarP(&spawnPrompt, "prompt", "p", "", "The prompt/instruction for the agent (required)")
-	spawnCmd.Flags().StringSliceVarP(&spawnCapabilities, "capabilities", "c", nil, "Comma-separated list of capabilities")
-	spawnCmd.Flags().StringVarP(&spawnTimeout, "timeout", "t", "30m", "Task timeout (e.g., 30m, 1h)")
-	spawnCmd.Flags().StringVar(&spawnImage, "image", "", "Custom agent image")
-	spawnCmd.Flags().StringVar(&spawnModel, "model", "", "AI model to use")
-	spawnCmd.Flags().BoolVarP(&spawnWait, "wait", "w", false, "Wait for task completion")
-	spawnCmd.Flags().StringVar(&spawnName, "name", "", "Custom task name")
-	spawnCmd.Flags().StringVar(&spawnParentTask, "parent", "", "Parent task name")
-
-	_ = spawnCmd.MarkFlagRequired("prompt")
 }
 
 func runSpawn(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	if kubeconfig != "" {
-		loadingRules.ExplicitPath = kubeconfig
+	name := spawnName
+	if name == "" {
+		name = fmt.Sprintf("task-%d", time.Now().Unix())
 	}
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	name = strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 
-	config, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return fmt.Errorf("failed to build kubeconfig: %w", err)
-	}
-
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
-	}
-
-	ns := getNamespace()
-
-	taskName := spawnName
-	if taskName == "" {
-		taskName = fmt.Sprintf("task-%d", time.Now().Unix())
-	}
-	taskName = strings.ToLower(strings.ReplaceAll(taskName, " ", "-"))
-
-	task := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "core.hortator.io/v1alpha1",
-			"kind":       "AgentTask",
-			"metadata": map[string]interface{}{
-				"name":      taskName,
-				"namespace": ns,
-			},
-			"spec": map[string]interface{}{
-				"prompt":  spawnPrompt,
-				"timeout": spawnTimeout,
-			},
+	task := &corev1alpha1.AgentTask{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: getNamespace(),
+		},
+		Spec: corev1alpha1.AgentTaskSpec{
+			Prompt:       spawnPrompt,
+			Capabilities: spawnCapabilities,
+			Timeout:      spawnTimeout,
+			Image:        spawnImage,
+			Model:        spawnModel,
 		},
 	}
 
-	spec := task.Object["spec"].(map[string]interface{})
-	if len(spawnCapabilities) > 0 {
-		spec["capabilities"] = spawnCapabilities
-	}
-	if spawnImage != "" {
-		spec["image"] = spawnImage
-	}
-	if spawnModel != "" {
-		spec["model"] = spawnModel
-	}
-	if spawnParentTask != "" {
-		spec["parentTask"] = spawnParentTask
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    "core.hortator.io",
-		Version:  "v1alpha1",
-		Resource: "agenttasks",
-	}
-
-	created, err := client.Resource(gvr).Namespace(ns).Create(ctx, task, metav1.CreateOptions{})
-	if err != nil {
+	if err := k8sClient.Create(ctx, task); err != nil {
 		return fmt.Errorf("failed to create task: %w", err)
 	}
 
-	fmt.Printf("Created task: %s/%s\n", ns, created.GetName())
+	fmt.Printf("✓ Task '%s' created in namespace '%s'\n", name, getNamespace())
 
 	if !spawnWait {
+		fmt.Printf("\nUse 'hortator status %s' to check progress\n", name)
 		return nil
 	}
 
-	fmt.Println("Waiting for task completion...")
+	fmt.Println("\nWaiting for task completion...")
+	return waitForTask(ctx, name)
+}
 
-	watcher, err := client.Resource(gvr).Namespace(ns).Watch(ctx, metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("metadata.name=%s", taskName),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to watch task: %w", err)
-	}
-	defer watcher.Stop()
+func waitForTask(ctx context.Context, name string) error {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
 
-	for event := range watcher.ResultChan() {
-		if event.Type == watch.Modified || event.Type == watch.Added {
-			obj := event.Object.(*unstructured.Unstructured)
-			status, found, _ := unstructured.NestedMap(obj.Object, "status")
-			if !found {
-				continue
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			task := &corev1alpha1.AgentTask{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{
+				Namespace: getNamespace(),
+				Name:      name,
+			}, task); err != nil {
+				return fmt.Errorf("failed to get task: %w", err)
 			}
-			phase, _, _ := unstructured.NestedString(status, "phase")
-			switch phase {
-			case "Succeeded":
-				output, _, _ := unstructured.NestedString(status, "output")
-				fmt.Println("Task completed successfully!")
-				if output != "" {
-					fmt.Println("\nOutput:")
-					fmt.Println(output)
+
+			switch task.Status.Phase {
+			case corev1alpha1.AgentTaskPhaseSucceeded:
+				fmt.Printf("✓ Task completed successfully\n")
+				if task.Status.Output != "" {
+					fmt.Printf("\nOutput:\n%s\n", task.Status.Output)
 				}
 				return nil
-			case "Failed":
-				message, _, _ := unstructured.NestedString(status, "message")
-				fmt.Printf("Task failed: %s\n", message)
-				os.Exit(1)
-			case "Timeout":
-				fmt.Println("Task timed out")
-				os.Exit(1)
+			case corev1alpha1.AgentTaskPhaseFailed:
+				return fmt.Errorf("task failed: %s", task.Status.Message)
+			case corev1alpha1.AgentTaskPhaseRunning:
+				fmt.Printf("  Running... (pod: %s)\n", task.Status.PodName)
+			case corev1alpha1.AgentTaskPhasePending:
+				fmt.Println("  Pending...")
 			}
 		}
 	}
-
-	return nil
 }
