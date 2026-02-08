@@ -100,63 +100,63 @@ examples/
 
 ## 🎯 EPIC: Operator Core
 
-- [ ] **P0** As a platform engineer, I want the operator to watch AgentTask CRDs and create Pods so agents can spawn workers
-- [ ] **P0** As a platform engineer, I want to install Hortator via Helm chart so I can add agent orchestration to my cluster
-- [ ] **P0** As a platform engineer, I want the operator to enforce resource limits defined in AgentTask specs
-- [ ] **P1** As a platform engineer, I want completed/failed tasks to be cleaned up after a configurable retention period
-- [ ] **P1** As a platform engineer, I want operator metrics (tasks created/completed/failed, active workers) exposed for Prometheus
+- [x] **P0** As a platform engineer, I want the operator to watch AgentTask CRDs and create Pods so agents can spawn workers ✅ 2026-02-08
+- [x] **P0** As a platform engineer, I want to install Hortator via Helm chart so I can add agent orchestration to my cluster ✅ 2026-02-08
+- [x] **P0** As a platform engineer, I want the operator to enforce resource limits defined in AgentTask specs ✅ 2026-02-08
+- [x] **P1** As a platform engineer, I want completed/failed tasks to be cleaned up after a configurable retention period ✅ 2026-02-08
+- [x] **P1** As a platform engineer, I want operator metrics (tasks created/completed/failed, active workers) exposed for Prometheus ✅ 2026-02-08
 
 ## 📋 EPIC: AgentTask CRD
 
-- [ ] **P0** As an AI developer, I want to define an AgentTask with prompt, capabilities, and resource limits
-- [ ] **P0** As an AI developer, I want task status to reflect Pending/Running/Completed/Failed states
-- [ ] **P0** As an AI developer, I want to set a timeout so runaway tasks get terminated automatically
-- [ ] **P0** As an AI developer, I want to specify environment variables (API keys etc.) via secretRef
-- [ ] **P1** As an AI developer, I want to specify a parent task ID to establish hierarchy (tribune → centurion → legionary)
-- [ ] **P1** As an AI developer, I want to specify which container image to use (or default to Hortator runtime)
-- [ ] **P1** As an AI developer, I want task results stored in status.output so I can retrieve them
+- [x] **P0** As an AI developer, I want to define an AgentTask with prompt, capabilities, and resource limits ✅ 2026-02-08
+- [x] **P0** As an AI developer, I want task status to reflect Pending/Running/Completed/Failed states ✅ 2026-02-08
+- [x] **P0** As an AI developer, I want to set a timeout so runaway tasks get terminated automatically ✅ 2026-02-08
+- [x] **P0** As an AI developer, I want to specify environment variables (API keys etc.) via secretRef ✅ 2026-02-08
+- [x] **P1** As an AI developer, I want to specify a parent task ID to establish hierarchy (tribune → centurion → legionary) ✅ 2026-02-08
+- [x] **P1** As an AI developer, I want to specify which container image to use (or default to Hortator runtime) ✅ 2026-02-08
+- [x] **P1** As an AI developer, I want task results stored in status.output so I can retrieve them ✅ 2026-02-08
 
 ## ⌨️ EPIC: CLI (hortator)
 
-- [ ] **P0** As an agent, I want to run `hortator spawn --prompt "..."` to create a worker task and get its ID
-- [ ] **P0** As an agent, I want to run `hortator spawn --wait` to block until the worker completes and return the result
-- [ ] **P0** As an agent, I want to run `hortator status <task-id>` to check if a task is pending/running/completed/failed
-- [ ] **P0** As an agent, I want to run `hortator result <task-id>` to get the final output of a completed task
-- [ ] **P1** As an agent, I want to run `hortator spawn --cap shell,web-fetch` to grant specific capabilities to the worker
-- [ ] **P1** As an agent, I want to run `hortator logs <task-id>` to stream or fetch worker output logs
-- [ ] **P1** As an agent, I want to run `hortator cancel <task-id>` to terminate a running task
-- [ ] **P1** As an AI developer, I want to run `hortator list` to see all tasks in my namespace with their states
-- [ ] **P2** As an AI developer, I want to run `hortator tree <task-id>` to visualize the task hierarchy (parent/children)
-- [ ] **P2** As an AI developer, I want `--output json` flag on all commands for scripting/automation
+- [x] **P0** As an agent, I want to run `hortator spawn --prompt "..."` to create a worker task and get its ID ✅ 2026-02-08
+- [x] **P0** As an agent, I want to run `hortator spawn --wait` to block until the worker completes and return the result ✅ 2026-02-08
+- [x] **P0** As an agent, I want to run `hortator status <task-id>` to check if a task is pending/running/completed/failed ✅ 2026-02-08
+- [x] **P0** As an agent, I want to run `hortator result <task-id>` to get the final output of a completed task ✅ 2026-02-08
+- [x] **P1** As an agent, I want to run `hortator spawn --cap shell,web-fetch` to grant specific capabilities to the worker ✅ 2026-02-08
+- [x] **P1** As an agent, I want to run `hortator logs <task-id>` to stream or fetch worker output logs ✅ 2026-02-08
+- [x] **P1** As an agent, I want to run `hortator cancel <task-id>` to terminate a running task ✅ 2026-02-08
+- [x] **P1** As an AI developer, I want to run `hortator list` to see all tasks in my namespace with their states ✅ 2026-02-08
+- [x] **P2** As an AI developer, I want to run `hortator tree <task-id>` to visualize the task hierarchy (parent/children) ✅ 2026-02-08
+- [x] **P2** As an AI developer, I want `--output json` flag on all commands for scripting/automation ✅ 2026-02-08
 
 ## 📦 EPIC: Default Runtime
 
-- [ ] **P0** As a platform engineer, I want a default container image that runs agent tasks out of the box
-- [ ] **P0** As an AI developer, I want the runtime to read task prompt from /inbox/task.json on startup
-- [ ] **P0** As an AI developer, I want the runtime to write results to /outbox/result.json on completion
-- [ ] **P0** As an AI developer, I want the runtime to support configurable LLM backends via env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY)
-- [ ] **P1** As an agent, I want the hortator CLI pre-installed in the runtime so I can spawn sub-workers
-- [ ] **P1** As an AI developer, I want the runtime to have common tools pre-installed (git, curl, python, node)
+- [x] **P0** As a platform engineer, I want a default container image that runs agent tasks out of the box ✅ 2026-02-08
+- [x] **P0** As an AI developer, I want the runtime to read task prompt from /inbox/task.json on startup ✅ 2026-02-08
+- [x] **P0** As an AI developer, I want the runtime to write results to /outbox/result.json on completion ✅ 2026-02-08
+- [x] **P0** As an AI developer, I want the runtime to support configurable LLM backends via env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY) ✅ 2026-02-08
+- [x] **P1** As an agent, I want the hortator CLI pre-installed in the runtime so I can spawn sub-workers ✅ 2026-02-08
+- [x] **P1** As an AI developer, I want the runtime to have common tools pre-installed (git, curl, python, node) ✅ 2026-02-08
 - [ ] **P2** As an AI developer, I want to specify a custom runtime image in the AgentTask spec
 
 ## 💾 EPIC: Storage
 
-- [ ] **P0** As a platform engineer, I want PVCs automatically provisioned for persistent agents (tribune, centurion tiers)
-- [ ] **P0** As an agent, I want to read my task from /inbox/task.json when I start
-- [ ] **P0** As an agent, I want to write my results to /outbox/result.json when I complete
-- [ ] **P0** As an agent, I want /workspace for temporary files during task execution
-- [ ] **P1** As an agent, I want /memory to persist my long-term context across task restarts
-- [ ] **P1** As a platform engineer, I want the operator to copy worker results to parent agent inbox automatically
-- [ ] **P2** As an AI developer, I want to configure storage class and size for PVCs via CRD spec
+- [x] **P0** As a platform engineer, I want PVCs automatically provisioned for persistent agents (tribune, centurion tiers) ✅ 2026-02-08
+- [x] **P0** As an agent, I want to read my task from /inbox/task.json when I start ✅ 2026-02-08
+- [x] **P0** As an agent, I want to write my results to /outbox/result.json when I complete ✅ 2026-02-08
+- [x] **P0** As an agent, I want /workspace for temporary files during task execution ✅ 2026-02-08
+- [x] **P1** As an agent, I want /memory to persist my long-term context across task restarts ✅ 2026-02-08
+- [x] **P1** As a platform engineer, I want the operator to copy worker results to parent agent inbox automatically ✅ 2026-02-08
+- [x] **P2** As an AI developer, I want to configure storage class and size for PVCs via CRD spec ✅ 2026-02-08
 - [ ] **P2** (Future) As an AI developer, I want pluggable memory backends (Milvus, Postgres, Redis)
 
 ## 🔒 EPIC: Security & Guardrails
 
-- [ ] **P1** As a platform engineer, I want capabilities (shell, web-fetch, spawn) to map to NetworkPolicies automatically
-- [ ] **P1** As a platform engineer, I want to set cluster-wide default resource limits for all tasks
-- [ ] **P1** As a platform engineer, I want workers to run with minimal RBAC (only create tasks in own namespace)
-- [ ] **P1** As a platform engineer, I want tasks to inherit parent capabilities (workers can't escalate beyond parent)
-- [ ] **P2** As a platform engineer, I want to restrict which namespaces can spawn tasks via label selectors
+- [x] **P1** As a platform engineer, I want capabilities (shell, web-fetch, spawn) to map to NetworkPolicies automatically ✅ 2026-02-08
+- [x] **P1** As a platform engineer, I want to set cluster-wide default resource limits for all tasks ✅ 2026-02-08
+- [x] **P1** As a platform engineer, I want workers to run with minimal RBAC (only create tasks in own namespace) ✅ 2026-02-08
+- [x] **P1** As a platform engineer, I want tasks to inherit parent capabilities (workers can't escalate beyond parent) ✅ 2026-02-08
+- [x] **P2** As a platform engineer, I want to restrict which namespaces can spawn tasks via label selectors ✅ 2026-02-08
 - [ ] **P2** As a cluster admin, I want audit logs of all task spawns, completions, and failures
 - [ ] **P2** (Enterprise) As a cluster admin, I want AgentPolicy CRD to define fine-grained capability restrictions per namespace
 - [ ] **P2** (Enterprise) As a cluster admin, I want egress allowlists to control which external APIs agents can call

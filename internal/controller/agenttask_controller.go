@@ -28,6 +28,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -74,18 +77,40 @@ var (
 	)
 )
 
+var tracer = otel.Tracer("hortator.ai/operator")
+
 func init() {
 	metrics.Registry.MustRegister(tasksTotal, tasksActive, taskDuration)
 }
 
+// taskEventAttrs returns common OTel attributes for a task event.
+func taskEventAttrs(task *corev1alpha1.AgentTask) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("task.name", task.Name),
+		attribute.String("task.namespace", task.Namespace),
+		attribute.String("task.tier", task.Spec.Tier),
+		attribute.String("task.role", task.Spec.Role),
+		attribute.String("task.parentTaskId", task.Spec.ParentTaskID),
+	}
+	return attrs
+}
+
+// emitTaskEvent starts a span and records a named event with task attributes.
+func emitTaskEvent(ctx context.Context, eventName string, task *corev1alpha1.AgentTask) {
+	_, span := tracer.Start(ctx, eventName)
+	defer span.End()
+	span.AddEvent(eventName, trace.WithAttributes(taskEventAttrs(task)...))
+}
+
 // ClusterDefaults holds defaults read from the hortator-config ConfigMap.
 type ClusterDefaults struct {
-	DefaultTimeout        int
-	DefaultImage          string
-	DefaultRequestsCPU    string
-	DefaultRequestsMemory string
-	DefaultLimitsCPU      string
-	DefaultLimitsMemory   string
+	DefaultTimeout         int
+	DefaultImage           string
+	DefaultRequestsCPU     string
+	DefaultRequestsMemory  string
+	DefaultLimitsCPU       string
+	DefaultLimitsMemory    string
+	EnforceNamespaceLabels bool
 }
 
 // AgentTaskReconciler reconciles a AgentTask object
@@ -108,6 +133,7 @@ type AgentTaskReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get
 
 // Reconcile is the main reconciliation loop for AgentTask resources
 func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -133,6 +159,13 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Add finalizer if not present
 	if !controllerutil.ContainsFinalizer(task, finalizerName) {
 		controllerutil.AddFinalizer(task, finalizerName)
+		// Set retention annotation from spec if provided
+		if task.Spec.Storage != nil && task.Spec.Storage.RetainDays != nil {
+			if task.Annotations == nil {
+				task.Annotations = map[string]string{}
+			}
+			task.Annotations["hortator.ai/retention"] = fmt.Sprintf("%dd", *task.Spec.Storage.RetainDays)
+		}
 		if err := r.Update(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -143,6 +176,7 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if task.Status.Phase == "" {
 		task.Status.Phase = corev1alpha1.AgentTaskPhasePending
 		task.Status.Message = "Task pending"
+		emitTaskEvent(ctx, "hortator.task.created", task)
 		if err := r.Status().Update(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -155,9 +189,20 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.handlePending(ctx, task)
 	case corev1alpha1.AgentTaskPhaseRunning:
 		return r.handleRunning(ctx, task)
+	case corev1alpha1.AgentTaskPhaseCancelled:
+		if task.Annotations == nil || task.Annotations["hortator.ai/cancel-event-sent"] != "true" {
+			emitTaskEvent(ctx, "hortator.task.cancelled", task)
+			if task.Annotations == nil {
+				task.Annotations = map[string]string{}
+			}
+			task.Annotations["hortator.ai/cancel-event-sent"] = "true"
+			if err := r.Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return r.handleTTLCleanup(ctx, task)
 	case corev1alpha1.AgentTaskPhaseCompleted, corev1alpha1.AgentTaskPhaseFailed,
-		corev1alpha1.AgentTaskPhaseTimedOut, corev1alpha1.AgentTaskPhaseBudgetExceeded,
-		corev1alpha1.AgentTaskPhaseCancelled:
+		corev1alpha1.AgentTaskPhaseTimedOut, corev1alpha1.AgentTaskPhaseBudgetExceeded:
 		// TTL cleanup for terminal tasks
 		return r.handleTTLCleanup(ctx, task)
 	default:
@@ -216,6 +261,9 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	}
 	if v, ok := cm.Data["defaultLimitsMemory"]; ok && v != "" {
 		d.DefaultLimitsMemory = v
+	}
+	if v, ok := cm.Data["enforceNamespaceLabels"]; ok {
+		d.EnforceNamespaceLabels = v == "true"
 	}
 
 	r.defaults = d
@@ -286,6 +334,7 @@ func (r *AgentTaskReconciler) handleDeletion(ctx context.Context, task *corev1al
 	logger := log.FromContext(ctx)
 
 	if controllerutil.ContainsFinalizer(task, finalizerName) {
+		emitTaskEvent(ctx, "hortator.task.deleted", task)
 		// Cleanup: delete the pod if it exists
 		if task.Status.PodName != "" {
 			pod := &corev1.Pod{}
@@ -329,6 +378,24 @@ func setCompletionStatus(task *corev1alpha1.AgentTask) {
 // handlePending creates the pod for a pending task
 func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+
+	// Namespace restriction: check if namespace has hortator.ai/enabled=true label
+	if r.defaults.EnforceNamespaceLabels {
+		ns := &corev1.Namespace{}
+		if err := r.Get(ctx, types.NamespacedName{Name: task.Namespace}, ns); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to fetch namespace %s: %w", task.Namespace, err)
+		}
+		if ns.Labels["hortator.ai/enabled"] != "true" {
+			task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
+			task.Status.Message = "namespace not enabled for Hortator: add label hortator.ai/enabled=true"
+			setCompletionStatus(task)
+			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
+			if err := r.Status().Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+	}
 
 	// Feature 6: Capability inheritance validation
 	if task.Spec.ParentTaskID != "" {
@@ -421,6 +488,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 	}
 
 	logger.Info("Created pod", "pod", pod.Name)
+	emitTaskEvent(ctx, "hortator.task.started", task)
 
 	// Update status
 	task.Status.Phase = corev1alpha1.AgentTaskPhaseRunning
@@ -545,6 +613,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
 		task.Status.Message = "Task completed successfully"
 		setCompletionStatus(task)
+		emitTaskEvent(ctx, "hortator.task.completed", task)
 
 		// Record metrics
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
@@ -576,6 +645,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 
 		// Collect logs even on failure
 		task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
+		emitTaskEvent(ctx, "hortator.task.failed", task)
 
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
 		tasksActive.WithLabelValues(task.Namespace).Dec()
@@ -606,6 +676,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 				task.Status.Phase = corev1alpha1.AgentTaskPhaseTimedOut
 				task.Status.Message = fmt.Sprintf("Task timed out after %s", timeout)
 				setCompletionStatus(task)
+				emitTaskEvent(ctx, "hortator.task.failed", task)
 				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseTimedOut), task.Namespace).Inc()
 				tasksActive.WithLabelValues(task.Namespace).Dec()
 				if err := r.Status().Update(ctx, task); err != nil {
@@ -641,6 +712,11 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 		size = task.Spec.Storage.Size
 	}
 
+	annotations := map[string]string{}
+	if task.Spec.Storage != nil && task.Spec.Storage.RetainDays != nil {
+		annotations["hortator.ai/retention"] = fmt.Sprintf("%dd", *task.Spec.Storage.RetainDays)
+	}
+
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvcName,
@@ -648,6 +724,7 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 			Labels: map[string]string{
 				"hortator.ai/task": task.Name,
 			},
+			Annotations: annotations,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},

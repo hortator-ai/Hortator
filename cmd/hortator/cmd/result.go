@@ -28,7 +28,6 @@ import (
 )
 
 var (
-	resultJSON bool
 	resultWait bool
 )
 
@@ -46,7 +45,6 @@ Examples:
 }
 
 func init() {
-	resultCmd.Flags().BoolVar(&resultJSON, "json", false, "Output as JSON")
 	resultCmd.Flags().BoolVarP(&resultWait, "wait", "w", false, "Wait for completion")
 	rootCmd.AddCommand(resultCmd)
 }
@@ -79,7 +77,7 @@ func runResult(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown task phase: %s", task.Status.Phase)
 	}
 
-	if resultJSON {
+	if outputFormat == "json" {
 		result := map[string]interface{}{
 			"name":      task.Name,
 			"namespace": task.Namespace,

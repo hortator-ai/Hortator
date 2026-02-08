@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -99,6 +100,15 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 
 	if err := k8sClient.Create(ctx, task); err != nil {
 		return fmt.Errorf("failed to create task: %w", err)
+	}
+
+	if outputFormat == "json" {
+		data, _ := json.MarshalIndent(map[string]string{"task": name, "namespace": getNamespace()}, "", "  ")
+		fmt.Println(string(data))
+		if spawnWait {
+			return waitForTask(ctx, name)
+		}
+		return nil
 	}
 
 	fmt.Printf("✓ Task '%s' created in namespace '%s'\n", name, getNamespace())

@@ -148,6 +148,15 @@ Each agent Pod has four mount points:
 
 **Written in Go** — first-class K8s ecosystem support.
 
+**Security layers:**
+- **NetworkPolicies** — automatically generated from agent capabilities (e.g., `web-fetch` opens egress, `shell` stays isolated)
+- **RBAC** — agents get minimal permissions (only create AgentTasks in their own namespace); capability inheritance prevents escalation
+- **Namespace restrictions** — optionally require `hortator.ai/enabled=true` label on namespaces (via `enforceNamespaceLabels` in ConfigMap)
+
+**Observability:**
+- **Prometheus metrics** — `hortator_tasks_total`, `hortator_tasks_active`, `hortator_task_duration_seconds`
+- **OpenTelemetry** — task hierarchy maps to distributed traces; audit events emitted as OTel spans for Jaeger/Tempo/Datadog
+
 ## CRDs
 
 ### AgentTask
@@ -155,23 +164,36 @@ Each agent Pod has four mount points:
 The core resource. Defines a task for an agent to execute.
 
 ```yaml
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: fix-auth-bug
   namespace: ai-team
 spec:
   prompt: "Fix the session cookie not being set on login response"
-  role: backend-dev
-  flavor: "Use Drizzle ORM. Don't touch migrations. Bug is in session.ts:47."
   tier: legionary
   parentTaskId: feature-auth-refactor
-  thinkingLevel: medium
   timeout: 600
   capabilities: [shell, web-fetch]
   budget:
+    maxTokens: 100000
     maxCostUsd: "0.50"
+  model:
+    name: claude-sonnet
+  storage:
+    size: 1Gi
+    storageClass: fast-ssd
+    retain: false
+  env:
+    - name: ANTHROPIC_API_KEY
+      valueFrom:
+        secretKeyRef:
+          secretName: llm-keys
+          key: anthropic
   resources:
+    requests:
+      cpu: "100m"
+      memory: 128Mi
     limits:
       cpu: "1"
       memory: 1Gi
@@ -241,16 +263,21 @@ The `hortator` CLI ships inside the runtime container. Agents use it to spawn su
 
 ```bash
 hortator spawn --prompt "Fix the login bug" --role backend-dev --wait
-hortator status <task-id>
-hortator result <task-id>
-hortator logs <task-id>
-hortator cancel <task-id>
-hortator list
-hortator tree <task-id>            # Visualize task hierarchy
+hortator spawn --prompt "..." --cap shell,web-fetch --tier legionary
+hortator status <task-id>              # Check task phase
+hortator status <task-id> -o json      # JSON output for scripting
+hortator result <task-id>              # Get task output
+hortator logs <task-id>                # Stream/fetch worker logs
+hortator cancel <task-id>              # Terminate a running task
+hortator list                          # List tasks in namespace
+hortator list -o json                  # JSON output for automation
+hortator tree <task-id>                # Visualize task hierarchy (parent/children)
 hortator retain --reason "..." --tags "auth,backend"  # Mark PVC for retention
-hortator budget-remaining          # Check remaining budget
-hortator progress --status "..."   # Self-report progress (for stuck detection)
+hortator budget-remaining              # Check remaining budget
+hortator progress --status "..."       # Self-report progress (for stuck detection)
 ```
+
+All commands support `--output json` (`-o json`) for scripting and automation.
 
 ## Roadmap
 
