@@ -1,0 +1,127 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentpolicies.core.hortator.ai
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+spec:
+  group: core.hortator.ai
+  names:
+    kind: AgentPolicy
+    listKind: AgentPolicyList
+    plural: agentpolicies
+    singular: agentpolicy
+    shortNames:
+      - ap
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: MaxTier
+          type: string
+          jsonPath: .spec.maxTier
+        - name: RequirePresidio
+          type: boolean
+          jsonPath: .spec.requirePresidio
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          description: AgentPolicy defines fine-grained restrictions for agent tasks in a namespace.
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: AgentPolicySpec defines fine-grained restrictions for agent tasks.
+              type: object
+              properties:
+                namespaceSelector:
+                  description: NamespaceSelector restricts which namespaces this policy applies to.
+                  type: object
+                  properties:
+                    matchLabels:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    matchExpressions:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - key
+                          - operator
+                        properties:
+                          key:
+                            type: string
+                          operator:
+                            type: string
+                          values:
+                            type: array
+                            items:
+                              type: string
+                allowedCapabilities:
+                  description: Whitelist of capabilities tasks can request. If empty, all capabilities are denied.
+                  type: array
+                  items:
+                    type: string
+                deniedCapabilities:
+                  description: Explicitly blocks specific capabilities (overrides allowed).
+                  type: array
+                  items:
+                    type: string
+                allowedImages:
+                  description: Glob patterns for permitted container images.
+                  type: array
+                  items:
+                    type: string
+                maxBudget:
+                  description: Maximum budget any single task can request.
+                  type: object
+                  properties:
+                    maxTokens:
+                      description: Total token cap (input + output).
+                      type: integer
+                      format: int64
+                    maxCostUsd:
+                      description: Dollar cap as string (e.g. "0.50").
+                      type: string
+                maxTimeout:
+                  description: Maximum timeout in seconds any task can set.
+                  type: integer
+                maxTier:
+                  description: Highest tier allowed (legionary < centurion < tribune).
+                  type: string
+                  enum:
+                    - legionary
+                    - centurion
+                    - tribune
+                egressAllowlist:
+                  description: Restricts outbound network access.
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - host
+                    properties:
+                      host:
+                        description: Domain or IP CIDR.
+                        type: string
+                      ports:
+                        description: Ports allowed (empty = all ports).
+                        type: array
+                        items:
+                          type: integer
+                requirePresidio:
+                  description: Forces PII scanning on all tasks.
+                  type: boolean
+                maxConcurrentTasks:
+                  description: Limits active tasks per namespace.
+                  type: integer
