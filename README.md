@@ -72,18 +72,18 @@ Hortator uses a Roman military hierarchy — because the Hortator was a Roman ga
 
 ```
          ┌──────────┐
-         │  Consul   │  "Redesign the auth system"
+         │  Consul  │  "Redesign the auth system"
          └────┬─────┘
               │
     ┌─────────┼─────────┐
     │         │         │
-┌───▼──┐ ┌───▼──┐ ┌───▼──┐
+┌───▼───┐ ┌───▼───┐ ┌───▼───┐
 │Centur.│ │Centur.│ │Centur.│  "Handle backend" / "Handle frontend" / "Handle tests"
-└───┬──┘ └───┬──┘ └───┬──┘
+└───┬───┘ └───┬───┘ └───┬───┘
     │         │         │
-  ┌─▼─┐   ┌─▼─┐   ┌─▼─┐
-  │Leg.│   │Leg.│   │Leg.│    Focused tasks: "Fix session.ts:47" / "Update login form" / ...
-  └───┘   └───┘   └───┘
+ ┌──▼──┐   ┌──▼──┐   ┌──▼──┐
+ │ Leg.│   │ Leg.│   │ Leg.│    Focused tasks: "Fix session.ts:47" / "Update login form" / ...
+ └─────┘   └─────┘   └─────┘
 ```
 
 ### The Flow
@@ -119,15 +119,15 @@ Each agent Pod has four mount points:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Kubernetes Cluster                     │
-│                                                          │
-│  ┌──────────────┐    watches    ┌───────────────────┐   │
+┌────────────────────────────────────────────────────────┐
+│                    Kubernetes Cluster                  │
+│                                                        │
+│  ┌──────────────┐    watches   ┌───────────────────┐   │
 │  │   Hortator   │◄────────────►│  AgentTask CRDs   │   │
 │  │   Operator   │              │  AgentRole CRDs   │   │
 │  └──────┬───────┘              └───────────────────┘   │
-│         │ creates                                        │
-│         ▼                                                │
+│         │ creates                                      │
+│         ▼                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │  Agent Pod   │  │  Agent Pod   │  │  Agent Pod   │  │
 │  │  (Consul)    │  │  (Centurion) │  │  (Legionary) │  │
@@ -139,11 +139,11 @@ Each agent Pod has four mount points:
 │  │  │  PVC   │  │  │  │  PVC   │  │  │  (EmptyDir)  │  │
 │  │  └────────┘  │  │  └────────┘  │  │              │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  │
-│                                                          │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │  Optional: Presidio sidecar │ OTel Collector │ LiteLLM │
-│  └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Optional: Presidio │ OTel Collector │ LiteLLM   │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
 ```
 
 **Written in Go** — first-class K8s ecosystem support.
