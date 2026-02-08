@@ -19,6 +19,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -89,6 +90,12 @@ func deleteTask(ctx context.Context, name string) error {
 
 	if err := k8sClient.Delete(ctx, task); err != nil {
 		return fmt.Errorf("failed to delete task: %w", err)
+	}
+
+	if outputFormat == "json" {
+		data, _ := json.MarshalIndent(map[string]string{"task": name, "status": "deleted"}, "", "  ")
+		fmt.Println(string(data))
+		return nil
 	}
 
 	fmt.Printf("✓ Task '%s' deleted\n", name)

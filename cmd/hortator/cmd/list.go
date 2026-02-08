@@ -33,7 +33,6 @@ import (
 var (
 	listAllNamespaces bool
 	listPhase         string
-	listJSON          bool
 )
 
 var listCmd = &cobra.Command{
@@ -53,7 +52,6 @@ Examples:
 func init() {
 	listCmd.Flags().BoolVarP(&listAllNamespaces, "all-namespaces", "A", false, "All namespaces")
 	listCmd.Flags().StringVar(&listPhase, "phase", "", "Filter by phase")
-	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output as JSON")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -81,7 +79,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		taskList.Items = filtered
 	}
 
-	if listJSON {
+	if outputFormat == "json" {
 		var items []map[string]interface{}
 		for _, task := range taskList.Items {
 			item := map[string]interface{}{

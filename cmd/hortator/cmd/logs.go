@@ -19,8 +19,10 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -85,6 +87,25 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	defer stream.Close()
 
 	reader := bufio.NewReader(stream)
+
+	if outputFormat == "json" {
+		var sb strings.Builder
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					sb.WriteString(line)
+					break
+				}
+				return fmt.Errorf("error reading logs: %w", err)
+			}
+			sb.WriteString(line)
+		}
+		data, _ := json.MarshalIndent(map[string]string{"task": taskName, "logs": sb.String()}, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
