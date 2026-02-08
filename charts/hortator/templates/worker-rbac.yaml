@@ -1,0 +1,47 @@
+{{- if .Values.workerRbac.create }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.workerRbac.serviceAccountName }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "hortator.fullname" . }}-worker
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - hortator.ai
+    resources:
+      - agenttasks
+    verbs:
+      - get
+      - list
+      - create
+  - apiGroups:
+      - hortator.ai
+    resources:
+      - agenttasks/status
+    verbs:
+      - get
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "hortator.fullname" . }}-worker
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "hortator.fullname" . }}-worker
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.workerRbac.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

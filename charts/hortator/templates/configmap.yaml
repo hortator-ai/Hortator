@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hortator.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+data:
+  # Agent defaults — the operator reads this at startup to configure
+  # reconciliation behavior and default values for AgentTask Pods.
+  config.yaml: |
+    agent:
+      image: {{ .Values.agent.image | quote }}
+      timeout: {{ .Values.agent.timeout | quote }}
+      defaultTimeoutSeconds: {{ .Values.agent.defaultTimeoutSeconds }}
+      resources:
+        requests:
+          cpu: {{ .Values.agent.resources.requests.cpu | quote }}
+          memory: {{ .Values.agent.resources.requests.memory | quote }}
+        limits:
+          cpu: {{ .Values.agent.resources.limits.cpu | quote }}
+          memory: {{ .Values.agent.resources.limits.memory | quote }}
+
+    models:
+      default:
+        endpoint: {{ .Values.models.default.endpoint | quote }}
+        name: {{ .Values.models.default.name | quote }}
+      presets:
+        ollama:
+          enabled: {{ .Values.models.presets.ollama.enabled }}
+          endpoint: {{ .Values.models.presets.ollama.endpoint | quote }}
+        vllm:
+          enabled: {{ .Values.models.presets.vllm.enabled }}
+          endpoint: {{ .Values.models.presets.vllm.endpoint | quote }}
+        litellm:
+          enabled: {{ .Values.models.presets.litellm.enabled }}
+          endpoint: {{ .Values.models.presets.litellm.endpoint | quote }}
+
+    budget:
+      enabled: {{ .Values.budget.enabled }}
+      priceSource: {{ .Values.budget.priceSource | quote }}
+      fallbackBehavior: {{ .Values.budget.fallbackBehavior | quote }}
+      defaultLimit:
+        maxCostUsd: {{ .Values.budget.defaultLimit.maxCostUsd | quote }}
+
+    health:
+      enabled: {{ .Values.health.enabled }}
+      checkIntervalSeconds: {{ .Values.health.checkIntervalSeconds }}
+      stuckDetection:
+        enabled: {{ .Values.health.stuckDetection.enabled }}
+
+    storage:
+      storageClass: {{ .Values.storage.storageClass | quote }}
+      defaultSize: {{ .Values.storage.defaultSize | quote }}
+
+    presidio:
+      enabled: {{ .Values.presidio.enabled }}
+      scoreThreshold: {{ .Values.presidio.scoreThreshold }}
+      action: {{ .Values.presidio.action | quote }}
+
+    telemetry:
+      enabled: {{ .Values.telemetry.enabled }}
+
+    runtime:
+      filesystem:
+        enforceRequired: {{ .Values.runtime.filesystem.enforceRequired }}
+      contextManagement:
+        strategy: {{ .Values.runtime.contextManagement.strategy | quote }}

@@ -68,21 +68,22 @@ func showTaskStatus(ctx context.Context, name string) error {
 	fmt.Printf("Message:    %s\n", task.Status.Message)
 	fmt.Printf("Pod:        %s\n", task.Status.PodName)
 
-	if task.Status.StartTime != nil {
-		fmt.Printf("Started:    %s\n", task.Status.StartTime.Format(time.RFC3339))
+	if task.Status.StartedAt != nil {
+		fmt.Printf("Started:    %s\n", task.Status.StartedAt.Format(time.RFC3339))
 	}
-	if task.Status.CompletionTime != nil {
-		fmt.Printf("Completed:  %s\n", task.Status.CompletionTime.Format(time.RFC3339))
+	if task.Status.CompletedAt != nil {
+		fmt.Printf("Completed:  %s\n", task.Status.CompletedAt.Format(time.RFC3339))
 	}
-	if task.Status.StartTime != nil && task.Status.CompletionTime != nil {
-		duration := task.Status.CompletionTime.Sub(task.Status.StartTime.Time)
-		fmt.Printf("Duration:   %s\n", duration.Round(time.Second))
+	if task.Status.Duration != "" {
+		fmt.Printf("Duration:   %s\n", task.Status.Duration)
 	}
 
 	fmt.Println("\nSpec:")
 	fmt.Printf("  Prompt:       %s\n", truncate(task.Spec.Prompt, 60))
 	fmt.Printf("  Image:        %s\n", task.Spec.Image)
-	fmt.Printf("  Timeout:      %s\n", task.Spec.Timeout)
+	if task.Spec.Timeout != nil {
+		fmt.Printf("  Timeout:      %ds\n", *task.Spec.Timeout)
+	}
 	if len(task.Spec.Capabilities) > 0 {
 		fmt.Printf("  Capabilities: %v\n", task.Spec.Capabilities)
 	}

@@ -1,0 +1,85 @@
+# Multi-tier example: Tribune → Centurion → Legionary
+#
+# A Tribune plans the work, a Centurion coordinates execution,
+# and Legionaries do the actual tasks.
+#
+# Apply with: kubectl apply -f multi-tier.yaml
+---
+apiVersion: hortator.io/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: tech-lead
+spec:
+  tier: tribune
+  description: >-
+    High-level planner. Decomposes a project goal into work packages
+    and delegates to centurions. Reviews final deliverables.
+  capabilities:
+    - spawn
+    - web-fetch
+  model:
+    name: claude-sonnet-4-20250514
+  timeout: 60m
+  budget:
+    maxCostUsd: "5.00"
+---
+apiVersion: hortator.io/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: backend-lead
+spec:
+  tier: centurion
+  description: >-
+    Coordinates backend implementation. Spawns legionary coders
+    and reviewers, merges their output.
+  capabilities:
+    - spawn
+    - shell
+  model:
+    name: gpt-4o
+  timeout: 30m
+  budget:
+    maxCostUsd: "2.00"
+---
+apiVersion: hortator.io/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: impl-coder
+spec:
+  tier: legionary
+  description: >-
+    Implements a single, well-scoped coding task. Writes code and
+    tests, outputs results to /outbox/result.json.
+  capabilities:
+    - shell
+  model:
+    name: gpt-4o-mini
+  timeout: 15m
+  budget:
+    maxCostUsd: "0.50"
+---
+# The top-level task — kicked off by a human or CI pipeline.
+apiVersion: hortator.io/v1alpha1
+kind: AgentTask
+metadata:
+  name: build-rest-api
+  namespace: hortator-demo
+spec:
+  roleRef:
+    name: tech-lead
+  prompt: |
+    Build a simple REST API in Go with the following endpoints:
+      GET  /healthz        — returns 200
+      GET  /api/v1/items   — returns a JSON list of items
+      POST /api/v1/items   — creates an item
+
+    Delegate implementation to a backend-lead centurion.
+    The centurion should spawn impl-coder legionaries for:
+      1. HTTP handler code
+      2. Unit tests
+
+    Review the final output before completing.
+  budget:
+    maxCostUsd: "8.00"
+  timeout: 90m
+  retainPVC: true
