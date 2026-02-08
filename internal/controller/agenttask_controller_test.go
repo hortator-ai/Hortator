@@ -51,7 +51,7 @@ var _ = Describe("AgentTask Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: corev1alpha1.AgentTaskSpec{Prompt: "test prompt for reconciliation"},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
