@@ -1,0 +1,14 @@
+apiVersion: hortator.io/v1alpha1
+kind: AgentTask
+metadata:
+  name: hello-world
+  namespace: hortator-demo
+spec:
+  roleRef:
+    name: researcher
+  prompt: |
+    Say hello! Write a brief, friendly greeting to /outbox/result.json
+    with the current date and a fun fact about Kubernetes.
+  timeout: 5m
+  budget:
+    maxCostUsd: "0.10"

@@ -1,78 +1,287 @@
-# Default values for hortator.
+# ============================================================================
+# Hortator Helm Values
+# ============================================================================
+# Override via: helm install --values my-overrides.yaml
+#               helm install --set key=value
+#
+# Three-tier override: Helm defaults → AgentRole CRD → AgentTask CRD
+# ============================================================================
 
-# Operator configuration
+# ── Operator ────────────────────────────────────────────────────────────────
+
 operator:
   # Number of operator replicas
   replicas: 1
-  
+
   # Container image
   image:
     repository: ghcr.io/hortator-ai/operator
     tag: ""  # Defaults to appVersion
     pullPolicy: IfNotPresent
-  
+
   # Image pull secrets
   imagePullSecrets: []
-  
+
   # Resource requests/limits
   resources:
     limits:
       cpu: 500m
-      memory: 128Mi
+      memory: 256Mi
     requests:
-      cpu: 10m
-      memory: 64Mi
-  
+      cpu: 100m
+      memory: 128Mi
+
   # Pod security context
   securityContext:
     runAsNonRoot: true
     seccompProfile:
       type: RuntimeDefault
-  
+
   # Container security context
   containerSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
-  
+
   # Node selector
   nodeSelector: {}
-  
+
   # Tolerations
   tolerations: []
-  
+
   # Affinity rules
   affinity: {}
-  
+
   # Service account
   serviceAccount:
     create: true
     name: ""
     annotations: {}
-  
-  # Leader election
+
+  # Leader election for HA deployments
   leaderElection:
     enabled: true
 
-# Agent defaults
+  # Reconciliation interval for cleanup, health checks, budget enforcement
+  reconcileIntervalSeconds: 30
+
+# ── Agent / Runtime Defaults ────────────────────────────────────────────────
+# Default container image and resources for agent Pods.
+# AgentTask.spec.image / .spec.resources override these.
+
 agent:
-  # Default agent image
   image: ghcr.io/hortator-ai/agent:latest
-  
-  # Default timeout
   timeout: 30m
-  
-  # Default resources for agent pods
+  defaultTimeoutSeconds: 600
+
   resources:
     limits:
       cpu: "1"
-      memory: 512Mi
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# ── Runtime Conventions ─────────────────────────────────────────────────────
+# Filesystem and context management settings for agent Pods.
+
+runtime:
+  # Filesystem conventions
+  filesystem:
+    enforceRequired: true         # Fail task if /outbox/result.json missing at completion
+    conventions:
+      decisionsLog: true          # Runtime auto-maintains /memory/decisions.log
+      errorsLog: true             # Runtime auto-maintains /memory/errors.log
+
+  # Context management strategy
+  contextManagement:
+    strategy: structured          # structured | summarize | hybrid
+    structured:
+      stateFile: /memory/state.json
+      autoExtract: true
+    summarization:
+      enabled: true               # Fallback when context exceeds threshold
+      triggerPercent: 75           # Summarize when 75% of context window used
+      keepRecentTurns: 10         # Always keep last N turns verbatim
+    vectorRetrieval:
+      enabled: false              # Opt-in, requires vector DB
+      # backend: pgvector | milvus | qdrant | chroma
+      # endpoint: ""
+
+# ── Models / LLM Routing ───────────────────────────────────────────────────
+# Default LLM endpoint. AgentTask/AgentRole specs override these.
+
+models:
+  default:
+    endpoint: ""                  # Required: user must configure
+    name: ""
+    apiKeyRef: {}                 # secretName + key
+
+  # Convenience presets for common in-cluster LLM backends
+  presets:
+    ollama:
+      enabled: false
+      endpoint: http://ollama.default.svc:11434/v1
+    vllm:
+      enabled: false
+      endpoint: http://vllm.default.svc:8000/v1
+    litellm:
+      enabled: false              # Ties into budget.litellmProxy
+      endpoint: http://litellm.default.svc:4000/v1
+
+# ── Storage ─────────────────────────────────────────────────────────────────
+# PVC management for agent workspaces.
+
+storage:
+  storageClass: ""                # Empty = cluster default
+  defaultSize: "1Gi"
+
+  # TTL-based cleanup of completed task PVCs
+  cleanup:
+    ttl:
+      completed: 7d
+      failed: 2d
+      cancelled: 1d
+
+  # Namespace quota guardrail
+  quota:
+    enabled: true
+    maxPerNamespace: 50Gi
+    warningPercent: 80
+    evictionPolicy: oldest-completed
+
+  # Retained PVC knowledge discovery
+  retained:
+    discovery: tags               # none | tags | semantic (post-MVP)
+    autoMount: true
+    mountMode: readOnly
+    staleAfterDays: 90
+    maxRetainedPerNamespace: 20
+    graduation:
+      vectorStore:
+        enabled: false
+      objectStore:
+        enabled: false
+
+# ── Budget / Cost Tracking ──────────────────────────────────────────────────
+# Token usage → cost calculation and per-task budget enforcement.
+
+budget:
+  enabled: true
+  priceSource: litellm            # litellm | custom
+  refreshIntervalHours: 24
+  fallbackBehavior: track-tokens  # track-tokens | block | warn
+
+  # Custom/override prices (merged on top of LiteLLM price map)
+  # Per million tokens: { inputPerMillion: X, outputPerMillion: Y }
+  customPrices: {}
+
+  # Default per-task budget (AgentTask.spec.budget overrides)
+  defaultLimit:
+    maxCostUsd: "1.00"
+
+  # Optional: LiteLLM proxy for authoritative cost tracking
+  litellmProxy:
+    enabled: false
+
+# ── Health / Stuck Detection ────────────────────────────────────────────────
+# Behavioral analysis to detect looping or stuck agents.
+
+health:
+  enabled: true
+  checkIntervalSeconds: 30
+
+  stuckDetection:
+    enabled: true
+    defaults:
+      toolDiversityMin: 0.3       # < 0.3 = repetitive actions (likely stuck)
+      maxRepeatedPrompts: 3       # > 3 similar prompts in window = looping
+      statusStaleMinutes: 5       # No self-reported progress update
+      checkWindowMinutes: 5       # Sliding window for behavioral analysis
+      action: warn                # warn | kill | escalate
+
+    # Per-role overrides (different roles have different "normal" behavior)
+    roleOverrides: {}
+      # qa-engineer:
+      #   toolDiversityMin: 0.15
+      #   maxRepeatedPrompts: 6
+
+    # Per-tier defaults (tribune/centurion/legionary)
+    tierOverrides: {}
+      # legionary:
+      #   action: kill
+
+  metrics:
+    expose: true
+    prefix: hortator
+
+# ── Telemetry / Audit Events ───────────────────────────────────────────────
+# OpenTelemetry integration for observability.
+
+telemetry:
+  enabled: true
+
+  collector:
+    deploy: true                  # true = deploy OTel Collector via sub-chart
+    # endpoint: http://otel-collector.monitoring:4317
+
+  exporters:
+    otlp:
+      endpoint: ""                # User fills in (e.g. Datadog, Grafana Cloud)
+
+# ── Presidio / PII Detection ───────────────────────────────────────────────
+# Scans agent output for PII and secrets before they leave the cluster.
+
+presidio:
+  enabled: true
+  image: mcr.microsoft.com/presidio-analyzer:latest
+  model: en_core_web_sm
+  scoreThreshold: 0.5
+  action: redact                  # redact | detect | hash | mask
+
+  recognizers:
+    disabled:
+      - PhoneRecognizer           # Slow: iterates all country codes per request
+    custom:
+      - name: AWSKeyRecognizer
+        entity: AWS_ACCESS_KEY
+        patterns:
+          - regex: "AKIA[0-9A-Z]{16}"
+            score: 0.95
+      - name: BearerTokenRecognizer
+        entity: BEARER_TOKEN
+        patterns:
+          - regex: "Bearer [A-Za-z0-9\\-._~+/]+=*"
+            score: 0.9
+      - name: PrivateKeyRecognizer
+        entity: PRIVATE_KEY
+        patterns:
+          - regex: "-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----"
+            score: 0.99
+
+  resources:
     requests:
       cpu: 100m
       memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
-# Metrics
+# ── Security ────────────────────────────────────────────────────────────────
+
+security:
+  defaultCapabilities:
+    - shell
+
+  networkPolicies:
+    enabled: true
+
+  rbac:
+    enabled: true
+
+# ── Metrics / Monitoring ────────────────────────────────────────────────────
+
 metrics:
   enabled: true
   serviceMonitor:
@@ -81,22 +290,38 @@ metrics:
     labels: {}
     interval: 30s
 
-# RBAC
+# ── RBAC & CRDs ────────────────────────────────────────────────────────────
+
 rbac:
   create: true
 
-# CRD management
 crds:
   install: true
-  keep: true  # Keep CRDs on uninstall
+  keep: true                      # Keep CRDs on uninstall
 
-# Namespace to watch (empty = all namespaces)
-watchNamespace: ""
+# ── NetworkPolicies ──────────────────────────────────────────────────────────
+# Capability-based network policies for agent pods.
 
-# Log level (debug, info, error)
+networkPolicies:
+  enabled: true
+  dnsPort: 53
+  # For spawn policy: CIDR of the K8s API server (auto-detected if omitted)
+  # apiServerCIDR: "10.96.0.1/32"
+  # apiServerPort: 6443
+
+# ── Worker RBAC ─────────────────────────────────────────────────────────────
+# ServiceAccount and Role for agent worker pods.
+
+workerRbac:
+  create: true
+  serviceAccountName: hortator-worker
+
+# ── Misc ────────────────────────────────────────────────────────────────────
+
+watchNamespace: ""                # Empty = all namespaces
 logLevel: info
 
-# Health probes
+# Health probes for the operator Pod itself
 probes:
   liveness:
     enabled: true
@@ -106,3 +331,15 @@ probes:
     enabled: true
     initialDelaySeconds: 5
     periodSeconds: 10
+
+# ── Examples / Quickstart ───────────────────────────────────────────────────
+
+examples:
+  enabled: false                  # Don't install by default
+  namespace: hortator-demo
+
+# ── Enterprise ──────────────────────────────────────────────────────────────
+
+enterprise:
+  enabled: false
+  image: ghcr.io/hortator-ai/operator:enterprise
