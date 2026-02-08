@@ -1,0 +1,277 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agenttasks.hortator.io
+spec:
+  group: hortator.io
+  names:
+    kind: AgentTask
+    listKind: AgentTaskList
+    plural: agenttasks
+    singular: agenttask
+    shortNames:
+      - at
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: Role
+          type: string
+          jsonPath: .spec.role
+        - name: Tier
+          type: string
+          jsonPath: .spec.tier
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+        - name: Duration
+          type: string
+          jsonPath: .status.duration
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [prompt]
+              properties:
+                # ── Core ──────────────────────────────────────────
+                prompt:
+                  type: string
+                  description: The task prompt given to the agent.
+                role:
+                  type: string
+                  description: >
+                    Reference to an AgentRole or ClusterAgentRole by name.
+                    Namespace-local AgentRole takes precedence over ClusterAgentRole.
+                flavor:
+                  type: string
+                  description: >
+                    Free-form addendum appended to the role's rules.
+                    Use for task-specific context without creating a new role.
+                tier:
+                  type: string
+                  enum: [consul, centurion, legionary]
+                  default: legionary
+                  description: >
+                    Agent hierarchy tier (Roman theme — Hortator commanded Roman galleys).
+                    Consul: strategic leadership, PVC storage, expensive models.
+                    Centurion: coordinates units, PVC storage, mid-tier models.
+                    Legionary: executes tasks, EmptyDir storage, fast/cheap models.
+
+                # ── Hierarchy ─────────────────────────────────────
+                parentTaskId:
+                  type: string
+                  description: >
+                    Task ID of the parent (establishes CEO → manager → worker tree).
+                    Workers inherit parent capabilities and cannot escalate beyond them.
+
+                # ── Model ─────────────────────────────────────────
+                model:
+                  type: object
+                  description: LLM endpoint configuration. Falls back to Helm defaults if omitted.
+                  properties:
+                    endpoint:
+                      type: string
+                      description: "Base URL (e.g. http://ollama:11434/v1, https://api.anthropic.com/v1)"
+                    name:
+                      type: string
+                      description: "Model name (e.g. claude-sonnet, llama3:70b)"
+                    apiKeyRef:
+                      type: object
+                      description: Reference to a K8s Secret containing the API key.
+                      properties:
+                        secretName:
+                          type: string
+                        key:
+                          type: string
+                      required: [secretName, key]
+                thinkingLevel:
+                  type: string
+                  enum: [low, medium, high]
+                  description: >
+                    Reasoning depth hint. Task-level, not role-level.
+                    Same role may need low thinking for a rename or high for architecture.
+
+                # ── Runtime ───────────────────────────────────────
+                image:
+                  type: string
+                  description: >
+                    Container image for the agent. Defaults to the Hortator
+                    default runtime image from Helm values.
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+                    enum: [shell, web-fetch, spawn]
+                  description: >
+                    Tools granted to the agent. Maps to NetworkPolicies
+                    (e.g. web-fetch enables egress). Workers inherit from
+                    parent and cannot escalate.
+                env:
+                  type: array
+                  description: Additional environment variables.
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      value:
+                        type: string
+                      valueFrom:
+                        type: object
+                        properties:
+                          secretKeyRef:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              key:
+                                type: string
+                            required: [name, key]
+                    required: [name]
+                timeout:
+                  type: integer
+                  description: Task timeout in seconds. Operator terminates the Pod after this.
+                  default: 600
+
+                # ── Budget ────────────────────────────────────────
+                budget:
+                  type: object
+                  description: Token/cost limits for this task.
+                  properties:
+                    maxTokens:
+                      type: integer
+                      description: Total token cap (input + output).
+                    maxCostUsd:
+                      type: string
+                      description: "Dollar cap as string (e.g. '0.50'). Requires price source."
+
+                # ── Resources ─────────────────────────────────────
+                resources:
+                  type: object
+                  description: K8s resource requests/limits for the agent Pod.
+                  properties:
+                    requests:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+                    limits:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+
+                # ── Storage ───────────────────────────────────────
+                storage:
+                  type: object
+                  description: Storage configuration overrides.
+                  properties:
+                    retain:
+                      type: boolean
+                      description: Exempt PVC from TTL cleanup.
+                      default: false
+                    retainDays:
+                      type: integer
+                      description: Custom TTL override in days.
+                    storageClass:
+                      type: string
+                    size:
+                      type: string
+                      description: "PVC size (e.g. '1Gi'). Only applies to ceo/manager tiers."
+                      default: "1Gi"
+
+                # ── Health ────────────────────────────────────────
+                health:
+                  type: object
+                  description: Per-task health/stuck detection overrides.
+                  properties:
+                    stuckDetection:
+                      type: object
+                      properties:
+                        toolDiversityMin:
+                          type: number
+                        maxRepeatedPrompts:
+                          type: integer
+                        statusStaleMinutes:
+                          type: integer
+                        action:
+                          type: string
+                          enum: [warn, kill, escalate]
+
+                # ── Presidio ──────────────────────────────────────
+                presidio:
+                  type: object
+                  description: Per-task Presidio overrides.
+                  properties:
+                    configRef:
+                      type: string
+                      description: Name of a ConfigMap with custom Presidio config.
+                    scoreThreshold:
+                      type: number
+                    action:
+                      type: string
+                      enum: [redact, detect, hash, mask]
+
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Running, Completed, Failed, BudgetExceeded, TimedOut, Cancelled]
+                podName:
+                  type: string
+                startedAt:
+                  type: string
+                  format: date-time
+                completedAt:
+                  type: string
+                  format: date-time
+                duration:
+                  type: string
+                output:
+                  type: string
+                  description: Summary from /outbox/result.json (truncated).
+                tokensUsed:
+                  type: object
+                  properties:
+                    input:
+                      type: integer
+                    output:
+                      type: integer
+                estimatedCostUsd:
+                  type: string
+                childTasks:
+                  type: array
+                  items:
+                    type: string
+                  description: Task IDs of spawned children.
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
