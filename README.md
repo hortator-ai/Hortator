@@ -12,6 +12,7 @@
   <a href="#architecture">Architecture</a> •
   <a href="#crds">CRDs</a> •
   <a href="#configuration">Configuration</a> •
+  <a href="#faq">FAQ</a> •
   <a href="#roadmap">Roadmap</a>
 </p>
 
@@ -19,11 +20,9 @@
 
 ## What is Hortator?
 
-Hortator is a **Kubernetes operator** that lets AI agents spawn other AI agents — forming autonomous hierarchies to solve complex problems.
+Hortator is a **Kubernetes operator** that lets AI agents spawn other AI agents — forming autonomous hierarchies with guardrails to solve complex problems.
 
-Think of it as **Kubernetes for AI workforces**: agents get isolated Pods, resource limits, network policies, budget caps, and health monitoring. They can spawn sub-agents, pass context, and report results — all orchestrated through K8s-native CRDs.
-
-**Hortator doesn't care how your agents think.** It provides the infrastructure — isolation, spawning, governance, security. Build your agents with LangGraph, CrewAI, AutoGen, or plain Python. Hortator runs them.
+It provides the **infrastructure layer** — isolation, lifecycle management, budget enforcement, security, and health monitoring — so agents can focus on thinking. Build your agents with LangGraph, CrewAI, AutoGen, or plain Python. Hortator runs them safely.
 
 ### Why not just run agents in a single container?
 
@@ -120,17 +119,17 @@ Each agent Pod has four mount points:
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                    Kubernetes Cluster                  │
+│                    Kubernetes Cluster                   │
 │                                                        │
 │  ┌──────────────┐    watches   ┌───────────────────┐   │
 │  │   Hortator   │◄────────────►│  AgentTask CRDs   │   │
 │  │   Operator   │              │  AgentRole CRDs   │   │
-│  └──────┬───────┘              └───────────────────┘   │
-│         │ creates                                      │
+│  └──────┬───────┘              │  AgentPolicy CRDs │   │
+│         │ creates              └───────────────────┘   │
 │         ▼                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │  Agent Pod   │  │  Agent Pod   │  │  Agent Pod   │  │
-│  │  (Tribune)    │  │  (Centurion) │  │  (Legionary) │  │
+│  │  (Tribune)   │  │  (Centurion) │  │  (Legionary) │  │
 │  │  ┌────────┐  │  │  ┌────────┐  │  │  ┌────────┐  │  │
 │  │  │Runtime │  │  │  │Runtime │  │  │  │Runtime │  │  │
 │  │  │+ CLI   │  │  │  │+ CLI   │  │  │  │+ CLI   │  │  │
@@ -148,10 +147,19 @@ Each agent Pod has four mount points:
 
 **Written in Go** — first-class K8s ecosystem support.
 
+**Two personas interact with Hortator:**
+
+| Who | Interface | What they do |
+|-----|-----------|--------------|
+| **Platform engineers** | Helm values, YAML CRDs | Configure operator, define roles/policies, set budgets |
+| **Agents** | `hortator` CLI inside Pods | Spawn sub-agents, check status, report results |
+
+Agents never touch YAML. The CLI creates CRDs under the hood.
+
 **Security layers:**
 - **NetworkPolicies** — automatically generated from agent capabilities (e.g., `web-fetch` opens egress, `shell` stays isolated)
 - **RBAC** — agents get minimal permissions (only create AgentTasks in their own namespace); capability inheritance prevents escalation
-- **Namespace restrictions** — optionally require `hortator.ai/enabled=true` label on namespaces (via `enforceNamespaceLabels` in ConfigMap)
+- **Namespace restrictions** — optionally require `core.hortator.ai/enabled=true` label on namespaces (via `enforceNamespaceLabels` in Helm values)
 
 **Observability:**
 - **Prometheus metrics** — `hortator_tasks_total`, `hortator_tasks_active`, `hortator_task_duration_seconds`
@@ -175,6 +183,7 @@ spec:
   parentTaskId: feature-auth-refactor
   timeout: 600
   capabilities: [shell, web-fetch]
+  thinkingLevel: low            # Reasoning depth hint (low/medium/high)
   budget:
     maxTokens: 100000
     maxCostUsd: "0.50"
@@ -188,7 +197,7 @@ spec:
     - name: ANTHROPIC_API_KEY
       valueFrom:
         secretKeyRef:
-          secretName: llm-keys
+          name: llm-keys
           key: anthropic
   resources:
     requests:
@@ -199,12 +208,22 @@ spec:
       memory: 1Gi
 ```
 
+**Key fields:**
+- `tier` — tribune / centurion / legionary (determines storage and default model)
+- `capabilities` — `shell`, `web-fetch`, `spawn` (maps to NetworkPolicies)
+- `thinkingLevel` — per-task reasoning depth hint (`low` / `medium` / `high`)
+- `flavor` — free-form addendum appended to the role's rules (task-specific context without a new role)
+- `image` — custom container image (defaults to Hortator runtime from Helm values)
+- `parentTaskId` — establishes hierarchy; children inherit and cannot escalate beyond parent capabilities
+
+**Status phases:** `Pending` → `Running` → `Completed` | `Failed` | `BudgetExceeded` | `TimedOut` | `Cancelled`
+
 ### AgentRole / ClusterAgentRole
 
 Defines behavioral archetypes for agents. Namespace-scoped (`AgentRole`) or cluster-wide (`ClusterAgentRole`).
 
 ```yaml
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: backend-dev
@@ -224,6 +243,31 @@ spec:
 ```
 
 **Resolution:** Namespace-local `AgentRole` takes precedence over `ClusterAgentRole` with the same name.
+
+### AgentPolicy *(Enterprise)*
+
+Namespace-scoped governance constraints. Enforces limits that individual tasks cannot override.
+
+```yaml
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentPolicy
+metadata:
+  name: production-restrictions
+  namespace: ai-team
+spec:
+  maxTier: centurion                    # No tribunes in this namespace
+  maxTimeout: 1800                      # 30 min max
+  maxConcurrentTasks: 10
+  allowedCapabilities: [shell, web-fetch]
+  deniedCapabilities: [spawn]           # Overrides allowed
+  allowedImages: ["ghcr.io/hortator/*"]
+  requirePresidio: true
+  maxBudget:
+    maxCostUsd: "5.00"
+  egressAllowlist:
+    - host: api.anthropic.com
+      ports: [443]
+```
 
 ## Configuration
 
@@ -250,16 +294,16 @@ See [`helm/values.yaml`](helm/values.yaml) for the full reference with comments.
 
 Hortator is designed for **autonomous agents with guardrails**:
 
-- 🔒 **Security**: Per-agent NetworkPolicies, RBAC, capability inheritance (legionaries can't escalate beyond parent)
+- 🔒 **Security**: Per-agent NetworkPolicies, RBAC, capability inheritance (children can't escalate beyond parent)
 - 💰 **Budget**: Token/cost caps per task, powered by LiteLLM price map. Optional LiteLLM proxy for authoritative tracking.
-- 🛡️ **PII Detection**: Presidio sidecar scans agent output for secrets, API keys, PII. Configurable action (redact/detect/hash/mask).
+- 🛡️ **PII Detection** *(Enterprise)*: Presidio sidecar scans agent output for secrets, API keys, PII. Configurable action (redact/detect/hash/mask).
 - 🏥 **Health Monitoring**: Behavioral stuck detection (tool diversity, prompt repetition, state staleness). Auto-kill or escalate stuck agents.
 - 📊 **Observability**: Full OpenTelemetry integration. Task hierarchy = distributed trace. Budget + health metrics via Prometheus.
-- 💾 **Context Management**: Structured extraction + summarization fallback. Graceful degradation when context window fills up ("agent reincarnation").
+- 💾 **Context Management**: Structured extraction + summarization fallback. Graceful degradation when context windows fill up ("agent reincarnation").
 
 ## CLI (for agents)
 
-The `hortator` CLI ships inside the runtime container. Agents use it to spawn sub-agents and manage tasks:
+The `hortator` CLI ships inside the runtime container. Agents use it to interact with the operator — they never write YAML.
 
 ```bash
 hortator spawn --prompt "Fix the login bug" --role backend-dev --wait
@@ -277,32 +321,47 @@ hortator budget-remaining              # Check remaining budget
 hortator progress --status "..."       # Self-report progress (for stuck detection)
 ```
 
-All commands support `--output json` (`-o json`) for scripting and automation.
+## FAQ
+
+**"This is just Kubernetes Jobs with extra steps."** — At the lowest level, yes. The value is the lifecycle management around the Job: result brokering, PVC lifecycle, budget enforcement, stuck detection, context management, security. Same argument for any K8s operator.
+
+**"Why not Argo Workflows / Tekton?"** — Argo defines static DAGs upfront. Hortator tasks are dynamically spawned by agents at runtime. The task tree emerges from the work, it's not predetermined. Argo is CI/CD infrastructure. Hortator is agent infrastructure.
+
+**"Agents spawning agents is terrifying."** — This is exactly why Hortator exists. Without guardrails, agents are already spawning Docker containers and SSH-ing into machines. Hortator adds capability inheritance, NetworkPolicies, budget caps, and namespace isolation.
+
+**"This doesn't make my agents smarter."** — Correct. Hortator is infrastructure, not an AI framework. It stops good agents from failing for infrastructure reasons: context exhaustion, runaway costs, no isolation, no monitoring.
+
+See [full FAQ](docs/faq.md) for more.
 
 ## Roadmap
 
-### MVP (P0)
-- AgentTask CRD + basic operator (watch → create Job → track status)
-- CLI: `spawn`, `status`, `result`, `spawn --wait`
+### ✅ Done
+- AgentTask CRD + operator (watch → create Job → track status)
+- CLI: `spawn`, `status`, `result`, `logs`, `cancel`, `list`, `tree`
 - Default runtime container with standard filesystem layout
 - Helm chart with sane defaults
-- PVC provisioning for persistent tiers
-
-### Next (P1)
 - Task hierarchy (tribune → centurion → legionary chains)
 - TTL-based PVC cleanup + retention labels
 - Prometheus metrics
-- Security: NetworkPolicies from capabilities, RBAC
-- Capability inheritance
-
-### Future (P2)
-- Presidio PII detection sidecar
+- Security: NetworkPolicies from capabilities, RBAC, capability inheritance
 - OpenTelemetry distributed tracing
+- Namespace restrictions (`enforceNamespaceLabels`)
+- JSON output for all CLI commands
+- AgentPolicy CRD *(Enterprise)*
+- Presidio PII detection sidecar *(Enterprise)*
+- CI/CD pipeline (GitHub Actions, linting, Dependabot)
+
+### Next
 - Budget enforcement with LiteLLM integration
 - Stuck detection + auto-escalation
 - Retained PVC knowledge discovery (tag matching → vector graduation)
-- Multi-tenancy (namespace isolation, cross-namespace policies)
-- Enterprise: AgentPolicy CRD, egress allowlists, OIDC/SSO
+- Multi-tenancy (cross-namespace policies)
+- Python SDK
+
+### Future
+- Object storage archival for completed task artifacts
+- OIDC/SSO *(Enterprise)*
+- Web dashboard for task hierarchy visualization
 
 ## Contributing
 
