@@ -82,10 +82,9 @@ spec:
                     type: string
                 type: object
               timeout:
-                default: 30m
-                description: Timeout is the maximum duration for task execution (e.g.,
-                  "30m", "1h")
-                type: string
+                default: 600
+                description: Timeout is the task timeout in seconds.
+                type: integer
             required:
             - prompt
             type: object

@@ -15,7 +15,7 @@ RUN mkdir -p /inbox /outbox /workspace /memory
 
 COPY --from=cli-builder /hortator /usr/local/bin/hortator
 
-COPY entrypoint.sh /entrypoint.sh
+COPY runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
