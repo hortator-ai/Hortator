@@ -81,6 +81,7 @@ nav:
   - Enterprise:
     - Overview: enterprise/overview.md
     - License: enterprise/license.md
+  - FAQ: faq.md
   - Roadmap: roadmap.md
 
 extra:
