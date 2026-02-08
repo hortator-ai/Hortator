@@ -1,0 +1,89 @@
+site_name: Hortator
+site_description: Kubernetes-native orchestration for autonomous AI agents
+site_url: https://docs.hortator.io
+repo_url: https://github.com/michael-niemand/Hortator
+repo_name: michael-niemand/Hortator
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+  logo: material/sword-cross
+  favicon: material/sword-cross
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quickstart: getting-started/quickstart.md
+    - Concepts: getting-started/concepts.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - CRDs: architecture/crds.md
+    - Storage Model: architecture/storage.md
+    - Telemetry: architecture/telemetry.md
+  - Guides:
+    - Choosing Strategies: guides/choosing-strategies.md
+    - Model Routing: guides/model-routing.md
+    - Budget Controls: guides/budget.md
+    - PII Detection: guides/presidio.md
+  - Configuration:
+    - Helm Values Reference: configuration/helm-values.md
+    - AgentTask Spec: configuration/agenttask.md
+    - AgentRole Spec: configuration/agentrole.md
+  - Enterprise:
+    - Overview: enterprise/overview.md
+    - License: enterprise/license.md
+  - Roadmap: roadmap.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/michael-niemand/Hortator
