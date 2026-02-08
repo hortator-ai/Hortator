@@ -61,7 +61,7 @@ func init() {
 	spawnCmd.Flags().StringVarP(&spawnModel, "model", "m", "", "LLM model")
 	spawnCmd.Flags().StringVar(&spawnName, "name", "", "Task name")
 	spawnCmd.Flags().BoolVarP(&spawnWait, "wait", "w", false, "Wait for completion")
-	spawnCmd.MarkFlagRequired("prompt")
+	_ = spawnCmd.MarkFlagRequired("prompt")
 	rootCmd.AddCommand(spawnCmd)
 }
 
