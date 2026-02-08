@@ -1,0 +1,30 @@
+{{- if .Values.presidio.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hortator.fullname" . }}-presidio-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    recognizers:
+      {{- if .Values.presidio.recognizers.disabled }}
+      disabled:
+        {{- range .Values.presidio.recognizers.disabled }}
+        - {{ . }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.presidio.recognizers.custom }}
+      custom:
+        {{- range .Values.presidio.recognizers.custom }}
+        - name: {{ .name }}
+          entity: {{ .entity }}
+          patterns:
+            {{- range .patterns }}
+            - regex: {{ .regex | quote }}
+              score: {{ .score }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+{{- end }}

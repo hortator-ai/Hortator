@@ -6,6 +6,11 @@ metadata:
   labels:
     {{- include "hortator.labels" . | nindent 4 }}
 data:
+  # Flat keys read directly by the operator controller
+  presidioEnabled: {{ .Values.presidio.enabled | quote }}
+  presidioImage: {{ .Values.presidio.image | quote }}
+  presidioScoreThreshold: {{ .Values.presidio.scoreThreshold | quote }}
+  presidioAction: {{ .Values.presidio.action | quote }}
   # Agent defaults — the operator reads this at startup to configure
   # reconciliation behavior and default values for AgentTask Pods.
   config.yaml: |
@@ -55,8 +60,10 @@ data:
 
     presidio:
       enabled: {{ .Values.presidio.enabled }}
+      image: {{ .Values.presidio.image | quote }}
       scoreThreshold: {{ .Values.presidio.scoreThreshold }}
       action: {{ .Values.presidio.action | quote }}
+      model: {{ .Values.presidio.model | quote }}
 
     telemetry:
       enabled: {{ .Values.telemetry.enabled }}

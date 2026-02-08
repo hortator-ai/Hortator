@@ -1,0 +1,17 @@
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentPolicy
+metadata:
+  name: restricted-policy
+  namespace: default
+spec:
+  allowedCapabilities:
+    - shell
+    - web-fetch
+  allowedImages:
+    - "ghcr.io/hortator/*"
+  maxBudget:
+    maxCostUsd: "1.00"
+    maxTokens: 200000
+  maxTier: centurion
+  maxConcurrentTasks: 5
+  requirePresidio: true

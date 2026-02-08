@@ -49,6 +49,19 @@ write_result() {
     '{input:$i, output:$o, total:($i+$o)}' > "$USAGE_FILE"
 }
 
+# --- Presidio PII scanning ---
+presidio_scan() {
+    local text="$1"
+    if [ -n "${PRESIDIO_ENDPOINT:-}" ]; then
+        local result
+        result=$(curl -s "$PRESIDIO_ENDPOINT/analyze" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg t "$text" '{text:$t, language:"en"}')")
+        # Log any PII found
+        echo "$result" | jq -r '.[] | "PII detected: \(.entity_type) score=\(.score)"' 2>/dev/null || true
+    fi
+}
+
 # --- Read task.json ---
 [[ -f "$TASK_FILE" ]] || die "task.json not found at ${TASK_FILE}"
 
@@ -83,6 +96,9 @@ fi
 [[ -z "$PROMPT" ]] && die "Empty prompt in task.json"
 
 echo "[hortator-runtime] Task=${TASK_ID} Role=${ROLE} Tier=${TIER} Model=${MODEL}"
+
+# Scan prompt for PII before sending to LLM
+presidio_scan "$PROMPT"
 
 # --- Build system message ---
 SYSTEM="You are an AI agent working as a ${ROLE}. Complete the task given to you."
@@ -155,6 +171,9 @@ else
   INPUT_TOKENS=0
   OUTPUT_TOKENS=0
 fi
+
+# Scan response for PII before writing results
+presidio_scan "$SUMMARY"
 
 # --- Write results ---
 write_result "completed" "$SUMMARY" "$INPUT_TOKENS" "$OUTPUT_TOKENS"
