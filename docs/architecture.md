@@ -17,7 +17,7 @@ graph TB
 
     subgraph "Agent Pods"
         direction TB
-        Consul["🏛️ Consul Pod<br/>PVC + Runtime + CLI"]
+        Tribune["🏛️ Tribune Pod<br/>PVC + Runtime + CLI"]
         Centurion["⚔️ Centurion Pod<br/>PVC + Runtime + CLI"]
         Legionary["🗡️ Legionary Pod<br/>EmptyDir + Runtime + CLI"]
     end
@@ -39,7 +39,7 @@ graph TB
     end
 
     subgraph "Storage"
-        PVC_C["💾 Consul PVC<br/>/memory /inbox /outbox /workspace"]
+        PVC_C["💾 Tribune PVC<br/>/memory /inbox /outbox /workspace"]
         PVC_M["💾 Centurion PVC<br/>/memory /inbox /outbox /workspace"]
         Archive["🗄️ Object Storage<br/>S3 / MinIO (optional)"]
         VectorDB["🔍 Vector DB<br/>(optional)"]
@@ -51,25 +51,25 @@ graph TB
     Helm -->|installs| CRDs
 
     Operator -->|watches| CRDs
-    Operator -->|creates| Consul
+    Operator -->|creates| Tribune
     Operator -->|creates| Centurion
     Operator -->|creates| Legionary
-    Operator -->|brokers results| Consul
+    Operator -->|brokers results| Tribune
     Operator -->|brokers results| Centurion
 
-    Consul -->|hortator spawn| CRDs
+    Tribune -->|hortator spawn| CRDs
     Centurion -->|hortator spawn| CRDs
 
-    Consul --- PVC_C
+    Tribune --- PVC_C
     Centurion --- PVC_M
-    Consul -.- Presidio
+    Tribune -.- Presidio
     Centurion -.- Presidio
     Legionary -.- Presidio
 
-    Consul -->|LLM calls| LiteLLM
+    Tribune -->|LLM calls| LiteLLM
     Centurion -->|LLM calls| LiteLLM
     Legionary -->|LLM calls| LiteLLM
-    Consul -.->|direct| Cloud
+    Tribune -.->|direct| Cloud
     LiteLLM --> Cloud
     LiteLLM --> Local
 
@@ -81,7 +81,7 @@ graph TB
     Operator -->|archive stale PVCs| Archive
     Operator -->|graduate knowledge| VectorDB
 
-    style Consul fill:#4a90d9,color:#fff
+    style Tribune fill:#4a90d9,color:#fff
     style Centurion fill:#d4a029,color:#fff
     style Legionary fill:#7a7a7a,color:#fff
     style Operator fill:#2d6b3f,color:#fff
@@ -102,7 +102,7 @@ sequenceDiagram
     O->>O: Resolve AgentRole (ns-local → cluster fallback)
     O->>O: Inject role rules + flavor into /inbox/task.json
     O->>O: Match retained PVCs by tags → /inbox/context.json
-    O->>K: Create Job + PVC (centurion/consul) or EmptyDir (legionary)
+    O->>K: Create Job + PVC (centurion/tribune) or EmptyDir (legionary)
     K->>P: Schedule Pod
     
     activate P

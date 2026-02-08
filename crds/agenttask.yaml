@@ -59,11 +59,11 @@ spec:
                     Use for task-specific context without creating a new role.
                 tier:
                   type: string
-                  enum: [consul, centurion, legionary]
+                  enum: [tribune, centurion, legionary]
                   default: legionary
                   description: >
                     Agent hierarchy tier (Roman theme — Hortator commanded Roman galleys).
-                    Consul: strategic leadership, PVC storage, expensive models.
+                    Tribune: strategic leadership, PVC storage, expensive models.
                     Centurion: coordinates units, PVC storage, mid-tier models.
                     Legionary: executes tasks, EmptyDir storage, fast/cheap models.
 
@@ -71,7 +71,7 @@ spec:
                 parentTaskId:
                   type: string
                   description: >
-                    Task ID of the parent (establishes CEO → manager → worker tree).
+                    Task ID of the parent (establishes tribune → centurion → legionary tree).
                     Workers inherit parent capabilities and cannot escalate beyond them.
 
                 # ── Model ─────────────────────────────────────────
@@ -191,7 +191,7 @@ spec:
                       type: string
                     size:
                       type: string
-                      description: "PVC size (e.g. '1Gi'). Only applies to ceo/manager tiers."
+                      description: "PVC size (e.g. '1Gi'). Only applies to tribune/centurion tiers."
                       default: "1Gi"
 
                 # ── Health ────────────────────────────────────────
