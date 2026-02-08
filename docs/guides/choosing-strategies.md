@@ -54,7 +54,7 @@ runtime:
       endpoint: postgres://...
 ```
 
-**Best for:** Consul-tier agents managing long-lived projects. Research agents. Agents that need "institutional memory" spanning weeks/months.
+**Best for:** Tribune-tier agents managing long-lived projects. Research agents. Agents that need "institutional memory" spanning weeks/months.
 
 **Don't use for:** Short-lived legionary tasks. The infrastructure overhead isn't worth it for a 5-minute coding task.
 
@@ -64,7 +64,7 @@ runtime:
 |----------|----------|-----|
 | Fix a bug (legionary) | Structured | Track attempts, prevent retries, cheap |
 | Coordinate 5 legionaries (centurion) | Hybrid | Structured state + summarized coordination history |
-| Architect a system (consul) | Summarize + Vector | Long narrative + searchable past decisions |
+| Architect a system (tribune) | Summarize + Vector | Long narrative + searchable past decisions |
 | One-shot data transform | Structured | Probably won't even need compression |
 | Multi-day research project | Vector | Need to recall specific findings across sessions |
 
@@ -115,7 +115,7 @@ routing:
       model: fast          # Cheap local model
     - tier: centurion
       model: smart         # Mid-tier cloud model
-    - tier: consul
+    - tier: tribune
       model: reasoning     # Expensive reasoning model
 ```
 

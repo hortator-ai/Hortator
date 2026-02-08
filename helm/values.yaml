@@ -197,12 +197,12 @@ health:
       # researcher:
       #   statusStaleMinutes: 10    # Reading takes longer, fewer tool calls
 
-    # Per-tier defaults (consul/centurion/legionary)
+    # Per-tier defaults (tribune/centurion/legionary)
     tierOverrides: {}
       # legionary:
       #   action: kill              # Kill stuck legionaries, don't waste tokens
       # centurion:
-      #   action: escalate          # Escalate stuck centurions to consul
+      #   action: escalate          # Escalate stuck centurions to tribune
       #   statusStaleMinutes: 10    # Coordination takes longer
 
   metrics:

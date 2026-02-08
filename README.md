@@ -66,13 +66,13 @@ Hortator uses a Roman military hierarchy — because the Hortator was a Roman ga
 
 | Tier | Role | Storage | Model | Lifespan |
 |------|------|---------|-------|----------|
-| **Consul** | Strategic leadership. Decomposes complex problems. | PVC (persistent) | Expensive reasoning | Long-lived |
+| **Tribune** | Strategic leadership. Decomposes complex problems. | PVC (persistent) | Expensive reasoning | Long-lived |
 | **Centurion** | Coordinates a unit. Delegates to legionaries, collects results. | PVC (persistent) | Mid-tier | Medium |
 | **Legionary** | Executes a single focused task. | EmptyDir (ephemeral) | Fast/cheap | Short-lived |
 
 ```
          ┌──────────┐
-         │  Consul  │  "Redesign the auth system"
+         │  Tribune  │  "Redesign the auth system"
          └────┬─────┘
               │
     ┌─────────┼─────────┐
@@ -88,12 +88,12 @@ Hortator uses a Roman military hierarchy — because the Hortator was a Roman ga
 
 ### The Flow
 
-1. A **Consul** receives a complex task via `AgentTask` CRD
+1. A **Tribune** receives a complex task via `AgentTask` CRD
 2. It uses the `hortator` CLI inside its Pod to spawn **Centurions**
 3. Each Centurion spawns **Legionaries** for specific subtasks
 4. Legionaries write results to `/outbox/result.json`
 5. Operator copies results to parent's `/inbox/` and triggers the next turn
-6. Results flow up the chain: Legionary → Centurion → Consul → done
+6. Results flow up the chain: Legionary → Centurion → Tribune → done
 
 ### Agent Communication
 
@@ -130,7 +130,7 @@ Each agent Pod has four mount points:
 │         ▼                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │  Agent Pod   │  │  Agent Pod   │  │  Agent Pod   │  │
-│  │  (Consul)    │  │  (Centurion) │  │  (Legionary) │  │
+│  │  (Tribune)    │  │  (Centurion) │  │  (Legionary) │  │
 │  │  ┌────────┐  │  │  ┌────────┐  │  │  ┌────────┐  │  │
 │  │  │Runtime │  │  │  │Runtime │  │  │  │Runtime │  │  │
 │  │  │+ CLI   │  │  │  │+ CLI   │  │  │  │+ CLI   │  │  │
@@ -262,7 +262,7 @@ hortator progress --status "..."   # Self-report progress (for stuck detection)
 - PVC provisioning for persistent tiers
 
 ### Next (P1)
-- Task hierarchy (consul → centurion → legionary chains)
+- Task hierarchy (tribune → centurion → legionary chains)
 - TTL-based PVC cleanup + retention labels
 - Prometheus metrics
 - Security: NetworkPolicies from capabilities, RBAC
