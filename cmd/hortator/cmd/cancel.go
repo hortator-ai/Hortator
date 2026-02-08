@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -82,6 +83,12 @@ func runCancel(cmd *cobra.Command, args []string) error {
 
 	if err := k8sClient.Status().Update(ctx, task); err != nil {
 		return fmt.Errorf("failed to update task status: %w", err)
+	}
+
+	if outputFormat == "json" {
+		data, _ := json.MarshalIndent(map[string]string{"task": name, "status": "cancelled"}, "", "  ")
+		fmt.Println(string(data))
+		return nil
 	}
 
 	fmt.Printf("✓ Task '%s' cancelled\n", name)
