@@ -1,0 +1,74 @@
+{{- if .Values.networkPolicies.enabled }}
+---
+# Default policy: deny all egress except DNS for all agent pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hortator.fullname" . }}-agent-default
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      hortator.ai/managed: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: {{ .Values.networkPolicies.dnsPort }}
+          protocol: UDP
+        - port: {{ .Values.networkPolicies.dnsPort }}
+          protocol: TCP
+---
+# web-fetch policy: allows HTTP/HTTPS egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hortator.fullname" . }}-cap-web-fetch
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      hortator.ai/managed: "true"
+      hortator.ai/cap-web-fetch: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+---
+# spawn policy: allows egress to K8s API server (port 443)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hortator.fullname" . }}-cap-spawn
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      hortator.ai/managed: "true"
+      hortator.ai/cap-spawn: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              component: kube-apiserver
+      ports:
+        - port: 443
+          protocol: TCP
+    # Fallback: API server may run on host network (default endpoint)
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicies.apiServerCIDR | default "0.0.0.0/0" }}
+      ports:
+        - port: {{ .Values.networkPolicies.apiServerPort | default 6443 }}
+          protocol: TCP
+{{- end }}

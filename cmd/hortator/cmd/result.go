@@ -70,7 +70,7 @@ func runResult(cmd *cobra.Command, args []string) error {
 	}
 
 	switch task.Status.Phase {
-	case corev1alpha1.AgentTaskPhaseSucceeded, corev1alpha1.AgentTaskPhaseFailed:
+	case corev1alpha1.AgentTaskPhaseCompleted, corev1alpha1.AgentTaskPhaseFailed:
 	case corev1alpha1.AgentTaskPhasePending:
 		return fmt.Errorf("task is still pending")
 	case corev1alpha1.AgentTaskPhaseRunning:
@@ -87,11 +87,14 @@ func runResult(cmd *cobra.Command, args []string) error {
 			"message":   task.Status.Message,
 			"output":    task.Status.Output,
 		}
-		if task.Status.StartTime != nil {
-			result["startTime"] = task.Status.StartTime.Time
+		if task.Status.StartedAt != nil {
+			result["startedAt"] = task.Status.StartedAt.Time
 		}
-		if task.Status.CompletionTime != nil {
-			result["completionTime"] = task.Status.CompletionTime.Time
+		if task.Status.CompletedAt != nil {
+			result["completedAt"] = task.Status.CompletedAt.Time
+		}
+		if task.Status.Duration != "" {
+			result["duration"] = task.Status.Duration
 		}
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {

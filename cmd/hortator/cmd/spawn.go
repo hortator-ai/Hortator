@@ -73,6 +73,13 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 	}
 	name = strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 
+	// Parse timeout string to seconds
+	timeoutDuration, err := time.ParseDuration(spawnTimeout)
+	if err != nil {
+		return fmt.Errorf("invalid timeout: %w", err)
+	}
+	timeoutSec := int(timeoutDuration.Seconds())
+
 	task := &corev1alpha1.AgentTask{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -81,10 +88,13 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 		Spec: corev1alpha1.AgentTaskSpec{
 			Prompt:       spawnPrompt,
 			Capabilities: spawnCapabilities,
-			Timeout:      spawnTimeout,
 			Image:        spawnImage,
-			Model:        spawnModel,
+			Timeout:      &timeoutSec,
 		},
+	}
+
+	if spawnModel != "" {
+		task.Spec.Model = &corev1alpha1.ModelSpec{Name: spawnModel}
 	}
 
 	if err := k8sClient.Create(ctx, task); err != nil {
@@ -120,7 +130,7 @@ func waitForTask(ctx context.Context, name string) error {
 			}
 
 			switch task.Status.Phase {
-			case corev1alpha1.AgentTaskPhaseSucceeded:
+			case corev1alpha1.AgentTaskPhaseCompleted:
 				fmt.Printf("✓ Task completed successfully\n")
 				if task.Status.Output != "" {
 					fmt.Printf("\nOutput:\n%s\n", task.Status.Output)
