@@ -51,7 +51,7 @@ spec:
     Don't touch migrations.
     The bug is in packages/api/src/routes/auth.ts line 47.
   prompt: "Fix the session cookie not being set on login response"
-  tier: legionary             # ← consul | centurion | legionary
+  tier: legionary             # ← tribune | centurion | legionary
   thinkingLevel: medium       # ← task-level, not role-level
   timeout: 600
 ```

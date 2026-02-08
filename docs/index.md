@@ -42,7 +42,7 @@ helm install hortator hortator/hortator \
 
 | Tier | Role | Storage | Model |
 |------|------|---------|-------|
-| **Consul** | Strategic leadership | PVC (persistent) | Expensive reasoning |
+| **Tribune** | Strategic leadership | PVC (persistent) | Expensive reasoning |
 | **Centurion** | Coordinates a unit | PVC (persistent) | Mid-tier |
 | **Legionary** | Executes a single task | EmptyDir (ephemeral) | Fast/cheap |
 

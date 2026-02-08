@@ -4,7 +4,7 @@
 
 Hortator is named after the officer on Roman galleys who commanded the rowers. The hierarchy follows the Roman military theme:
 
-### Consul
+### Tribune
 
 The strategic leader. Receives a complex problem, breaks it down, and delegates to centurions.
 
@@ -14,7 +14,7 @@ The strategic leader. Receives a complex problem, breaks it down, and delegates 
 
 ### Centurion
 
-The unit commander. Coordinates a group of legionaries, collects their results, and reports to the consul.
+The unit commander. Coordinates a group of legionaries, collects their results, and reports to the tribune.
 
 - **Storage:** Persistent Volume Claim (PVC) — survives across turns
 - **Model:** Mid-tier models (Sonnet, GPT-4o)
@@ -30,7 +30,7 @@ The soldier. Executes a single, focused task. Expendable — spawned for a job, 
 
 ```
          ┌──────────┐
-         │  Consul   │  "Redesign the auth system"
+         │  Tribune   │  "Redesign the auth system"
          └────┬─────┘
               │
     ┌─────────┼─────────┐

@@ -91,7 +91,7 @@ examples/
     roles.yaml           # Sample ClusterAgentRoles
     hello-world.yaml     # Simple AgentTask
   advanced/
-    multi-tier.yaml      # Consul → Centurion → Legionary
+    multi-tier.yaml      # Tribune → Centurion → Legionary
     with-presidio.yaml   # PII detection
     with-budget.yaml     # Cost-capped task
 ```
@@ -112,7 +112,7 @@ examples/
 - [ ] **P0** As an AI developer, I want task status to reflect Pending/Running/Completed/Failed states
 - [ ] **P0** As an AI developer, I want to set a timeout so runaway tasks get terminated automatically
 - [ ] **P0** As an AI developer, I want to specify environment variables (API keys etc.) via secretRef
-- [ ] **P1** As an AI developer, I want to specify a parent task ID to establish hierarchy (consul → centurion → legionary)
+- [ ] **P1** As an AI developer, I want to specify a parent task ID to establish hierarchy (tribune → centurion → legionary)
 - [ ] **P1** As an AI developer, I want to specify which container image to use (or default to Hortator runtime)
 - [ ] **P1** As an AI developer, I want task results stored in status.output so I can retrieve them
 
@@ -141,7 +141,7 @@ examples/
 
 ## 💾 EPIC: Storage
 
-- [ ] **P0** As a platform engineer, I want PVCs automatically provisioned for persistent agents (consul, centurion tiers)
+- [ ] **P0** As a platform engineer, I want PVCs automatically provisioned for persistent agents (tribune, centurion tiers)
 - [ ] **P0** As an agent, I want to read my task from /inbox/task.json when I start
 - [ ] **P0** As an agent, I want to write my results to /outbox/result.json when I complete
 - [ ] **P0** As an agent, I want /workspace for temporary files during task execution
@@ -452,12 +452,12 @@ storage:
 |----------|----------|----------|----------------|
 | **Structured extraction** | ✅ Yes | Legionaries (focused tasks, state tracking) | None (files) |
 | **Summarization** | ✅ Fallback | Centurions (narrative continuity) | None (LLM call) |
-| **Vector retrieval** | ❌ Opt-in | Consul / large knowledge bases | Vector DB required |
+| **Vector retrieval** | ❌ Opt-in | Tribune / large knowledge bases | Vector DB required |
 
 **Maps to hierarchy:**
 - Legionaries → structured state in `/memory/state.json`
 - Centurions → summarization of own history + structured results from legionaries
-- Consul → summarization + optional vector retrieval
+- Tribune → summarization + optional vector retrieval
 
 **Graceful degradation (unique to Hortator):**
 - 75% context → trigger summarization
@@ -497,7 +497,7 @@ Ollama (dev/small teams, ~1-3 req/sec) and vLLM (production, ~120-160 req/sec) b
 **Three levels of routing sophistication:**
 1. **Static (MVP):** AgentTask/AgentRole specifies endpoint+model. Runtime gets `LLM_BASE_URL` env var.
 2. **LiteLLM routing (optional):** Model aliases (`fast`/`smart`/`reasoning`), cost-based routing, automatic fallback (cloud down → local).
-3. **Task-aware (post-MVP):** Auto-map hierarchy tier to model tier (legionary→cheap, centurion→mid, consul→expensive).
+3. **Task-aware (post-MVP):** Auto-map hierarchy tier to model tier (legionary→cheap, centurion→mid, tribune→expensive).
 
 **Helm values:**
 ```yaml
@@ -718,7 +718,7 @@ TLS interception in K8s is complex (MITM certs), streaming responses are fragile
 | Custom JSON | ❌ | Total flexibility but zero ecosystem. Every SIEM needs custom parsers. We maintain the spec forever. |
 | OpenTelemetry | ✅ | CNCF-native, universal ingestion (Datadog/Splunk/Elastic/Grafana), trace correlation, CEF export via Collector for free. |
 
-**Key insight: Task hierarchy = distributed trace.** Consul → centurion → legionaries maps naturally to OTel spans. Full task tree visible in Jaeger/Tempo. Way more powerful than flat audit logs.
+**Key insight: Task hierarchy = distributed trace.** Tribune → centurion → legionaries maps naturally to OTel spans. Full task tree visible in Jaeger/Tempo. Way more powerful than flat audit logs.
 
 **Event naming convention:** `hortator.<domain>.<action>`
 - `hortator.task.spawned` / `.completed` / `.failed` / `.cancelled`
@@ -771,7 +771,7 @@ telemetry:
 - **State model:** K8s Jobs (ephemeral), not StatefulSets. Import/export folders, dispose after task.
 - **Tenant isolation:** K8s-native (namespaces + NetworkPolicies + RBAC). Not an enterprise feature, just document it.
 - **DLP without cloud dependency:** Microsoft Presidio (MIT, runs in-cluster, NLP + regex).
-- **Storage model:** Legionaries: EmptyDir (auto-deleted with Pod). Centurions/Consul: PVC (persists across turns, explicit/TTL cleanup).
+- **Storage model:** Legionaries: EmptyDir (auto-deleted with Pod). Centurions/Tribune: PVC (persists across turns, explicit/TTL cleanup).
 - **Manager↔Worker comms:** Operator as broker. Worker completes → Operator writes to parent /inbox/ → Operator spawns parent turn. No message queue needed.
 - **Manager turns:** Each turn is a Job mounting persistent PVC. Pod is ephemeral, PVC is identity. /memory/, /inbox/, /workspace/, /outbox/ structure.
 
