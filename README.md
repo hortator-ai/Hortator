@@ -35,26 +35,38 @@ It provides the **infrastructure layer** — isolation, lifecycle management, bu
 | Static agent count | Dynamic spawning (agents create agents) |
 | One big context window | Per-agent context + structured handoffs |
 
+## Prerequisites
+
+- **Kubernetes** 1.28+ (RKE2, K3s, EKS, GKE, etc.)
+- **Helm** 3.x
+- **Default StorageClass** — required for tribune/centurion tiers. RKE2/K3s don't ship one by default; install [local-path-provisioner](https://github.com/rancher/local-path-provisioner):
+  ```bash
+  kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.30/deploy/local-path-storage.yaml
+  kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  ```
+- **LLM API key** — Anthropic, OpenAI, or any OpenAI-compatible endpoint
+
 ## Quickstart
 
 ```bash
 # Install the operator
-helm repo add hortator https://charts.hortator.io
-helm install hortator hortator/hortator \
+helm install hortator oci://ghcr.io/michael-niemand/hortator/charts/hortator \
   --namespace hortator-system --create-namespace \
   --set models.default.endpoint=https://api.anthropic.com/v1 \
-  --set models.default.name=claude-sonnet \
-  --set examples.enabled=true   # Install sample roles + hello-world task
+  --set models.default.name=claude-sonnet-4-20250514
 
-# Watch your first agent run
+# Create a secret with your API key
+kubectl create namespace hortator-demo
+kubectl create secret generic anthropic-api-key \
+  --namespace hortator-demo \
+  --from-literal=api-key=sk-ant-...
+
+# Run your first task
+kubectl apply -f examples/quickstart/hello-world.yaml
+
+# Watch it
 kubectl get agenttasks -n hortator-demo -w
-```
-
-Or install examples separately:
-
-```bash
-helm install hortator hortator/hortator -n hortator-system --create-namespace
-kubectl apply -f https://raw.githubusercontent.com/hortator/hortator/main/examples/quickstart/
+kubectl logs -n hortator-demo -l hortator.ai/task=hello-world -c agent
 ```
 
 ## How It Works
