@@ -6,10 +6,16 @@ metadata:
   labels:
     {{- include "hortator.labels" . | nindent 4 }}
 rules:
+  # Hortator CRDs
   - apiGroups:
       - core.hortator.ai
     resources:
       - agenttasks
+      - agenttasks/status
+      - agenttasks/finalizers
+      - agentroles
+      - clusteragentroles
+      - agentpolicies
     verbs:
       - create
       - delete
@@ -18,24 +24,12 @@ rules:
       - patch
       - update
       - watch
-  - apiGroups:
-      - core.hortator.ai
-    resources:
-      - agenttasks/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - core.hortator.ai
-    resources:
-      - agenttasks/finalizers
-    verbs:
-      - update
+  # Pods (agent workloads)
   - apiGroups:
       - ""
     resources:
       - pods
+      - pods/log
     verbs:
       - create
       - delete
@@ -44,12 +38,65 @@ rules:
       - patch
       - update
       - watch
+  # PVCs (agent workspace storage)
   - apiGroups:
       - ""
     resources:
-      - pods/log
+      - persistentvolumeclaims
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  # Secrets (API key refs)
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
     verbs:
       - get
+      - list
+      - watch
+  # ConfigMaps (operator config, leader election at cluster scope)
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  # Leases (leader election)
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  # ServiceAccounts (for worker pods)
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+  # Events
   - apiGroups:
       - ""
     resources:

@@ -54,9 +54,12 @@ presidio_scan() {
     local text="$1"
     if [ -n "${PRESIDIO_ENDPOINT:-}" ]; then
         local result
-        result=$(curl -s "$PRESIDIO_ENDPOINT/analyze" \
+        result=$(curl -s --max-time 5 "$PRESIDIO_ENDPOINT/analyze" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg t "$text" '{text:$t, language:"en"}')")
+            -d "$(jq -n --arg t "$text" '{text:$t, language:"en"}')" 2>/dev/null) || {
+            echo "[hortator-runtime] WARN: Presidio not reachable, skipping PII scan"
+            return 0
+        }
         # Log any PII found
         echo "$result" | jq -r '.[] | "PII detected: \(.entity_type) score=\(.score)"' 2>/dev/null || true
     fi
@@ -124,10 +127,7 @@ if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
       --arg system "$SYSTEM" \
       --arg prompt "$PROMPT" \
       '{model:$model, max_tokens:4096, system:$system, messages:[{role:"user",content:$prompt}]}')" \
-  ) &
-  CHILD_PID=$!
-  wait $CHILD_PID || true
-  CHILD_PID=""
+  ) || true
 
   [[ $KILLED -eq 1 ]] && die "Killed by SIGTERM"
 
@@ -150,10 +150,7 @@ elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
       --arg system "$SYSTEM" \
       --arg prompt "$PROMPT" \
       '{model:$model, messages:[{role:"system",content:$system},{role:"user",content:$prompt}]}')" \
-  ) &
-  CHILD_PID=$!
-  wait $CHILD_PID || true
-  CHILD_PID=""
+  ) || true
 
   [[ $KILLED -eq 1 ]] && die "Killed by SIGTERM"
 
