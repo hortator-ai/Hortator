@@ -1063,17 +1063,16 @@ func (r *AgentTaskReconciler) buildVolumes(task *corev1alpha1.AgentTask) ([]core
 	var mounts []corev1.VolumeMount
 
 	if usePVC {
-		// /workspace and /memory on PVC, /inbox and /outbox on EmptyDir
+		// /workspace, /memory, /outbox on PVC (persistent); /inbox on EmptyDir (ephemeral input)
 		volumes = []corev1.Volume{
 			{Name: "inbox", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			{Name: "outbox", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			{Name: "storage", VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
 			}},
 		}
 		mounts = []corev1.VolumeMount{
 			{Name: "inbox", MountPath: "/inbox"},
-			{Name: "outbox", MountPath: "/outbox"},
+			{Name: "storage", MountPath: "/outbox", SubPath: "outbox"},
 			{Name: "storage", MountPath: "/workspace", SubPath: "workspace"},
 			{Name: "storage", MountPath: "/memory", SubPath: "memory"},
 		}

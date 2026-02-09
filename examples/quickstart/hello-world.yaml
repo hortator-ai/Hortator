@@ -1,14 +1,26 @@
-apiVersion: hortator.io/v1alpha1
+# Quickstart: Hello World AgentTask
+#
+# Prerequisites:
+#   - kubectl create namespace hortator-demo
+#   - kubectl create secret generic anthropic-api-key \
+#       --namespace hortator-demo --from-literal=api-key=sk-ant-...
+#
+# Apply with: kubectl apply -f hello-world.yaml
+# Check:      kubectl get agenttasks -n hortator-demo
+# Logs:       kubectl logs -n hortator-demo -l hortator.ai/task=hello-world -c agent
+---
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: hello-world
   namespace: hortator-demo
 spec:
-  roleRef:
-    name: researcher
-  prompt: |
-    Say hello! Write a brief, friendly greeting to /outbox/result.json
-    with the current date and a fun fact about Kubernetes.
-  timeout: 5m
-  budget:
-    maxCostUsd: "0.10"
+  prompt: "Say hello and introduce yourself. What can you do?"
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  timeout: 120

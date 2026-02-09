@@ -1,0 +1,175 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: agentpolicies.core.hortator.ai
+spec:
+  group: core.hortator.ai
+  names:
+    kind: AgentPolicy
+    listKind: AgentPolicyList
+    plural: agentpolicies
+    singular: agentpolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.maxTier
+      name: MaxTier
+      type: string
+    - jsonPath: .spec.requirePresidio
+      name: RequirePresidio
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          AgentPolicy defines fine-grained restrictions for agent tasks in a namespace.
+          When present, tasks in the namespace must comply with all matching policies.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AgentPolicySpec defines fine-grained restrictions for agent
+              tasks in a namespace.
+            properties:
+              allowedCapabilities:
+                description: |-
+                  AllowedCapabilities is the whitelist of capabilities tasks can request.
+                  If empty, all capabilities are denied.
+                items:
+                  type: string
+                type: array
+              allowedImages:
+                description: |-
+                  AllowedImages are glob patterns for permitted container images.
+                  e.g., ["ghcr.io/hortator/*", "myregistry.com/agents/*"]
+                items:
+                  type: string
+                type: array
+              deniedCapabilities:
+                description: DeniedCapabilities explicitly blocks specific capabilities
+                  (overrides allowed).
+                items:
+                  type: string
+                type: array
+              egressAllowlist:
+                description: EgressAllowlist restricts outbound network access.
+                items:
+                  description: EgressRule defines an allowed outbound network destination.
+                  properties:
+                    host:
+                      description: Host is a domain or IP CIDR (e.g., "api.openai.com",
+                        "10.0.0.0/8")
+                      type: string
+                    ports:
+                      description: Ports allowed (empty = all ports)
+                      items:
+                        type: integer
+                      type: array
+                  required:
+                  - host
+                  type: object
+                type: array
+              maxBudget:
+                description: MaxBudget sets the maximum budget any single task can
+                  request.
+                properties:
+                  maxCostUsd:
+                    description: MaxCostUsd is the dollar cap as string (e.g. "0.50").
+                    type: string
+                  maxTokens:
+                    description: MaxTokens is the total token cap (input + output).
+                    format: int64
+                    type: integer
+                type: object
+              maxConcurrentTasks:
+                description: MaxConcurrentTasks limits active tasks per namespace.
+                type: integer
+              maxTier:
+                description: MaxTier is the highest tier allowed (legionary < centurion
+                  < tribune).
+                enum:
+                - legionary
+                - centurion
+                - tribune
+                type: string
+              maxTimeout:
+                description: MaxTimeout is the maximum timeout in seconds any task
+                  can set.
+                type: integer
+              namespaceSelector:
+                description: |-
+                  NamespaceSelector restricts which namespaces this policy applies to.
+                  If empty, applies to the namespace it's created in.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
+              requirePresidio:
+                description: RequirePresidio forces PII scanning on all tasks.
+                type: boolean
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}
