@@ -31,6 +31,7 @@ const (
 	AgentTaskPhaseBudgetExceeded AgentTaskPhase = "BudgetExceeded"
 	AgentTaskPhaseTimedOut       AgentTaskPhase = "TimedOut"
 	AgentTaskPhaseCancelled      AgentTaskPhase = "Cancelled"
+	AgentTaskPhaseRetrying       AgentTaskPhase = "Retrying"
 )
 
 // ModelSpec defines the LLM endpoint configuration.
@@ -57,6 +58,45 @@ type SecretKeyRef struct {
 	// Key is the key within the secret.
 	// +kubebuilder:validation:Required
 	Key string `json:"key"`
+}
+
+// RetrySpec defines retry behavior for transient failures.
+type RetrySpec struct {
+	// MaxAttempts is the maximum number of retry attempts (0 = no retry).
+	// +kubebuilder:default=0
+	// +optional
+	MaxAttempts int `json:"maxAttempts,omitempty"`
+
+	// BackoffSeconds is the initial backoff duration (doubles each attempt).
+	// +kubebuilder:default=30
+	// +optional
+	BackoffSeconds int `json:"backoffSeconds,omitempty"`
+
+	// MaxBackoffSeconds caps the exponential backoff.
+	// +kubebuilder:default=300
+	// +optional
+	MaxBackoffSeconds int `json:"maxBackoffSeconds,omitempty"`
+}
+
+// AttemptRecord tracks a single execution attempt.
+type AttemptRecord struct {
+	// Attempt number (1-indexed).
+	Attempt int `json:"attempt"`
+
+	// StartTime of this attempt.
+	StartTime metav1.Time `json:"startTime"`
+
+	// EndTime of this attempt.
+	// +optional
+	EndTime *metav1.Time `json:"endTime,omitempty"`
+
+	// ExitCode of the agent container.
+	// +optional
+	ExitCode *int32 `json:"exitCode,omitempty"`
+
+	// Reason for the attempt outcome.
+	// +optional
+	Reason string `json:"reason,omitempty"`
 }
 
 // BudgetSpec defines token/cost limits for a task.
@@ -245,12 +285,16 @@ type AgentTaskSpec struct {
 	// Presidio defines per-task Presidio overrides.
 	// +optional
 	Presidio *PresidioSpec `json:"presidio,omitempty"`
+
+	// Retry defines retry behavior for transient failures.
+	// +optional
+	Retry *RetrySpec `json:"retry,omitempty"`
 }
 
 // AgentTaskStatus defines the observed state of AgentTask
 type AgentTaskStatus struct {
 	// Phase is the current phase of the task.
-	// +kubebuilder:validation:Enum=Pending;Running;Completed;Failed;BudgetExceeded;TimedOut;Cancelled
+	// +kubebuilder:validation:Enum=Pending;Running;Completed;Failed;BudgetExceeded;TimedOut;Cancelled;Retrying
 	// +optional
 	Phase AgentTaskPhase `json:"phase,omitempty"`
 
@@ -289,6 +333,18 @@ type AgentTaskStatus struct {
 	// Message provides human-readable status information.
 	// +optional
 	Message string `json:"message,omitempty"`
+
+	// Attempts is the number of execution attempts so far.
+	// +optional
+	Attempts int `json:"attempts,omitempty"`
+
+	// NextRetryTime is when the next retry should be attempted.
+	// +optional
+	NextRetryTime *metav1.Time `json:"nextRetryTime,omitempty"`
+
+	// History records each execution attempt.
+	// +optional
+	History []AttemptRecord `json:"history,omitempty"`
 
 	// Conditions represent the latest available observations.
 	// +optional
