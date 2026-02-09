@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -227,11 +228,17 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 
 	cm := &corev1.ConfigMap{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: ns, Name: "hortator-config"}, cm)
+	// Read default image from env var (set by Helm deployment), fall back to hardcoded
+	defaultImage := os.Getenv("HORTATOR_DEFAULT_AGENT_IMAGE")
+	if defaultImage == "" {
+		defaultImage = "ghcr.io/hortator-ai/agent:latest"
+	}
+
 	if err != nil {
-		// Fall back to hardcoded defaults
+		// Fall back to env/hardcoded defaults
 		r.defaults = ClusterDefaults{
 			DefaultTimeout:        600,
-			DefaultImage:          "ghcr.io/hortator-ai/agent:latest",
+			DefaultImage:          defaultImage,
 			DefaultRequestsCPU:    "100m",
 			DefaultRequestsMemory: "128Mi",
 			DefaultLimitsCPU:      "500m",
@@ -242,7 +249,7 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 
 	d := ClusterDefaults{
 		DefaultTimeout:        600,
-		DefaultImage:          "ghcr.io/hortator-ai/agent:latest",
+		DefaultImage:          defaultImage,
 		DefaultRequestsCPU:    "100m",
 		DefaultRequestsMemory: "128Mi",
 		DefaultLimitsCPU:      "500m",
@@ -783,9 +790,6 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 	image := task.Spec.Image
 	if image == "" {
 		image = r.defaults.DefaultImage
-		if image == "" {
-			image = "ghcr.io/hortator-ai/agent:latest"
-		}
 	}
 
 	// Build environment variables
@@ -815,6 +819,31 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		env = append(env, corev1.EnvVar{
 			Name:  "HORTATOR_MODEL",
 			Value: task.Spec.Model.Name,
+		})
+	}
+
+	// Inject API key from model.apiKeyRef as ANTHROPIC_API_KEY / OPENAI_API_KEY
+	if task.Spec.Model != nil && task.Spec.Model.ApiKeyRef != nil {
+		// Determine env var name based on endpoint
+		apiKeyEnvName := "LLM_API_KEY"
+		if task.Spec.Model.Endpoint != "" {
+			endpoint := strings.ToLower(task.Spec.Model.Endpoint)
+			if strings.Contains(endpoint, "anthropic") {
+				apiKeyEnvName = "ANTHROPIC_API_KEY"
+			} else if strings.Contains(endpoint, "openai") {
+				apiKeyEnvName = "OPENAI_API_KEY"
+			}
+		}
+		env = append(env, corev1.EnvVar{
+			Name: apiKeyEnvName,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: task.Spec.Model.ApiKeyRef.SecretName,
+					},
+					Key: task.Spec.Model.ApiKeyRef.Key,
+				},
+			},
 		})
 	}
 
