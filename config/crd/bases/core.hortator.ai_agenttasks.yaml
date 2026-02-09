@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: agenttasks.core.hortator.ai
 spec:
   group: core.hortator.ai
@@ -16,13 +16,19 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.phase
-      name: Phase
+      name: Status
+      type: string
+    - jsonPath: .spec.role
+      name: Role
+      type: string
+    - jsonPath: .spec.tier
+      name: Tier
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    - jsonPath: .status.podName
-      name: Pod
+    - jsonPath: .status.duration
+      name: Duration
       type: string
     name: v1alpha1
     schema:
@@ -49,38 +55,192 @@ spec:
           spec:
             description: AgentTaskSpec defines the desired state of AgentTask
             properties:
+              budget:
+                description: Budget defines token/cost limits for this task.
+                properties:
+                  maxCostUsd:
+                    description: MaxCostUsd is the dollar cap as string (e.g. "0.50").
+                    type: string
+                  maxTokens:
+                    description: MaxTokens is the total token cap (input + output).
+                    format: int64
+                    type: integer
+                type: object
               capabilities:
                 description: Capabilities are the permissions/tools available to the
-                  agent
+                  agent.
                 items:
                   type: string
                 type: array
               env:
-                additionalProperties:
-                  type: string
-                description: Environment variables to inject into the agent pod
+                description: Env is the list of environment variables to inject into
+                  the agent pod.
+                items:
+                  description: EnvVar represents an environment variable.
+                  properties:
+                    name:
+                      description: Name of the environment variable.
+                      type: string
+                    value:
+                      description: Value of the environment variable.
+                      type: string
+                    valueFrom:
+                      description: ValueFrom is a source for the environment variable's
+                        value.
+                      properties:
+                        secretKeyRef:
+                          description: SecretKeyRef references a key in a Kubernetes
+                            Secret.
+                          properties:
+                            key:
+                              description: Key is the key within the secret.
+                              type: string
+                            secretName:
+                              description: SecretName is the name of the secret.
+                              type: string
+                          required:
+                          - key
+                          - secretName
+                          type: object
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
+              flavor:
+                description: Flavor is a free-form addendum appended to the role's
+                  rules.
+                type: string
+              health:
+                description: Health defines per-task health/stuck detection overrides.
+                properties:
+                  stuckDetection:
+                    description: StuckDetectionSpec defines stuck detection parameters.
+                    properties:
+                      action:
+                        enum:
+                        - warn
+                        - kill
+                        - escalate
+                        type: string
+                      maxRepeatedPrompts:
+                        type: integer
+                      statusStaleMinutes:
+                        type: integer
+                      toolDiversityMin:
+                        type: number
+                    type: object
                 type: object
               image:
-                default: ghcr.io/hortator-ai/agent:latest
-                description: Image is the container image to use for the agent
+                description: Image is the container image to use for the agent.
                 type: string
               model:
-                description: Model is the LLM model to use (e.g., "gpt-4", "claude-3")
+                description: Model defines the LLM endpoint configuration.
+                properties:
+                  apiKeyRef:
+                    description: ApiKeyRef is a reference to a K8s Secret containing
+                      the API key.
+                    properties:
+                      key:
+                        description: Key is the key within the secret.
+                        type: string
+                      secretName:
+                        description: SecretName is the name of the secret.
+                        type: string
+                    required:
+                    - key
+                    - secretName
+                    type: object
+                  endpoint:
+                    description: Endpoint is the base URL (e.g. http://ollama:11434/v1,
+                      https://api.anthropic.com/v1)
+                    type: string
+                  name:
+                    description: Name is the model name (e.g. claude-sonnet, llama3:70b)
+                    type: string
+                type: object
+              parentTaskId:
+                description: ParentTaskID is the task ID of the parent task.
                 type: string
+              presidio:
+                description: Presidio defines per-task Presidio overrides.
+                properties:
+                  action:
+                    enum:
+                    - redact
+                    - detect
+                    - hash
+                    - mask
+                    type: string
+                  configRef:
+                    description: ConfigRef is the name of a ConfigMap with custom
+                      Presidio config.
+                    type: string
+                  scoreThreshold:
+                    type: number
+                type: object
               prompt:
-                description: Prompt is the task instruction for the agent
+                description: Prompt is the task instruction for the agent.
                 minLength: 1
                 type: string
               resources:
-                description: Resources defines compute resources for the agent pod
+                description: Resources defines compute resources for the agent pod.
                 properties:
-                  cpu:
-                    description: CPU request (e.g., "100m", "1")
+                  limits:
+                    description: ResourceList defines cpu and memory quantities.
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+                    type: object
+                  requests:
+                    description: ResourceList defines cpu and memory quantities.
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+                    type: object
+                type: object
+              role:
+                description: Role is a reference to an AgentRole or ClusterAgentRole
+                  by name.
+                type: string
+              storage:
+                description: Storage defines storage configuration overrides.
+                properties:
+                  retain:
+                    default: false
+                    description: Retain exempts PVC from TTL cleanup.
+                    type: boolean
+                  retainDays:
+                    description: RetainDays is a custom TTL override in days.
+                    type: integer
+                  size:
+                    default: 1Gi
+                    description: Size is the PVC size (e.g. "1Gi"). Only applies to
+                      tribune/centurion tiers.
                     type: string
-                  memory:
-                    description: Memory request (e.g., "128Mi", "1Gi")
+                  storageClass:
+                    description: StorageClass is the Kubernetes storage class name.
                     type: string
                 type: object
+              thinkingLevel:
+                description: ThinkingLevel is the reasoning depth hint.
+                enum:
+                - low
+                - medium
+                - high
+                type: string
+              tier:
+                default: legionary
+                description: Tier is the agent hierarchy tier.
+                enum:
+                - tribune
+                - centurion
+                - legionary
+                type: string
               timeout:
                 default: 600
                 description: Timeout is the task timeout in seconds.
@@ -91,23 +251,20 @@ spec:
           status:
             description: AgentTaskStatus defines the observed state of AgentTask
             properties:
-              completionTime:
-                description: CompletionTime is when the task finished
+              childTasks:
+                description: ChildTasks are the task IDs of spawned children.
+                items:
+                  type: string
+                type: array
+              completedAt:
+                description: CompletedAt is when the task finished.
                 format: date-time
                 type: string
               conditions:
-                description: Conditions represent the latest available observations
+                description: Conditions represent the latest available observations.
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource.\n---\nThis struct is intended for
-                    direct use as an array at the field path .status.conditions.  For
-                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
-                    observations of a foo's current state.\n\t    // Known .status.conditions.type
-                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
-                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
-                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                    \   // other fields\n\t}"
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -148,12 +305,7 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        ---
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                        useful (see .node.status.conditions), the ability to deconflict is important.
-                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string
@@ -165,27 +317,46 @@ spec:
                   - type
                   type: object
                 type: array
+              duration:
+                description: Duration is the human-readable duration of the task.
+                type: string
+              estimatedCostUsd:
+                description: EstimatedCostUsd is the estimated cost in USD.
+                type: string
               message:
-                description: Message provides human-readable status information
+                description: Message provides human-readable status information.
                 type: string
               output:
-                description: Output contains the result/output from the agent
+                description: Output contains the result/output from the agent.
                 type: string
               phase:
-                description: Phase is the current phase of the task
+                description: Phase is the current phase of the task.
                 enum:
                 - Pending
                 - Running
-                - Succeeded
+                - Completed
                 - Failed
+                - BudgetExceeded
+                - TimedOut
+                - Cancelled
                 type: string
               podName:
-                description: PodName is the name of the pod running this task
+                description: PodName is the name of the pod running this task.
                 type: string
-              startTime:
-                description: StartTime is when the task started executing
+              startedAt:
+                description: StartedAt is when the task started executing.
                 format: date-time
                 type: string
+              tokensUsed:
+                description: TokensUsed tracks token consumption.
+                properties:
+                  input:
+                    format: int64
+                    type: integer
+                  output:
+                    format: int64
+                    type: integer
+                type: object
             type: object
         type: object
     served: true
