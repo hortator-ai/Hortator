@@ -1,45 +1,31 @@
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: researcher
 spec:
-  tier: legionary
   description: >-
     Gathers information from the web, APIs, and documents.
     Produces structured summaries in /outbox/result.json.
-  capabilities:
+  defaultModel: gpt-4o-mini
+  tools:
     - web-fetch
     - shell
-  model:
-    name: gpt-4o-mini
-  resources:
-    requests:
-      cpu: 250m
-      memory: 256Mi
-    limits:
-      cpu: "1"
-      memory: 1Gi
-  timeout: 15m
+  rules:
+    - "Always cite sources in your output"
+    - "Produce structured JSON summaries"
 ---
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: coder
 spec:
-  tier: legionary
   description: >-
     Writes, tests, and fixes code. Has shell access for running
     build tools and test suites.
-  capabilities:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
     - shell
     - spawn
-  model:
-    name: claude-sonnet-4-20250514
-  resources:
-    requests:
-      cpu: 500m
-      memory: 512Mi
-    limits:
-      cpu: "2"
-      memory: 2Gi
-  timeout: 30m
+  rules:
+    - "Write tests for all new code"
+    - "Run tests before completing"
