@@ -183,6 +183,65 @@ func TestRecordAttempt(t *testing.T) {
 	}
 }
 
+func TestExtractTokenUsage(t *testing.T) {
+	r := &AgentTaskReconciler{}
+
+	tests := []struct {
+		name        string
+		output      string
+		wantInput   int64
+		wantOutput  int64
+		wantNil     bool
+	}{
+		{
+			name:       "valid token line",
+			output:     "[hortator-runtime] Done. Tokens: in=133 out=4096",
+			wantInput:  133,
+			wantOutput: 4096,
+		},
+		{
+			name:       "multiline with token line",
+			output:     "[hortator-runtime] Using Anthropic API...\n[hortator-runtime] Done. Tokens: in=38 out=54",
+			wantInput:  38,
+			wantOutput: 54,
+		},
+		{
+			name:    "no token line",
+			output:  "[hortator-runtime] Some other output",
+			wantNil: true,
+		},
+		{
+			name:    "empty output",
+			output:  "",
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := &corev1alpha1.AgentTask{
+				Status: corev1alpha1.AgentTaskStatus{Output: tt.output},
+			}
+			r.extractTokenUsage(task)
+			if tt.wantNil {
+				if task.Status.TokensUsed != nil {
+					t.Errorf("expected nil TokensUsed, got %+v", task.Status.TokensUsed)
+				}
+				return
+			}
+			if task.Status.TokensUsed == nil {
+				t.Fatal("expected non-nil TokensUsed")
+			}
+			if task.Status.TokensUsed.Input != tt.wantInput {
+				t.Errorf("Input = %d, want %d", task.Status.TokensUsed.Input, tt.wantInput)
+			}
+			if task.Status.TokensUsed.Output != tt.wantOutput {
+				t.Errorf("Output = %d, want %d", task.Status.TokensUsed.Output, tt.wantOutput)
+			}
+		})
+	}
+}
+
 func TestParseDurationString(t *testing.T) {
 	tests := []struct {
 		input    string
