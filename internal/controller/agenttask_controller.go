@@ -982,8 +982,10 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		},
 	}
 
-	// Presidio sidecar injection
-	var presidioContainers []corev1.Container
+	// Presidio sidecar injection (native sidecar — K8s 1.28+)
+	// Using init container with restartPolicy=Always so K8s terminates it
+	// automatically when the main agent container exits.
+	var presidioSidecars []corev1.Container
 	presidioEnabled := r.defaults.PresidioEnabled || task.Spec.Presidio != nil
 	if presidioEnabled {
 		presidioImage := r.defaults.PresidioImage
@@ -1023,11 +1025,11 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("100m"),
-					corev1.ResourceMemory: resource.MustParse("256Mi"),
+					corev1.ResourceMemory: resource.MustParse("512Mi"),
 				},
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("500m"),
-					corev1.ResourceMemory: resource.MustParse("512Mi"),
+					corev1.ResourceMemory: resource.MustParse("1Gi"),
 				},
 			},
 			ReadinessProbe: &corev1.Probe{
@@ -1059,7 +1061,11 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 			})
 		}
 
-		presidioContainers = append(presidioContainers, sidecar)
+		// Native sidecar: restartPolicy=Always makes this a proper sidecar
+		// that K8s will auto-terminate when the main container exits
+		restartAlways := corev1.ContainerRestartPolicyAlways
+		sidecar.RestartPolicy = &restartAlways
+		presidioSidecars = append(presidioSidecars, sidecar)
 
 		// Add PRESIDIO_ENDPOINT to agent container env
 		env = append(env, corev1.EnvVar{
@@ -1095,8 +1101,9 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		},
 	}
 
-	// Append presidio sidecar containers
-	pod.Spec.Containers = append(pod.Spec.Containers, presidioContainers...)
+	// Append presidio as native sidecar (init containers with restartPolicy=Always)
+	// This ensures K8s auto-terminates the sidecar when the agent container exits
+	pod.Spec.InitContainers = append(pod.Spec.InitContainers, presidioSidecars...)
 
 	return pod, nil
 }
