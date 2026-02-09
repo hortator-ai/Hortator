@@ -161,6 +161,18 @@ examples/
 - [ ] **P2** (Enterprise) As a cluster admin, I want AgentPolicy CRD to define fine-grained capability restrictions per namespace
 - [ ] **P2** (Enterprise) As a cluster admin, I want egress allowlists to control which external APIs agents can call
 
+## 🔌 EPIC: Integration & API Gateway
+
+- [ ] **P1** 💡 **OpenAI-compatible API endpoint for Tribune** — Expose Tribune as `/v1/chat/completions` so any OpenAI-compatible tool (Cursor, Continue, Cody, other agents) can submit work to Hortator without knowing it's multi-agent behind the scenes.
+  - `model` field maps to AgentRole (e.g. `model: "hortator/research-agent"`)
+  - Standard SSE streaming for intermediate progress
+  - Session continuity via custom header or thread ID (TBD)
+  - Fast-path for simple queries (skip decomposition)
+  - Tool/function calling maps to MCP integrations
+  - Aggregate token usage reporting across all sub-agents
+  - **Goal:** Zero-friction integration into existing tool stacks. Best infra is invisible infra.
+  - **Open questions:** Latency expectations (multi-agent is slower), stateless vs session semantics, LiteLLM as frontend router
+
 ## 🏢 EPIC: Multi-tenancy
 
 - [ ] **P2** Define namespace isolation model (ResourceQuotas, NetworkPolicies, RBAC per tenant)
@@ -696,11 +708,59 @@ budget:
     # chart: litellm/litellm-proxy  # sub-chart reference
 ```
 
-#### Enforcement flow
-1. Runtime checks budget before LLM call: `hortator budget-remaining`
-2. If over limit → runtime refuses call, exits gracefully with partial results
-3. Operator sets task status to `budget-exceeded`
-4. OTel event emitted: `hortator.budget.exceeded`
+#### Enforcement flow — Soft Ceiling (revised 2026-02-09)
+
+Hard budget kills are terrible UX — a 45-minute research task shouldn't just vanish at $0.50. Budget enforcement uses a **three-phase wind-down** instead:
+
+```
+Phase 1: WARNING (default 80% of budget)
+  → OTel event: hortator.budget.warning
+  → Runtime injects system message: "You've used 80% of your budget. Start wrapping up."
+  → Agent continues working but is nudged to converge
+
+Phase 2: SOFT CEILING (100% of budget)
+  → OTel event: hortator.budget.soft_ceiling
+  → Runtime injects: "Budget reached. Save your progress now. You have N more LLM calls."
+  → Agent gets a grace window (configurable, default: 3 LLM calls or 60s)
+  → Grace window is for: writing result.json, committing partial work, saving state.json
+  → NO new tool calls except file writes during grace
+
+Phase 3: HARD CEILING (grace window exhausted)
+  → Runtime auto-saves: checkpoint state.json, write partial result.json
+  → Task status: budget-exceeded (with partial results preserved)
+  → OTel event: hortator.budget.exceeded
+  → Parent agent receives partial results + budget-exceeded status
+  → Parent can: resume with new budget, accept partial results, or re-scope
+```
+
+**Key principle:** Results are ALWAYS persisted before termination. The operator ensures `/outbox/result.json` and `/memory/state.json` are written — even if the agent doesn't cooperate, the runtime snapshots whatever it has.
+
+```yaml
+budget:
+  enforcement:
+    warningPercent: 80           # Phase 1: nudge
+    softCeilingAction: winddown  # winddown | warn-only | hard-kill
+    graceWindow:
+      maxLlmCalls: 3            # extra LLM calls for wrap-up
+      maxSeconds: 60             # wall-clock grace period
+    hardCeiling:
+      autoCheckpoint: true       # runtime force-saves state before kill
+      preservePartialResults: true
+```
+
+**Resume flow (parent agent perspective):**
+```json
+// Parent receives in /inbox/:
+{
+  "taskId": "fix-auth-bug-42",
+  "status": "budget-exceeded",
+  "summary": "Identified root cause in session.ts:47, fix in progress but incomplete",
+  "partialArtifacts": ["artifacts/session.ts.partial.patch"],
+  "tokensUsed": { "input": 85000, "output": 15000 },
+  "stateRef": "pvc://fix-auth-bug-42/memory/state.json"
+}
+// Parent can spawn continuation: hortator spawn --resume fix-auth-bug-42 --budget 0.25
+```
 
 #### Why not a network proxy for token counting?
 TLS interception in K8s is complex (MITM certs), streaming responses are fragile to parse, adds latency. LiteLLM proxy solves this at the application layer — agents call it as their LLM endpoint, no MITM needed.
