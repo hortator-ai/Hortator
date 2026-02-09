@@ -197,6 +197,8 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.handlePending(ctx, task)
 	case corev1alpha1.AgentTaskPhaseRunning:
 		return r.handleRunning(ctx, task)
+	case corev1alpha1.AgentTaskPhaseRetrying:
+		return r.handleRetrying(ctx, task)
 	case corev1alpha1.AgentTaskPhaseCancelled:
 		if task.Annotations == nil || task.Annotations["hortator.ai/cancel-event-sent"] != "true" {
 			emitTaskEvent(ctx, "hortator.task.cancelled", task)
@@ -671,18 +673,66 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 
 	case corev1.PodFailed:
 		logger.Info("Pod failed", "pod", pod.Name)
-		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
-		task.Status.Message = "Task failed"
-		setCompletionStatus(task)
-		if len(pod.Status.ContainerStatuses) > 0 {
-			cs := pod.Status.ContainerStatuses[0]
-			if cs.State.Terminated != nil {
-				task.Status.Message = fmt.Sprintf("Task failed: %s", cs.State.Terminated.Reason)
+
+		// Determine failure reason and agent exit code
+		failureReason := "Task failed"
+		var agentExitCode *int32
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Name == "agent" && cs.State.Terminated != nil {
+				agentExitCode = &cs.State.Terminated.ExitCode
+				failureReason = fmt.Sprintf("Task failed: %s (exit %d)", cs.State.Terminated.Reason, cs.State.Terminated.ExitCode)
 			}
 		}
 
-		// Collect logs even on failure
+		// Check if agent actually succeeded (exit 0) but sidecar failed
+		if agentExitCode != nil && *agentExitCode == 0 {
+			logger.Info("Agent succeeded but sidecar failed, treating as success", "pod", pod.Name)
+			task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
+			task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
+			task.Status.Message = "Task completed (sidecar failed)"
+			setCompletionStatus(task)
+			r.recordAttempt(task, agentExitCode, "completed (sidecar failed)")
+			emitTaskEvent(ctx, "hortator.task.completed", task)
+			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
+			tasksActive.WithLabelValues(task.Namespace).Dec()
+			if err := r.Status().Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			r.notifyParentTask(ctx, task)
+			return ctrl.Result{}, nil
+		}
+
+		// Collect logs before deciding on retry
 		task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
+
+		// Classify failure: transient (pod crash, no result.json) vs logical (agent reported failure)
+		isTransient := r.isTransientFailure(ctx, task, pod)
+
+		// Record this attempt
+		r.recordAttempt(task, agentExitCode, failureReason)
+
+		// Try retry if transient and retries configured
+		if isTransient && r.shouldRetry(task) {
+			backoff := r.computeBackoff(task)
+			nextRetry := metav1.NewTime(time.Now().Add(backoff))
+			task.Status.Phase = corev1alpha1.AgentTaskPhaseRetrying
+			task.Status.NextRetryTime = &nextRetry
+			task.Status.PodName = "" // Clear for next attempt
+			task.Status.Message = fmt.Sprintf("Retrying in %s (attempt %d/%d): %s",
+				backoff.Round(time.Second), task.Status.Attempts, task.Spec.Retry.MaxAttempts, failureReason)
+			emitTaskEvent(ctx, "hortator.task.retrying", task)
+			logger.Info("Scheduling retry", "attempt", task.Status.Attempts, "backoff", backoff)
+
+			if err := r.Status().Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: backoff}, nil
+		}
+
+		// No retry — terminal failure
+		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
+		task.Status.Message = failureReason
+		setCompletionStatus(task)
 		emitTaskEvent(ctx, "hortator.task.failed", task)
 
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
@@ -1221,6 +1271,100 @@ func (r *AgentTaskReconciler) enforcePolicy(ctx context.Context, task *corev1alp
 	}
 
 	return ""
+}
+
+// handleRetrying checks if it's time to retry and transitions back to Pending.
+func (r *AgentTaskReconciler) handleRetrying(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
+	if task.Status.NextRetryTime == nil {
+		// Shouldn't happen, but recover
+		task.Status.Phase = corev1alpha1.AgentTaskPhasePending
+		if err := r.Status().Update(ctx, task); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	remaining := time.Until(task.Status.NextRetryTime.Time)
+	if remaining > 0 {
+		return ctrl.Result{RequeueAfter: remaining}, nil
+	}
+
+	// Time to retry — transition back to Pending
+	log.FromContext(ctx).Info("Retrying task", "task", task.Name, "attempt", task.Status.Attempts+1)
+	task.Status.Phase = corev1alpha1.AgentTaskPhasePending
+	task.Status.NextRetryTime = nil
+	task.Status.Message = fmt.Sprintf("Retry attempt %d", task.Status.Attempts+1)
+	if err := r.Status().Update(ctx, task); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{Requeue: true}, nil
+}
+
+// isTransientFailure classifies a pod failure as transient or logical.
+// Transient: pod crashed without writing result.json (exit != 0, no result)
+// Logical: agent reported failure in result.json (deliberate)
+func (r *AgentTaskReconciler) isTransientFailure(ctx context.Context, task *corev1alpha1.AgentTask, pod *corev1.Pod) bool {
+	// If agent container exited with 0, it's not transient (it completed, possibly with a logical failure)
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.Name == "agent" && cs.State.Terminated != nil {
+			if cs.State.Terminated.ExitCode == 0 {
+				return false // Agent completed normally, any failure is logical
+			}
+		}
+	}
+	// Non-zero exit = transient (crash, OOM, etc.)
+	return true
+}
+
+// shouldRetry returns true if the task has retries configured and hasn't exhausted them.
+func (r *AgentTaskReconciler) shouldRetry(task *corev1alpha1.AgentTask) bool {
+	if task.Spec.Retry == nil || task.Spec.Retry.MaxAttempts <= 0 {
+		return false
+	}
+	return task.Status.Attempts < task.Spec.Retry.MaxAttempts
+}
+
+// computeBackoff returns the backoff duration for the current attempt.
+func (r *AgentTaskReconciler) computeBackoff(task *corev1alpha1.AgentTask) time.Duration {
+	base := 30
+	max := 300
+	if task.Spec.Retry != nil {
+		if task.Spec.Retry.BackoffSeconds > 0 {
+			base = task.Spec.Retry.BackoffSeconds
+		}
+		if task.Spec.Retry.MaxBackoffSeconds > 0 {
+			max = task.Spec.Retry.MaxBackoffSeconds
+		}
+	}
+
+	// Exponential backoff: base * 2^(attempts-1)
+	backoff := base
+	for i := 1; i < task.Status.Attempts; i++ {
+		backoff *= 2
+		if backoff > max {
+			backoff = max
+			break
+		}
+	}
+	return time.Duration(backoff) * time.Second
+}
+
+// recordAttempt appends an attempt record to task status history.
+func (r *AgentTaskReconciler) recordAttempt(task *corev1alpha1.AgentTask, exitCode *int32, reason string) {
+	task.Status.Attempts++
+	now := metav1.Now()
+	record := corev1alpha1.AttemptRecord{
+		Attempt: task.Status.Attempts,
+		EndTime: &now,
+		Reason:  reason,
+	}
+	if task.Status.StartedAt != nil {
+		record.StartTime = *task.Status.StartedAt
+	}
+	if exitCode != nil {
+		record.ExitCode = exitCode
+	}
+	task.Status.History = append(task.Status.History, record)
 }
 
 // SetupWithManager sets up the controller with the Manager.
