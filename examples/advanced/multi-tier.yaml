@@ -3,70 +3,62 @@
 # A Tribune plans the work, a Centurion coordinates execution,
 # and Legionaries do the actual tasks.
 #
+# Prerequisites:
+#   - Anthropic API key secret: kubectl create secret generic anthropic-api-key \
+#       --namespace hortator-demo --from-literal=api-key=sk-ant-...
+#
 # Apply with: kubectl apply -f multi-tier.yaml
 ---
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: tech-lead
 spec:
-  tier: tribune
   description: >-
     High-level planner. Decomposes a project goal into work packages
     and delegates to centurions. Reviews final deliverables.
-  capabilities:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
     - spawn
     - web-fetch
-  model:
-    name: claude-sonnet-4-20250514
-  timeout: 60m
-  budget:
-    maxCostUsd: "5.00"
+  rules:
+    - "Always review final deliverables before completing"
+    - "Delegate implementation, never code directly"
 ---
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: backend-lead
 spec:
-  tier: centurion
   description: >-
     Coordinates backend implementation. Spawns legionary coders
     and reviewers, merges their output.
-  capabilities:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
     - spawn
     - shell
-  model:
-    name: gpt-4o
-  timeout: 30m
-  budget:
-    maxCostUsd: "2.00"
 ---
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: impl-coder
 spec:
-  tier: legionary
   description: >-
     Implements a single, well-scoped coding task. Writes code and
     tests, outputs results to /outbox/result.json.
-  capabilities:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
     - shell
-  model:
-    name: gpt-4o-mini
-  timeout: 15m
-  budget:
-    maxCostUsd: "0.50"
 ---
 # The top-level task — kicked off by a human or CI pipeline.
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: build-rest-api
   namespace: hortator-demo
 spec:
-  roleRef:
-    name: tech-lead
+  role: tech-lead
+  tier: tribune
   prompt: |
     Build a simple REST API in Go with the following endpoints:
       GET  /healthz        — returns 200
@@ -79,7 +71,15 @@ spec:
       2. Unit tests
 
     Review the final output before completing.
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  capabilities:
+    - spawn
+    - web-fetch
   budget:
     maxCostUsd: "8.00"
-  timeout: 90m
-  retainPVC: true
+  timeout: 5400

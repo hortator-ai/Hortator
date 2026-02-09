@@ -1,0 +1,162 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentroles.core.hortator.ai
+spec:
+  group: core.hortator.ai
+  names:
+    kind: AgentRole
+    listKind: AgentRoleList
+    plural: agentroles
+    singular: agentrole
+    shortNames:
+      - ar
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Model
+          type: string
+          jsonPath: .spec.defaultModel
+        - name: Tools
+          type: string
+          jsonPath: .spec.tools
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [description]
+              properties:
+                description:
+                  type: string
+                  description: Human-readable role description.
+                rules:
+                  type: array
+                  items:
+                    type: string
+                  description: >
+                    Behavioral rules injected into agent context.
+                    E.g. "Always write tests before implementation".
+                antiPatterns:
+                  type: array
+                  items:
+                    type: string
+                  description: >
+                    Things the agent should explicitly NOT do.
+                    E.g. "Never use `any` in TypeScript".
+                tools:
+                  type: array
+                  items:
+                    type: string
+                    enum: [shell, web-fetch, spawn]
+                  description: Capabilities granted to agents with this role.
+                defaultModel:
+                  type: string
+                  description: >
+                    Suggested model for this role (task can override).
+                    Can be a model name or a LiteLLM alias.
+                references:
+                  type: array
+                  items:
+                    type: string
+                  description: >
+                    URLs or paths the agent should consult.
+                    Injected into agent context as reference material.
+
+                # ── Health overrides per role ─────────────────────
+                health:
+                  type: object
+                  description: >
+                    Role-level health/stuck detection thresholds.
+                    Overrides Helm defaults. AgentTask overrides this.
+                  properties:
+                    stuckDetection:
+                      type: object
+                      properties:
+                        toolDiversityMin:
+                          type: number
+                        maxRepeatedPrompts:
+                          type: integer
+                        statusStaleMinutes:
+                          type: integer
+                        action:
+                          type: string
+                          enum: [warn, kill, escalate]
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusteragentroles.core.hortator.ai
+spec:
+  group: core.hortator.ai
+  names:
+    kind: ClusterAgentRole
+    listKind: ClusterAgentRoleList
+    plural: clusteragentroles
+    singular: clusteragentrole
+    shortNames:
+      - car
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Model
+          type: string
+          jsonPath: .spec.defaultModel
+        - name: Tools
+          type: string
+          jsonPath: .spec.tools
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [description]
+              properties:
+                # Identical spec to AgentRole — cluster-scoped variant
+                description:
+                  type: string
+                rules:
+                  type: array
+                  items:
+                    type: string
+                antiPatterns:
+                  type: array
+                  items:
+                    type: string
+                tools:
+                  type: array
+                  items:
+                    type: string
+                    enum: [shell, web-fetch, spawn]
+                defaultModel:
+                  type: string
+                references:
+                  type: array
+                  items:
+                    type: string
+                health:
+                  type: object
+                  properties:
+                    stuckDetection:
+                      type: object
+                      properties:
+                        toolDiversityMin:
+                          type: number
+                        maxRepeatedPrompts:
+                          type: integer
+                        statusStaleMinutes:
+                          type: integer
+                        action:
+                          type: string
+                          enum: [warn, kill, escalate]

@@ -54,6 +54,11 @@ _Discovered during sandbox deployment on 2026-02-09_
 - **Context:** `RESPONSE=$(curl ...) &` backgrounds the subshell, so the parent shell never receives the value. `set -u` then crashes on `$RESPONSE` being unbound.
 - **Fix:** Don't background the curl. Use `curl ... > /tmp/response.json` + `RESPONSE=$(cat /tmp/response.json)`, or just run curl synchronously (SIGTERM trap still works).
 
+## BUG-013: Presidio sidecar OOMKilled (512Mi limit) → pod.phase=Failed even when agent succeeds
+- **Context:** Presidio sidecar gets OOMKilled (exit 137), causing pod phase to be `Failed` even though agent container exits 0. Operator sees pod.phase=Failed and marks task as Failed.
+- **Suggestion:** Controller should check agent container exit code specifically, not pod.phase. Also increase presidio memory limit (1Gi) or make it optional/disabled by default.
+- **STATUS:** Presidio disabled for now. Need to investigate OOM root cause and fix properly. TODO.
+
 ---
 
 _Add more as we go._
