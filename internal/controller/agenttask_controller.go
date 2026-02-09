@@ -647,8 +647,10 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 	case corev1.PodSucceeded:
 		logger.Info("Pod succeeded", "pod", pod.Name)
 
-		// Feature 3: Collect pod logs as output
+		// Collect pod logs and extract token usage
 		task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
+		r.extractTokenUsage(task)
+		r.recordAttempt(task, nil, "completed")
 
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
 		task.Status.Message = "Task completed successfully"
@@ -1271,6 +1273,24 @@ func (r *AgentTaskReconciler) enforcePolicy(ctx context.Context, task *corev1alp
 	}
 
 	return ""
+}
+
+// extractTokenUsage parses agent logs to extract token usage from the runtime output.
+// Looks for: "[hortator-runtime] Done. Tokens: in=N out=M"
+func (r *AgentTaskReconciler) extractTokenUsage(task *corev1alpha1.AgentTask) {
+	if task.Status.Output == "" {
+		return
+	}
+	re := regexp.MustCompile(`Tokens: in=(\d+) out=(\d+)`)
+	matches := re.FindStringSubmatch(task.Status.Output)
+	if len(matches) == 3 {
+		input, _ := strconv.ParseInt(matches[1], 10, 64)
+		output, _ := strconv.ParseInt(matches[2], 10, 64)
+		task.Status.TokensUsed = &corev1alpha1.TokenUsage{
+			Input:  input,
+			Output: output,
+		}
+	}
 }
 
 // handleRetrying checks if it's time to retry and transitions back to Pending.
