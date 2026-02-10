@@ -27,7 +27,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ### Minor
 - [x] **P1** Test coverage — controller 44.3%, gateway 58.7%. Unit tests for all critical paths. Still room for integration tests (reconciler flow, CLI) but sufficient for launch. [L1] ✅ 2026-02-10
-- [ ] **P2** Standardize license headers — LICENSE file is MIT but source files have bare `Copyright 2026.` from kubebuilder scaffold. [L2]
+- [x] **P2** Standardize license headers — LICENSE file is MIT but source files have bare `Copyright 2026.` from kubebuilder scaffold. [L2] ✅ 2026-02-10
 - [ ] **P2** Single source of truth for CRDs — currently duplicated in `crds/`, `charts/hortator/crds/`, `config/crd/bases/`. Add Makefile target to sync from generated source. [L5]
 - [ ] **P2** Clean up dead tier-to-model mapping in `entrypoint.sh` — OpenAI mapping is dead code when Anthropic keys present. [L6]
 - [ ] **P2** Generate Go types for AgentRole/ClusterAgentRole — gateway currently uses `unstructured.Unstructured`, losing type safety and validation. [L7]
