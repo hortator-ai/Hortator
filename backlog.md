@@ -20,7 +20,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P0** Add jitter to retry backoff — pure exponential causes thundering herd. Added ±25% random jitter. [C3] ✅ 2026-02-10
 
 ### Moderate
-- [ ] **P1** Split `agenttask_controller.go` into `pod_builder.go`, `policy.go`, `cleanup.go`, `metrics.go`. Pure refactor. [M2]
+- [x] **P1** Split `agenttask_controller.go` (1415→604 lines) into `pod_builder.go`, `policy.go`, `helpers.go`, `metrics.go`. Pure refactor. [M2] ✅ 2026-02-10
 - [x] **P1** Cache gateway auth secret — `authenticate()` fetches K8s Secret on every HTTP request. Added TTL cache (60s). [M3] ✅ 2026-02-10
 - [x] **P1** Add `--role`, `--tier`, `--parent` flags to `hortator spawn` CLI + `--wait-timeout`. [M6] ✅ 2026-02-10
 - [x] **P1** Handle all terminal phases in `waitForTask` — BudgetExceeded, TimedOut, Cancelled, Retrying + context timeout. [M8] ✅ 2026-02-10
@@ -201,15 +201,16 @@ examples/
 
 ## 🔌 EPIC: Integration & API Gateway
 
-- [ ] **P1** 💡 **OpenAI-compatible API endpoint for Tribune** — Expose Tribune as `/v1/chat/completions` so any OpenAI-compatible tool (Cursor, Continue, Cody, other agents) can submit work to Hortator without knowing it's multi-agent behind the scenes.
-  - `model` field maps to AgentRole (e.g. `model: "hortator/research-agent"`)
-  - Standard SSE streaming for intermediate progress
-  - Session continuity via custom header or thread ID (TBD)
-  - Fast-path for simple queries (skip decomposition)
-  - Tool/function calling maps to MCP integrations
-  - Aggregate token usage reporting across all sub-agents
-  - **Goal:** Zero-friction integration into existing tool stacks. Best infra is invisible infra.
-  - **Open questions:** Latency expectations (multi-agent is slower), stateless vs session semantics, LiteLLM as frontend router
+- [x] **P1** 💡 **OpenAI-compatible API endpoint for Tribune** ✅ 2026-02-10
+  - ✅ `model` field maps to AgentRole (e.g. `model: "hortator/research-agent"`)
+  - ✅ Standard SSE streaming for intermediate progress
+  - ✅ Bearer token auth via K8s Secret (cached 60s)
+  - ✅ Blocking + streaming response modes
+  - ✅ Aggregate token usage reporting across all sub-agents
+  - ✅ AgentRole resolution with intelligent defaults (infers provider from model name)
+  - ⏸ Session continuity: Level 0 (stateless) shipped, Level 1 designed (deferred)
+  - ⏸ Tool/function calling → MCP (post-MVP)
+  - ❌ Fast-path: decided against ("when Caesar asks Maximus, he doesn't send for his wife")
 
 ## 🏢 EPIC: Multi-tenancy
 
