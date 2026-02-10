@@ -926,60 +926,31 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 	}
 
 	// Build resource requirements (with cluster defaults fallback)
-	resources := corev1.ResourceRequirements{}
-	if task.Spec.Resources != nil {
-		if task.Spec.Resources.Requests != nil {
-			resources.Requests = corev1.ResourceList{}
-			if task.Spec.Resources.Requests.CPU != "" {
-				resources.Requests[corev1.ResourceCPU] = resource.MustParse(task.Spec.Resources.Requests.CPU)
-			}
-			if task.Spec.Resources.Requests.Memory != "" {
-				resources.Requests[corev1.ResourceMemory] = resource.MustParse(task.Spec.Resources.Requests.Memory)
-			}
-		}
-		if task.Spec.Resources.Limits != nil {
-			resources.Limits = corev1.ResourceList{}
-			if task.Spec.Resources.Limits.CPU != "" {
-				resources.Limits[corev1.ResourceCPU] = resource.MustParse(task.Spec.Resources.Limits.CPU)
-			}
-			if task.Spec.Resources.Limits.Memory != "" {
-				resources.Limits[corev1.ResourceMemory] = resource.MustParse(task.Spec.Resources.Limits.Memory)
-			}
-		}
-	} else {
-		// Apply cluster defaults
-		resources.Requests = corev1.ResourceList{}
-		resources.Limits = corev1.ResourceList{}
-		if r.defaults.DefaultRequestsCPU != "" {
-			resources.Requests[corev1.ResourceCPU] = resource.MustParse(r.defaults.DefaultRequestsCPU)
-		}
-		if r.defaults.DefaultRequestsMemory != "" {
-			resources.Requests[corev1.ResourceMemory] = resource.MustParse(r.defaults.DefaultRequestsMemory)
-		}
-		if r.defaults.DefaultLimitsCPU != "" {
-			resources.Limits[corev1.ResourceCPU] = resource.MustParse(r.defaults.DefaultLimitsCPU)
-		}
-		if r.defaults.DefaultLimitsMemory != "" {
-			resources.Limits[corev1.ResourceMemory] = resource.MustParse(r.defaults.DefaultLimitsMemory)
-		}
+	resources, err := r.buildResources(task)
+	if err != nil {
+		return nil, fmt.Errorf("invalid resource spec: %w", err)
 	}
 
 	// Build volumes and volume mounts
 	volumes, volumeMounts := r.buildVolumes(task)
 
-	// Build init container to write task.json to /inbox
+	// Build init container to write task.json to /inbox.
+	// We pass the JSON via environment variable and use printf to avoid shell
+	// interpolation vulnerabilities (backticks, $(), etc. in prompts).
 	taskSpecJSON, err := json.Marshal(task.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal task spec: %w", err)
 	}
-	// Escape single quotes for shell
-	escapedJSON := strings.ReplaceAll(string(taskSpecJSON), "'", "'\\''")
 
 	initContainers := []corev1.Container{
 		{
-			Name:    "write-task-json",
-			Image:   "busybox:latest",
-			Command: []string{"sh", "-c", fmt.Sprintf("echo '%s' > /inbox/task.json", escapedJSON)},
+			Name:  "write-task-json",
+			Image: "busybox:1.37.0",
+			// Write from env var — no shell interpolation of user input.
+			Command: []string{"sh", "-c", `printf '%s' "$TASK_JSON" > /inbox/task.json`},
+			Env: []corev1.EnvVar{
+				{Name: "TASK_JSON", Value: string(taskSpecJSON)},
+			},
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "inbox", MountPath: "/inbox"},
 			},
@@ -1061,6 +1032,92 @@ func tierRank(tier string) int {
 	default:
 		return 0
 	}
+}
+
+// parseQuantity parses a resource string, returning a clean error instead of panicking.
+func parseQuantity(value, label string) (resource.Quantity, error) {
+	qty, err := resource.ParseQuantity(value)
+	if err != nil {
+		return resource.Quantity{}, fmt.Errorf("invalid %s %q: %w", label, value, err)
+	}
+	return qty, nil
+}
+
+// buildResources constructs resource requirements from the task spec or cluster defaults.
+// Uses ParseQuantity instead of MustParse to avoid panics on invalid input.
+func (r *AgentTaskReconciler) buildResources(task *corev1alpha1.AgentTask) (corev1.ResourceRequirements, error) {
+	resources := corev1.ResourceRequirements{}
+
+	if task.Spec.Resources != nil {
+		if task.Spec.Resources.Requests != nil {
+			resources.Requests = corev1.ResourceList{}
+			if task.Spec.Resources.Requests.CPU != "" {
+				qty, err := parseQuantity(task.Spec.Resources.Requests.CPU, "CPU request")
+				if err != nil {
+					return resources, err
+				}
+				resources.Requests[corev1.ResourceCPU] = qty
+			}
+			if task.Spec.Resources.Requests.Memory != "" {
+				qty, err := parseQuantity(task.Spec.Resources.Requests.Memory, "memory request")
+				if err != nil {
+					return resources, err
+				}
+				resources.Requests[corev1.ResourceMemory] = qty
+			}
+		}
+		if task.Spec.Resources.Limits != nil {
+			resources.Limits = corev1.ResourceList{}
+			if task.Spec.Resources.Limits.CPU != "" {
+				qty, err := parseQuantity(task.Spec.Resources.Limits.CPU, "CPU limit")
+				if err != nil {
+					return resources, err
+				}
+				resources.Limits[corev1.ResourceCPU] = qty
+			}
+			if task.Spec.Resources.Limits.Memory != "" {
+				qty, err := parseQuantity(task.Spec.Resources.Limits.Memory, "memory limit")
+				if err != nil {
+					return resources, err
+				}
+				resources.Limits[corev1.ResourceMemory] = qty
+			}
+		}
+	} else {
+		// Apply cluster defaults
+		resources.Requests = corev1.ResourceList{}
+		resources.Limits = corev1.ResourceList{}
+		if r.defaults.DefaultRequestsCPU != "" {
+			qty, err := parseQuantity(r.defaults.DefaultRequestsCPU, "default CPU request")
+			if err != nil {
+				return resources, err
+			}
+			resources.Requests[corev1.ResourceCPU] = qty
+		}
+		if r.defaults.DefaultRequestsMemory != "" {
+			qty, err := parseQuantity(r.defaults.DefaultRequestsMemory, "default memory request")
+			if err != nil {
+				return resources, err
+			}
+			resources.Requests[corev1.ResourceMemory] = qty
+		}
+		if r.defaults.DefaultLimitsCPU != "" {
+			qty, err := parseQuantity(r.defaults.DefaultLimitsCPU, "default CPU limit")
+			if err != nil {
+				return resources, err
+			}
+			resources.Limits[corev1.ResourceCPU] = qty
+		}
+		if r.defaults.DefaultLimitsMemory != "" {
+			qty, err := parseQuantity(r.defaults.DefaultLimitsMemory, "default memory limit")
+			if err != nil {
+				return resources, err
+			}
+			resources.Limits[corev1.ResourceMemory] = qty
+		}
+	}
+
+	return resources, nil
 }
 
 // enforcePolicy checks all AgentPolicy objects in the task's namespace.

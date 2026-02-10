@@ -10,6 +10,46 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ---
 
+## 🐛 Code Review Fixes (2026-02-10)
+
+### Critical
+- [ ] **P0** Cache ConfigMap in operator — `loadClusterDefaults` fires on every reconcile (K8s API call per event). Cache with periodic refresh (e.g., 30s timer or informer). [C1]
+- [ ] **P0** Replace `resource.MustParse` with `resource.ParseQuantity` — user/config-supplied resource strings will panic the operator on invalid input. Return errors instead. Affects `buildPod` (~line 934-964). [C2]
+- [ ] **P0** Add jitter to retry backoff — pure exponential causes thundering herd when many tasks fail simultaneously (e.g., API outage). Add random jitter (±25%). [C3]
+- [ ] **P0** Pin init container image — `busybox:latest` is a mutable tag. Pin to digest or specific version (e.g., `busybox:1.37.0`). [C4]
+
+### Moderate
+- [ ] **P1** Split `agenttask_controller.go` (1318 lines) into `pod_builder.go`, `policy.go`, `cleanup.go`, `metrics.go`. Pure refactor, no behavior change. [M2]
+- [ ] **P1** Cache gateway auth secret — `authenticate()` fetches K8s Secret on every HTTP request. Add TTL cache (60s). [M3]
+- [ ] **P1** Replace shell interpolation in init container — current `echo '...' > /inbox/task.json` breaks on backticks/dollar signs. Use ConfigMap volume or binary init container writing from stdin. Security risk. [M5]
+- [ ] **P1** Add `--role`, `--tier`, `--parent` flags to `hortator spawn` CLI — these critical hierarchy fields aren't wired through. [M6]
+- [ ] **P1** Handle all terminal phases in `waitForTask` — `BudgetExceeded`, `TimedOut`, `Cancelled`, `Retrying` cause infinite polling. Also add max wait timeout. [M8]
+
+### Minor
+- [ ] **P2** Add integration tests for reconciler, gateway, CLI, policy enforcement. Current coverage ~5-10%. [L1]
+- [ ] **P2** Standardize license headers — LICENSE file is MIT but source files have bare `Copyright 2026.` from kubebuilder scaffold. [L2]
+- [ ] **P2** Single source of truth for CRDs — currently duplicated in `crds/`, `charts/hortator/crds/`, `config/crd/bases/`. Add Makefile target to sync from generated source. [L5]
+- [ ] **P2** Clean up dead tier-to-model mapping in `entrypoint.sh` — OpenAI mapping is dead code when Anthropic keys present. [L6]
+- [ ] **P2** Generate Go types for AgentRole/ClusterAgentRole — gateway currently uses `unstructured.Unstructured`, losing type safety and validation. [L7]
+
+---
+
+## 🐛 Code Review Fixes (2026-02-10)
+
+- [ ] **P0** `resource.MustParse` panics on invalid input — Replace with `resource.ParseQuantity` + error return in `buildPod` (C2)
+- [ ] **P0** Init container shell interpolation vulnerability — Task prompts with `$()` or backticks can execute in shell. Replace `echo '...'` with ConfigMap volume or binary init container (M5)
+- [ ] **P0** Init container uses `busybox:latest` — Pin to specific version/digest for reproducibility and image policy compliance (C4)
+- [ ] **P1** Cache K8s reads in hot paths — `loadClusterDefaults` (ConfigMap) called every reconcile, gateway auth Secret fetched every HTTP request. Add informer/cache or TTL refresh (C1, M3)
+- [ ] **P1** Add jitter to retry backoff — `computeBackoff` uses pure exponential, causing thundering herd on simultaneous failures. Add random jitter (C3)
+- [ ] **P1** `spawn` CLI missing `--role`, `--tier`, `--parent` flags — Core hierarchy fields never set. Also fix `waitForTask` to handle all terminal phases (`BudgetExceeded`, `TimedOut`, `Cancelled`) and add context timeout (M6, M8, L8)
+- [ ] **P1** Test coverage — Controller reconciliation flow, gateway, CLI, and policy enforcement are untested. Target core paths first (L1)
+- [ ] **P2** Split `agenttask_controller.go` (1318 lines) — Extract `pod_builder.go`, `policy.go`, `cleanup.go`, `metrics.go` (M2)
+- [ ] **P2** Add Go types for AgentRole/ClusterAgentRole — Currently CRD-only with no `api/v1alpha1` types. Gateway uses unstructured. Add proper types with deepcopy and validation (L7)
+- [ ] **P2** Gateway rate limiting — Per-client rate limits to prevent unbounded AgentTask creation. Defense-in-depth alongside AgentPolicy concurrency limits (M4)
+- [ ] **P2** Single-source CRDs — Three copies (`crds/`, `charts/hortator/crds/`, `config/crd/bases/`) with no sync. Add Makefile target to generate/copy from one source (L5)
+- [ ] **P2** Fix license headers — Controller has Apache 2.0, README says MIT. Standardize to MIT across all files (L2)
+- [ ] **P2** Create functional Makefile — Current Makefile is markdown notes. Add `make build`, `make test`, `make lint`, `make generate` targets (L4)
+
 ## 📋 Post-MVP Priorities
 
 - [ ] **P1** Warm Pod pool — Pre-provision idle worker Pods that accept tasks immediately, reducing spawn latency from seconds to milliseconds. Also consider sidecar mode (long-running container accepting sequential tasks). Configurable pool size per namespace.
