@@ -130,9 +130,12 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		tier = req.Tier
 	}
 
+	// Resolve model config from AgentRole (if it exists)
+	modelCfg := h.resolveModelConfig(r.Context(), role)
+
 	// Create AgentTask
 	taskName := fmt.Sprintf("gw-%s-%d", sanitizeName(role), time.Now().UnixMilli())
-	task := buildAgentTask(taskName, h.Namespace, role, tier, prompt, &req)
+	task := buildAgentTask(taskName, h.Namespace, role, tier, prompt, &req, modelCfg)
 
 	log.Info("creating task", "name", taskName, "role", role, "tier", tier, "stream", req.Stream)
 
@@ -351,6 +354,63 @@ func (h *Handler) sendStreamChunk(w http.ResponseWriter, flusher http.Flusher, i
 func (h *Handler) sendStreamDone(w http.ResponseWriter, flusher http.Flusher) {
 	fmt.Fprint(w, "data: [DONE]\n\n")
 	flusher.Flush()
+}
+
+// resolveModelConfig looks up the AgentRole and returns model configuration.
+// Falls back to a default config if the role doesn't exist.
+func (h *Handler) resolveModelConfig(ctx context.Context, roleName string) *ModelConfig {
+	log := ctrl.Log.WithName("gateway.resolve")
+
+	role, err := h.DynClient.Resource(agentRoleGVR).Namespace(h.Namespace).Get(ctx, roleName, metav1.GetOptions{})
+	if err != nil {
+		log.V(1).Info("AgentRole not found, using defaults", "role", roleName, "error", err)
+		// Fall back: check if anthropic-api-key secret exists in namespace
+		_, secretErr := h.Clientset.CoreV1().Secrets(h.Namespace).Get(ctx, "anthropic-api-key", metav1.GetOptions{})
+		if secretErr == nil {
+			return &ModelConfig{
+				Name:       "claude-sonnet-4-20250514",
+				Endpoint:   "https://api.anthropic.com/v1",
+				SecretName: "anthropic-api-key",
+				SecretKey:  "api-key",
+			}
+		}
+		return nil
+	}
+
+	cfg := &ModelConfig{}
+
+	// Read defaultModel from AgentRole spec
+	if model, ok, _ := unstructured.NestedString(role.Object, "spec", "defaultModel"); ok {
+		cfg.Name = model
+	}
+	if endpoint, ok, _ := unstructured.NestedString(role.Object, "spec", "defaultEndpoint"); ok {
+		cfg.Endpoint = endpoint
+	}
+	if secretName, ok, _ := unstructured.NestedString(role.Object, "spec", "apiKeyRef", "secretName"); ok {
+		cfg.SecretName = secretName
+		if key, ok, _ := unstructured.NestedString(role.Object, "spec", "apiKeyRef", "key"); ok {
+			cfg.SecretKey = key
+		}
+	}
+
+	// If role has a model name but no explicit endpoint/secret, infer from model name
+	if cfg.Name != "" && cfg.Endpoint == "" {
+		if strings.Contains(cfg.Name, "claude") {
+			cfg.Endpoint = "https://api.anthropic.com/v1"
+			if cfg.SecretName == "" {
+				cfg.SecretName = "anthropic-api-key"
+				cfg.SecretKey = "api-key"
+			}
+		} else if strings.Contains(cfg.Name, "gpt") {
+			cfg.Endpoint = "https://api.openai.com/v1"
+			if cfg.SecretName == "" {
+				cfg.SecretName = "openai-api-key"
+				cfg.SecretKey = "api-key"
+			}
+		}
+	}
+
+	return cfg
 }
 
 // ListModels handles GET /v1/models.
