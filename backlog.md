@@ -10,6 +10,16 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ---
 
+## 📋 Post-MVP Priorities
+
+- [ ] **P1** Warm Pod pool — Pre-provision idle worker Pods that accept tasks immediately, reducing spawn latency from seconds to milliseconds. Also consider sidecar mode (long-running container accepting sequential tasks). Configurable pool size per namespace.
+- [ ] **P1** Native SDK wrappers (Python, TypeScript) — Thin wrappers that feel native to LangGraph, CrewAI, etc. Expose spawning as a tool/delegation mechanism. Ship 2-3 complete working examples per framework. CLI stays for shell-based agents.
+- [ ] **P1** Result cache with dedup — Content-addressable cache keyed on exact prompt+role hash. Operator checks cache before spawning. Hits return immediately. TTL + opt-out flag for freshness-sensitive tasks. Avoids duplicate work across agents.
+- [ ] **P2** `hortator watch` TUI — Terminal UI showing live task tree, per-agent status, logs, cumulative cost. No web dashboard needed (let 3rd party build if it takes off). Great for demos and debugging.
+- [ ] **P3** Local quickstart script — Shell script that spins up Kind/k3d cluster + helm installs Hortator + runs demo task. One-liner eval path without existing cluster. Lowest priority.
+
+---
+
 ## MVP Scope
 
 1. AgentTask CRD definition
