@@ -83,6 +83,14 @@ agent:
       cpu: 250m
       memory: 256Mi
 
+# ── Warm Pod Pool ───────────────────────────────────────────────────────────
+# Pre-provisioned idle agent Pods that accept tasks immediately,
+# eliminating image pull + container startup latency.
+warmPool:
+  enabled: false
+  # Number of warm pods to maintain per namespace
+  size: 2
+
 # ── Runtime Conventions ─────────────────────────────────────────────────────
 # Filesystem and context management settings for agent Pods.
 
