@@ -1,4 +1,9 @@
 /*
+Copyright (c) 2026 GeneClackman
+SPDX-License-Identifier: MIT
+*/
+
+/*
 Hortator API Gateway — OpenAI-compatible endpoint for agent orchestration.
 
 This service translates OpenAI chat completion requests into AgentTask CRDs,
