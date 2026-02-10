@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -266,7 +267,7 @@ func TestAuthCaching(t *testing.T) {
 
 	t.Run("cached keys are returned without API call", func(t *testing.T) {
 		// getAuthKeys should return cached keys since TTL hasn't expired
-		keys, err := h.getAuthKeys(nil)
+		keys, err := h.getAuthKeys(context.TODO())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -284,7 +285,7 @@ func TestAuthCaching(t *testing.T) {
 		// Without a Clientset, getAuthKeys will panic on the K8s API call.
 		// We verify that stale cache is detected by checking that fresh cache works.
 		h2.authAt = time.Now() // make it fresh again
-		keys, err := h2.getAuthKeys(nil)
+		keys, err := h2.getAuthKeys(context.TODO())
 		if err != nil {
 			t.Fatalf("unexpected error with fresh cache: %v", err)
 		}

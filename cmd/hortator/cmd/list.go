@@ -113,17 +113,17 @@ func runList(cmd *cobra.Command, args []string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
 	if listAllNamespaces {
-		fmt.Fprintln(w, "NAMESPACE\tNAME\tPHASE\tAGE\tPOD")
+		_, _ = fmt.Fprintln(w, "NAMESPACE\tNAME\tPHASE\tAGE\tPOD")
 		for _, task := range taskList.Items {
 			age := time.Since(task.CreationTimestamp.Time).Round(time.Second)
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 				task.Namespace, task.Name, task.Status.Phase, age, task.Status.PodName)
 		}
 	} else {
-		fmt.Fprintln(w, "NAME\tPHASE\tAGE\tPOD")
+		_, _ = fmt.Fprintln(w, "NAME\tPHASE\tAGE\tPOD")
 		for _, task := range taskList.Items {
 			age := time.Since(task.CreationTimestamp.Time).Round(time.Second)
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 				task.Name, task.Status.Phase, age, task.Status.PodName)
 		}
 	}

@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   go: "1.24"
@@ -5,14 +7,17 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
     - misspell
+
+formatters:
+  enable:
     - goimports
 
-linters-settings:
-  goimports:
-    local-prefixes: github.com/michael-niemand/Hortator
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/michael-niemand/Hortator

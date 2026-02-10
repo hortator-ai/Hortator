@@ -113,7 +113,7 @@ func main() {
 	mux.HandleFunc("/v1/models", gw.ListModels)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
+		_, _ = fmt.Fprint(w, "ok")
 	})
 
 	srv := &http.Server{
