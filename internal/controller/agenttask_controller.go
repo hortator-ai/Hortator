@@ -39,7 +39,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -115,9 +114,7 @@ type ClusterDefaults struct {
 	DefaultLimitsMemory    string
 	EnforceNamespaceLabels bool
 	PresidioEnabled        bool
-	PresidioImage          string
-	PresidioScoreThreshold string
-	PresidioAction         string
+	PresidioEndpoint       string
 }
 
 // AgentTaskReconciler reconciles a AgentTask object
@@ -284,14 +281,8 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	if v, ok := cm.Data["presidioEnabled"]; ok {
 		d.PresidioEnabled = v == "true"
 	}
-	if v, ok := cm.Data["presidioImage"]; ok && v != "" {
-		d.PresidioImage = v
-	}
-	if v, ok := cm.Data["presidioScoreThreshold"]; ok && v != "" {
-		d.PresidioScoreThreshold = v
-	}
-	if v, ok := cm.Data["presidioAction"]; ok && v != "" {
-		d.PresidioAction = v
+	if v, ok := cm.Data["presidioEndpoint"]; ok && v != "" {
+		d.PresidioEndpoint = v
 	}
 
 	r.defaults = d
@@ -982,95 +973,13 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		},
 	}
 
-	// Presidio sidecar injection (native sidecar — K8s 1.28+)
-	// Using init container with restartPolicy=Always so K8s terminates it
-	// automatically when the main agent container exits.
-	var presidioSidecars []corev1.Container
+	// Presidio PII detection — centralized service (Deployment+Service in hortator-system)
+	// Agent pods call the shared Presidio service via cluster DNS instead of a sidecar.
 	presidioEnabled := r.defaults.PresidioEnabled || task.Spec.Presidio != nil
-	if presidioEnabled {
-		presidioImage := r.defaults.PresidioImage
-		if presidioImage == "" {
-			presidioImage = "mcr.microsoft.com/presidio-analyzer:latest"
-		}
-
-		scoreThreshold := r.defaults.PresidioScoreThreshold
-		if scoreThreshold == "" {
-			scoreThreshold = "0.5"
-		}
-		presidioAction := r.defaults.PresidioAction
-		if presidioAction == "" {
-			presidioAction = "redact"
-		}
-
-		// Task-level overrides
-		if task.Spec.Presidio != nil {
-			if task.Spec.Presidio.ScoreThreshold != nil {
-				scoreThreshold = fmt.Sprintf("%g", *task.Spec.Presidio.ScoreThreshold)
-			}
-			if task.Spec.Presidio.Action != "" {
-				presidioAction = task.Spec.Presidio.Action
-			}
-		}
-
-		sidecarEnv := []corev1.EnvVar{
-			{Name: "PRESIDIO_SCORE_THRESHOLD", Value: scoreThreshold},
-			{Name: "PRESIDIO_ACTION", Value: presidioAction},
-		}
-
-		sidecar := corev1.Container{
-			Name:  "presidio",
-			Image: presidioImage,
-			Ports: []corev1.ContainerPort{{ContainerPort: 5001}},
-			Env:   sidecarEnv,
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("100m"),
-					corev1.ResourceMemory: resource.MustParse("512Mi"),
-				},
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("500m"),
-					corev1.ResourceMemory: resource.MustParse("1Gi"),
-				},
-			},
-			ReadinessProbe: &corev1.Probe{
-				ProbeHandler: corev1.ProbeHandler{
-					HTTPGet: &corev1.HTTPGetAction{
-						Path: "/health",
-						Port: intstr.FromInt(5001),
-					},
-				},
-			},
-		}
-
-		// Mount custom config if configRef specified
-		if task.Spec.Presidio != nil && task.Spec.Presidio.ConfigRef != "" {
-			sidecar.VolumeMounts = append(sidecar.VolumeMounts, corev1.VolumeMount{
-				Name:      "presidio-config",
-				MountPath: "/etc/presidio/config.yaml",
-				SubPath:   "config.yaml",
-			})
-			volumes = append(volumes, corev1.Volume{
-				Name: "presidio-config",
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: task.Spec.Presidio.ConfigRef,
-						},
-					},
-				},
-			})
-		}
-
-		// Native sidecar: restartPolicy=Always makes this a proper sidecar
-		// that K8s will auto-terminate when the main container exits
-		restartAlways := corev1.ContainerRestartPolicyAlways
-		sidecar.RestartPolicy = &restartAlways
-		presidioSidecars = append(presidioSidecars, sidecar)
-
-		// Add PRESIDIO_ENDPOINT to agent container env
+	if presidioEnabled && r.defaults.PresidioEndpoint != "" {
 		env = append(env, corev1.EnvVar{
 			Name:  "PRESIDIO_ENDPOINT",
-			Value: "http://localhost:5001",
+			Value: r.defaults.PresidioEndpoint,
 		})
 	}
 
@@ -1100,10 +1009,6 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 			Volumes: volumes,
 		},
 	}
-
-	// Append presidio as native sidecar (init containers with restartPolicy=Always)
-	// This ensures K8s auto-terminates the sidecar when the agent container exits
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, presidioSidecars...)
 
 	return pod, nil
 }
