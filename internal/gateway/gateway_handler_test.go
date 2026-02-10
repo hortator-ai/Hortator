@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -187,7 +188,7 @@ func TestResolveModelConfig(t *testing.T) {
 			Clientset: k8sfake.NewSimpleClientset(),
 			DynClient: dynClient,
 		}
-		cfg := h.resolveModelConfig(nil, "dev")
+		cfg := h.resolveModelConfig(context.TODO(), "dev")
 		if cfg == nil {
 			t.Fatal("expected non-nil config")
 		}
@@ -216,7 +217,7 @@ func TestResolveModelConfig(t *testing.T) {
 		scheme := k8sruntime.NewScheme()
 		dynClient := dynamicfake.NewSimpleDynamicClient(scheme, role)
 		h := &Handler{Namespace: "default", Clientset: k8sfake.NewSimpleClientset(), DynClient: dynClient}
-		cfg := h.resolveModelConfig(nil, "dev")
+		cfg := h.resolveModelConfig(context.TODO(), "dev")
 		if cfg == nil {
 			t.Fatal("expected non-nil config")
 		}
@@ -240,7 +241,7 @@ func TestResolveModelConfig(t *testing.T) {
 		scheme := k8sruntime.NewScheme()
 		dynClient := dynamicfake.NewSimpleDynamicClient(scheme, role)
 		h := &Handler{Namespace: "default", Clientset: k8sfake.NewSimpleClientset(), DynClient: dynClient}
-		cfg := h.resolveModelConfig(nil, "dev")
+		cfg := h.resolveModelConfig(context.TODO(), "dev")
 		if cfg == nil {
 			t.Fatal("expected non-nil config")
 		}
@@ -261,7 +262,7 @@ func TestResolveModelConfig(t *testing.T) {
 			Clientset: k8sfake.NewSimpleClientset(secret),
 			DynClient: dynClient,
 		}
-		cfg := h.resolveModelConfig(nil, "nonexistent")
+		cfg := h.resolveModelConfig(context.TODO(), "nonexistent")
 		if cfg == nil {
 			t.Fatal("expected anthropic fallback config")
 		}
@@ -278,7 +279,7 @@ func TestResolveModelConfig(t *testing.T) {
 			Clientset: k8sfake.NewSimpleClientset(),
 			DynClient: dynClient,
 		}
-		cfg := h.resolveModelConfig(nil, "nonexistent")
+		cfg := h.resolveModelConfig(context.TODO(), "nonexistent")
 		if cfg != nil {
 			t.Errorf("expected nil, got %+v", cfg)
 		}

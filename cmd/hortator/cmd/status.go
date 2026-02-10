@@ -152,12 +152,12 @@ func showAllTasks(ctx context.Context) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tPHASE\tAGE\tPOD\tMESSAGE")
+	_, _ = fmt.Fprintln(w, "NAME\tPHASE\tAGE\tPOD\tMESSAGE")
 
 	for _, task := range taskList.Items {
 		age := time.Since(task.CreationTimestamp.Time).Round(time.Second)
 		message := truncate(task.Status.Message, 40)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			task.Name, task.Status.Phase, age, task.Status.PodName, message)
 	}
 

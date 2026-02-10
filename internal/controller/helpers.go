@@ -128,7 +128,7 @@ func setCompletionStatus(task *corev1alpha1.AgentTask) {
 	now := metav1.Now()
 	task.Status.CompletedAt = &now
 	if task.Status.StartedAt != nil {
-		duration := now.Time.Sub(task.Status.StartedAt.Time)
+		duration := now.Sub(task.Status.StartedAt.Time)
 		task.Status.Duration = duration.Round(time.Second).String()
 	}
 }
@@ -150,7 +150,7 @@ func (r *AgentTaskReconciler) collectPodLogs(ctx context.Context, namespace, pod
 		log.FromContext(ctx).V(1).Info("Failed to get pod logs", "error", err)
 		return ""
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	buf := new(bytes.Buffer)
 	_, err = io.Copy(buf, stream)
