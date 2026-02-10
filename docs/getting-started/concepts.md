@@ -24,7 +24,7 @@ The unit commander. Coordinates a group of legionaries, collects their results, 
 
 The soldier. Executes a single, focused task. Expendable — spawned for a job, terminated when done.
 
-- **Storage:** EmptyDir — deleted with the Pod
+- **Storage:** PVC (256Mi default) — smaller than tribune/centurion, cleaned up via TTL
 - **Model:** Fast/cheap models (Haiku, GPT-4o-mini, local Ollama)
 - **Lifespan:** Short, typically minutes
 
@@ -53,7 +53,7 @@ Hortator extends Kubernetes with three Custom Resource Definitions:
 The core resource. Defines a task for an agent to execute.
 
 ```yaml
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: fix-auth-bug
@@ -118,3 +118,5 @@ hortator budget-remaining
 ```
 
 Humans use `kubectl` and `helm`. Agents use `hortator`.
+
+For programmatic access, the [Python SDK](https://pypi.org/project/hortator/) and [TypeScript SDK](https://www.npmjs.com/package/@hortator/sdk) provide convenient wrappers around the OpenAI-compatible gateway API.
