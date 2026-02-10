@@ -22,11 +22,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,8 +52,9 @@ import (
 )
 
 const (
-	finalizerName = "agenttask.core.hortator.ai/finalizer"
-	maxOutputLen  = 16000
+	finalizerName         = "agenttask.core.hortator.ai/finalizer"
+	maxOutputLen          = 16000
+	defaultConfigCacheTTL = 30 * time.Second
 )
 
 // Prometheus metrics
@@ -126,8 +129,11 @@ type AgentTaskReconciler struct {
 	// Namespace the operator runs in (for ConfigMap lookup)
 	Namespace string
 
-	// Cached cluster defaults
-	defaults ClusterDefaults
+	// Cached cluster defaults with TTL to avoid K8s API calls on every reconcile.
+	defaults    ClusterDefaults
+	defaultsMu  sync.RWMutex
+	defaultsAt  time.Time
+	defaultsTTL time.Duration // 0 means use defaultConfigCacheTTL
 }
 
 // +kubebuilder:rbac:groups=core.hortator.ai,resources=agentpolicies,verbs=get;list;watch
@@ -144,8 +150,8 @@ type AgentTaskReconciler struct {
 func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// Refresh cluster defaults from ConfigMap (best-effort)
-	r.loadClusterDefaults(ctx)
+	// Refresh cluster defaults from ConfigMap (best-effort, cached with TTL)
+	r.refreshDefaultsIfStale(ctx)
 
 	// Fetch the AgentTask instance
 	task := &corev1alpha1.AgentTask{}
@@ -218,6 +224,22 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 }
 
+// refreshDefaultsIfStale reloads cluster defaults only if the cache TTL has expired.
+// This avoids a K8s API call to fetch the ConfigMap on every single reconciliation.
+func (r *AgentTaskReconciler) refreshDefaultsIfStale(ctx context.Context) {
+	ttl := r.defaultsTTL
+	if ttl == 0 {
+		ttl = defaultConfigCacheTTL
+	}
+	r.defaultsMu.RLock()
+	fresh := time.Since(r.defaultsAt) < ttl
+	r.defaultsMu.RUnlock()
+	if fresh {
+		return
+	}
+	r.loadClusterDefaults(ctx)
+}
+
 // loadClusterDefaults reads the hortator-config ConfigMap and caches defaults.
 func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	ns := r.Namespace
@@ -235,6 +257,7 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 
 	if err != nil {
 		// Fall back to env/hardcoded defaults
+		r.defaultsMu.Lock()
 		r.defaults = ClusterDefaults{
 			DefaultTimeout:        600,
 			DefaultImage:          defaultImage,
@@ -243,6 +266,8 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 			DefaultLimitsCPU:      "500m",
 			DefaultLimitsMemory:   "512Mi",
 		}
+		r.defaultsAt = time.Now()
+		r.defaultsMu.Unlock()
 		return
 	}
 
@@ -285,7 +310,10 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 		d.PresidioEndpoint = v
 	}
 
+	r.defaultsMu.Lock()
 	r.defaults = d
+	r.defaultsAt = time.Now()
+	r.defaultsMu.Unlock()
 }
 
 // parseDurationString parses a duration string like "7d", "2d", "24h", "48h".
@@ -1335,7 +1363,9 @@ func (r *AgentTaskReconciler) computeBackoff(task *corev1alpha1.AgentTask) time.
 		}
 	}
 
-	// Exponential backoff: base * 2^(attempts-1)
+	// Exponential backoff with jitter: base * 2^(attempts-1) ± 25%.
+	// Jitter prevents thundering herd when many tasks fail simultaneously
+	// (e.g., during an API outage) and all retry at the exact same time.
 	backoff := base
 	for i := 1; i < task.Status.Attempts; i++ {
 		backoff *= 2
@@ -1343,6 +1373,12 @@ func (r *AgentTaskReconciler) computeBackoff(task *corev1alpha1.AgentTask) time.
 			backoff = max
 			break
 		}
+	}
+	// Add ±25% jitter
+	jitter := rand.Intn(backoff/2+1) - backoff/4
+	backoff += jitter
+	if backoff < 1 {
+		backoff = 1
 	}
 	return time.Duration(backoff) * time.Second
 }
