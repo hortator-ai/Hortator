@@ -9,8 +9,6 @@ import (
 	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
 
-func intPtr(i int) *int { return &i }
-
 func TestShouldRetry(t *testing.T) {
 	r := &AgentTaskReconciler{}
 
@@ -187,11 +185,11 @@ func TestExtractTokenUsage(t *testing.T) {
 	r := &AgentTaskReconciler{}
 
 	tests := []struct {
-		name        string
-		output      string
-		wantInput   int64
-		wantOutput  int64
-		wantNil     bool
+		name       string
+		output     string
+		wantInput  int64
+		wantOutput int64
+		wantNil    bool
 	}{
 		{
 			name:       "valid token line",
