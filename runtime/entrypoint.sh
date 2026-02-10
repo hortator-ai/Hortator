@@ -169,18 +169,25 @@ else
   OUTPUT_TOKENS=0
 fi
 
-# Scan response for PII before writing results
+# Scan response for PII before reporting results
 presidio_scan "$SUMMARY"
 
-# --- Write results ---
+# --- Report results via CRD status ---
+# Primary path: patch the AgentTask CRD directly via the K8s API.
+# This is instant — the gateway and operator watch the CRD and pick it up.
+# Artifacts (code files, patches) stay on the PVC at /outbox/artifacts/.
+if hortator report --result "$SUMMARY" --tokens-in "$INPUT_TOKENS" --tokens-out "$OUTPUT_TOKENS" 2>/dev/null; then
+  echo "[hortator-runtime] Result reported to CRD. Tokens: in=${INPUT_TOKENS} out=${OUTPUT_TOKENS}"
+else
+  # Fallback: write result markers to stdout for legacy operator log scraping
+  echo "[hortator-runtime] WARN: hortator report failed, falling back to stdout"
+  echo "[hortator-result-begin]"
+  echo "$SUMMARY"
+  echo "[hortator-result-end]"
+  echo "[hortator-runtime] Done. Tokens: in=${INPUT_TOKENS} out=${OUTPUT_TOKENS}"
+fi
+
+# Also write result.json to PVC for artifact consumers
 write_result "completed" "$SUMMARY" "$INPUT_TOKENS" "$OUTPUT_TOKENS"
 
-# Output the result for the operator to capture.
-# The operator parses this marker to extract the actual LLM response
-# separate from runtime log noise.
-echo "[hortator-result-begin]"
-echo "$SUMMARY"
-echo "[hortator-result-end]"
-
-echo "[hortator-runtime] Done. Tokens: in=${INPUT_TOKENS} out=${OUTPUT_TOKENS}"
 exit 0
