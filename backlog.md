@@ -36,9 +36,9 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ## 🐛 Code Review Fixes (2026-02-10)
 
-- [ ] **P0** `resource.MustParse` panics on invalid input — Replace with `resource.ParseQuantity` + error return in `buildPod` (C2)
-- [ ] **P0** Init container shell interpolation vulnerability — Task prompts with `$()` or backticks can execute in shell. Replace `echo '...'` with ConfigMap volume or binary init container (M5)
-- [ ] **P0** Init container uses `busybox:latest` — Pin to specific version/digest for reproducibility and image policy compliance (C4)
+- [x] **P0** `resource.MustParse` panics on invalid input — Replace with `resource.ParseQuantity` + error return in `buildPod` (C2) ✅ 2026-02-10
+- [x] **P0** Init container shell interpolation vulnerability — Task prompts with `$()` or backticks can execute in shell. Replace `echo '...'` with ConfigMap volume or binary init container (M5) ✅ 2026-02-10
+- [x] **P0** Init container uses `busybox:latest` — Pin to specific version/digest for reproducibility and image policy compliance (C4) ✅ 2026-02-10
 - [ ] **P1** Cache K8s reads in hot paths — `loadClusterDefaults` (ConfigMap) called every reconcile, gateway auth Secret fetched every HTTP request. Add informer/cache or TTL refresh (C1, M3)
 - [ ] **P1** Add jitter to retry backoff — `computeBackoff` uses pure exponential, causing thundering herd on simultaneous failures. Add random jitter (C3)
 - [ ] **P1** `spawn` CLI missing `--role`, `--tier`, `--parent` flags — Core hierarchy fields never set. Also fix `waitForTask` to handle all terminal phases (`BudgetExceeded`, `TimedOut`, `Cancelled`) and add context timeout (M6, M8, L8)
