@@ -6,7 +6,8 @@ CRD status. This is the primary mechanism for returning results from agent
 work — no stdout parsing, no file scraping, just a clean API call.
 
 The agent's runtime calls:
-  hortator report --result "Here's what I built" --tokens-in 500 --tokens-out 2000
+
+	hortator report --result "Here's what I built" --tokens-in 500 --tokens-out 2000
 
 This patches the AgentTask status with the result and token usage. The operator
 and gateway watch the CRD and pick up the update instantly.
@@ -24,10 +25,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var reportCmd = &cobra.Command{
@@ -68,7 +69,7 @@ func init() {
 	reportCmd.Flags().Int64Var(&reportTokensIn, "tokens-in", 0, "Input tokens consumed")
 	reportCmd.Flags().Int64Var(&reportTokensOut, "tokens-out", 0, "Output tokens consumed")
 	reportCmd.Flags().StringVar(&reportArtifacts, "artifacts", "", "Comma-separated artifact paths (relative to /outbox/)")
-	reportCmd.MarkFlagRequired("result")
+	_ = reportCmd.MarkFlagRequired("result")
 	rootCmd.AddCommand(reportCmd)
 }
 

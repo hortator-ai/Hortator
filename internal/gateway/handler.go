@@ -69,7 +69,7 @@ func (h *Handler) authenticate(r *http.Request) error {
 func writeError(w http.ResponseWriter, status int, msg, errType, code string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{
+	_ = json.NewEncoder(w).Encode(ErrorResponse{
 		Error: ErrorDetail{Message: msg, Type: errType, Code: code},
 	})
 }
@@ -115,10 +115,7 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract role from model field: "hortator/tech-lead" → "tech-lead"
-	role := req.Model
-	if strings.HasPrefix(role, "hortator/") {
-		role = strings.TrimPrefix(role, "hortator/")
-	}
+	role := strings.TrimPrefix(req.Model, "hortator/")
 
 	// Build prompt from messages (concatenate user messages, include system as context)
 	prompt := buildPrompt(req.Messages)
@@ -188,7 +185,7 @@ func (h *Handler) blockingResponse(ctx context.Context, w http.ResponseWriter, t
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // streamResponse sends SSE chunks as the task progresses.
@@ -454,7 +451,7 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ModelListResponse{
+	_ = json.NewEncoder(w).Encode(ModelListResponse{
 		Object: "list",
 		Data:   models,
 	})
