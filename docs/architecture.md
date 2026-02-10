@@ -11,15 +11,16 @@ graph TB
 
     subgraph "Control Plane"
         Helm["⎈ Helm Chart"]
-        CRDs["📋 CRDs<br/>AgentTask<br/>AgentRole<br/>ClusterAgentRole"]
-        Operator["⚙️ Hortator Operator<br/>(Go)"]
+        CRDs["📋 CRDs<br/>AgentTask<br/>AgentRole<br/>ClusterAgentRole<br/>AgentPolicy"]
+        Operator["⚙️ Hortator Operator<br/>(Go)<br/>Result Cache · Warm Pool"]
+        Gateway["🌐 API Gateway<br/>OpenAI-compatible<br/>/v1/chat/completions"]
     end
 
     subgraph "Agent Pods"
         direction TB
         Tribune["🏛️ Tribune Pod<br/>PVC + Runtime + CLI"]
         Centurion["⚔️ Centurion Pod<br/>PVC + Runtime + CLI"]
-        Legionary["🗡️ Legionary Pod<br/>EmptyDir + Runtime + CLI"]
+        Legionary["🗡️ Legionary Pod<br/>PVC (256Mi) + Runtime + CLI"]
     end
 
     subgraph "Sidecars (optional)"
@@ -48,8 +49,10 @@ graph TB
     User -->|helm install| Helm
     GitOps -->|manages| Helm
     Helm -->|deploys| Operator
+    Helm -->|deploys| Gateway
     Helm -->|installs| CRDs
 
+    Gateway -->|creates| CRDs
     Operator -->|watches| CRDs
     Operator -->|creates| Tribune
     Operator -->|creates| Centurion
@@ -85,6 +88,7 @@ graph TB
     style Centurion fill:#d4a029,color:#fff
     style Legionary fill:#7a7a7a,color:#fff
     style Operator fill:#2d6b3f,color:#fff
+    style Gateway fill:#2d6b3f,color:#fff
 ```
 
 ## Task Lifecycle
@@ -99,10 +103,13 @@ sequenceDiagram
 
     U->>K: Create AgentTask CRD
     K->>O: Watch event (new task)
+    O->>O: Check result cache (hit → complete instantly)
     O->>O: Resolve AgentRole (ns-local → cluster fallback)
+    O->>O: Enforce AgentPolicy (capabilities, budget, tier, images)
     O->>O: Inject role rules + flavor into /inbox/task.json
     O->>O: Match retained PVCs by tags → /inbox/context.json
-    O->>K: Create Job + PVC (centurion/tribune) or EmptyDir (legionary)
+    O->>O: Check warm pool (claim idle Pod or create new)
+    O->>K: Create Pod + PVC (all tiers: 1Gi tribune/centurion, 256Mi legionary)
     K->>P: Schedule Pod
     
     activate P

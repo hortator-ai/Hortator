@@ -88,7 +88,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 **Enterprise (separate license, `enterprise/` directory):**
 - AgentPolicy CRD (fine-grained capability restrictions)
 - Egress allowlists
-- Presidio sidecar integration
+- Presidio PII detection (centralized service)
 - LiteLLM proxy sub-chart (authoritative cost tracking)
 - Retained PVC → vector storage graduation
 - Retained PVC → object storage archival
@@ -870,7 +870,7 @@ telemetry:
 - **State model:** K8s Jobs (ephemeral), not StatefulSets. Import/export folders, dispose after task.
 - **Tenant isolation:** K8s-native (namespaces + NetworkPolicies + RBAC). Not an enterprise feature, just document it.
 - **DLP without cloud dependency:** Microsoft Presidio (MIT, runs in-cluster, NLP + regex).
-- **Storage model:** Legionaries: EmptyDir (auto-deleted with Pod). Centurions/Tribune: PVC (persists across turns, explicit/TTL cleanup).
+- **Storage model:** All tiers get PVCs (legionary: 256Mi default, centurion/tribune: 1Gi default). `/inbox` uses EmptyDir for operator-written task.json. PVCs are cleaned up via TTL.
 - **Manager↔Worker comms:** Operator as broker. Worker completes → Operator writes to parent /inbox/ → Operator spawns parent turn. No message queue needed.
 - **Manager turns:** Each turn is a Job mounting persistent PVC. Pod is ephemeral, PVC is identity. /memory/, /inbox/, /workspace/, /outbox/ structure.
 

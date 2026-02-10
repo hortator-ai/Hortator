@@ -1,6 +1,8 @@
 # Hortator Code Review
 
 > Review date: 2026-02-10
+>
+> **Update (2026-02-10):** All Critical (C1–C4) and most Moderate (M2, M3, M5, M6, M8) issues have been resolved. Controller was refactored from ~1318 lines into focused files: `pod_builder.go`, `policy.go`, `helpers.go`, `metrics.go`. Test coverage significantly improved with unit tests across controller, gateway, helpers, pod builder, policy, warm pool, and result cache. See `backlog.md` for detailed status.
 
 ---
 

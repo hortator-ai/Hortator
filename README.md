@@ -79,7 +79,7 @@ Hortator uses a Roman military hierarchy — because the Hortator was a Roman ga
 |------|------|---------|-------|----------|
 | **Tribune** | Strategic leadership. Decomposes complex problems. | PVC (persistent) | Expensive reasoning | Long-lived |
 | **Centurion** | Coordinates a unit. Delegates to legionaries, collects results. | PVC (persistent) | Mid-tier | Medium |
-| **Legionary** | Executes a single focused task. | EmptyDir (ephemeral) | Fast/cheap | Short-lived |
+| **Legionary** | Executes a single focused task. | PVC (256Mi default) | Fast/cheap | Short-lived |
 
 ```
          ┌──────────┐
@@ -147,7 +147,7 @@ Each agent Pod has four mount points:
 │  │  │+ CLI   │  │  │  │+ CLI   │  │  │  │+ CLI   │  │  │
 │  │  └────────┘  │  │  └────────┘  │  │  └────────┘  │  │
 │  │  ┌────────┐  │  │  ┌────────┐  │  │              │  │
-│  │  │  PVC   │  │  │  │  PVC   │  │  │  (EmptyDir)  │  │
+│  │  │  PVC   │  │  │  │  PVC   │  │  │  │  PVC   │  │  │
 │  │  └────────┘  │  │  └────────┘  │  │              │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  │
 │                                                        │
@@ -300,7 +300,7 @@ Key configuration areas:
 | `security.*` | Capabilities → NetworkPolicy mapping, RBAC |
 | `examples.*` | Install quickstart examples (off by default) |
 
-See [`helm/values.yaml`](helm/values.yaml) for the full reference with comments.
+See [`charts/hortator/values.yaml`](charts/hortator/values.yaml) for the full reference with comments.
 
 ## Built-in Guardrails
 
@@ -308,7 +308,7 @@ Hortator is designed for **autonomous agents with guardrails**:
 
 - 🔒 **Security**: Per-agent NetworkPolicies, RBAC, capability inheritance (children can't escalate beyond parent)
 - 💰 **Budget**: Token/cost caps per task, powered by LiteLLM price map. Optional LiteLLM proxy for authoritative tracking.
-- 🛡️ **PII Detection** *(Enterprise)*: Presidio sidecar scans agent output for secrets, API keys, PII. Configurable action (redact/detect/hash/mask).
+- 🛡️ **PII Detection** *(Enterprise)*: Centralized Presidio service scans agent output for secrets, API keys, PII. Configurable action (redact/detect/hash/mask).
 - 🏥 **Health Monitoring**: Behavioral stuck detection (tool diversity, prompt repetition, state staleness). Auto-kill or escalate stuck agents.
 - 📊 **Observability**: Full OpenTelemetry integration. Task hierarchy = distributed trace. Budget + health metrics via Prometheus.
 - 💾 **Context Management**: Structured extraction + summarization fallback. Graceful degradation when context windows fill up ("agent reincarnation").
@@ -348,7 +348,7 @@ See [full FAQ](docs/faq.md) for more.
 ## Roadmap
 
 ### ✅ Done
-- AgentTask CRD + operator (watch → create Job → track status)
+- AgentTask CRD + operator (watch → create Pod → track status)
 - CLI: `spawn`, `status`, `result`, `logs`, `cancel`, `list`, `tree`
 - Default runtime container with standard filesystem layout
 - Helm chart with sane defaults
@@ -359,21 +359,30 @@ See [full FAQ](docs/faq.md) for more.
 - OpenTelemetry distributed tracing
 - Namespace restrictions (`enforceNamespaceLabels`)
 - JSON output for all CLI commands
+- Retry semantics with jitter (transient vs logical failure classification)
 - AgentPolicy CRD *(Enterprise)*
-- Presidio PII detection sidecar *(Enterprise)*
+- Presidio PII detection (centralized Deployment+Service) *(Enterprise)*
 - CI/CD pipeline (GitHub Actions, linting, Dependabot)
+- OpenAI-compatible API gateway (`/v1/chat/completions`, SSE streaming)
+- Controller refactor (split into focused files: pod builder, policy, helpers, metrics)
+- Comprehensive unit tests (controller, gateway, helpers, pod builder, policy, warm pool, result cache)
+- Warm Pod pool for sub-second task assignment (opt-in)
+- Content-addressable result cache with LRU eviction (opt-in)
+- Python SDK (`hortator` package — sync/async, streaming, LangChain + CrewAI integrations)
+- TypeScript SDK (`@hortator/sdk` — zero deps, streaming, LangChain.js integration)
 
 ### Next
 - Budget enforcement with LiteLLM integration
 - Stuck detection + auto-escalation
 - Retained PVC knowledge discovery (tag matching → vector graduation)
 - Multi-tenancy (cross-namespace policies)
-- Python SDK
+- `hortator watch` TUI for live task tree visualization
 
 ### Future
 - Object storage archival for completed task artifacts
 - OIDC/SSO *(Enterprise)*
 - Web dashboard for task hierarchy visualization
+- Go SDK
 
 ## Contributing
 

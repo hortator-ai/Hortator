@@ -1,7 +1,7 @@
 # Design: AgentTask Retry Semantics
 
-**Status:** Proposed  
-**Date:** 2026-02-09  
+**Status:** Implemented  
+**Date:** 2026-02-09 (implemented 2026-02-10)  
 **Author:** Daemon + M
 
 ## Problem
@@ -128,3 +128,11 @@ agent:
    → **Continue accumulating** — prevents infinite spend on retrying expensive tasks
 3. Should we emit K8s Events on retry decisions for observability?  
    → **Yes** — `Normal/Retrying` and `Warning/RetryExhausted` events
+
+## Implementation Notes (2026-02-10)
+
+- `RetrySpec` implemented in `api/v1alpha1/agenttask_types.go` with `maxAttempts`, `backoffSeconds`, `maxBackoffSeconds`
+- `AttemptRecord` tracks per-attempt history in `status.history`
+- `Retrying` phase added to `AgentTaskPhase` enum
+- Backoff computation includes ±25% random jitter to prevent thundering herd (added in code review fix)
+- Retry logic tested in `internal/controller/retry_test.go` with table-driven tests covering edge cases

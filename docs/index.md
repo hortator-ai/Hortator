@@ -28,12 +28,10 @@ Think of it as **Kubernetes for AI workforces**: agents get isolated Pods, resou
 ## Quick Install
 
 ```bash
-helm repo add hortator https://charts.hortator.io
-helm install hortator hortator/hortator \
+helm install hortator oci://ghcr.io/michael-niemand/hortator/charts/hortator \
   --namespace hortator-system --create-namespace \
   --set models.default.endpoint=https://api.anthropic.com/v1 \
-  --set models.default.name=claude-sonnet \
-  --set examples.enabled=true
+  --set models.default.name=claude-sonnet-4-20250514
 ```
 
 → [Full Quickstart Guide](getting-started/quickstart.md)
@@ -44,7 +42,7 @@ helm install hortator hortator/hortator \
 |------|------|---------|-------|
 | **Tribune** | Strategic leadership | PVC (persistent) | Expensive reasoning |
 | **Centurion** | Coordinates a unit | PVC (persistent) | Mid-tier |
-| **Legionary** | Executes a single task | EmptyDir (ephemeral) | Fast/cheap |
+| **Legionary** | Executes a single task | PVC (256Mi default) | Fast/cheap |
 
 → [Learn the Concepts](getting-started/concepts.md)
 
@@ -52,7 +50,7 @@ helm install hortator hortator/hortator \
 
 - 🔒 **Security** — Per-agent NetworkPolicies, RBAC, capability inheritance
 - 💰 **Budget** — Token/cost caps per task, LiteLLM price map integration
-- 🛡️ **PII Detection** — Presidio sidecar for secrets and PII scanning
+- 🛡️ **PII Detection** — Centralized Presidio service for secrets and PII scanning
 - 🏥 **Health Monitoring** — Behavioral stuck detection, auto-escalation
 - 📊 **Observability** — OpenTelemetry traces + Prometheus metrics
 - 💾 **Context Management** — Structured extraction, summarization, agent reincarnation

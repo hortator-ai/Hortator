@@ -37,7 +37,7 @@ Hortator provides the guardrails:
 - **Budget caps** — token/cost limits per task, automatic termination when exceeded
 - **NetworkPolicies** — capabilities map to egress rules (no `web-fetch` = no internet access)
 - **Namespace isolation** — agents can only spawn tasks in their own namespace
-- **PII detection** — optional Presidio sidecar scans output for secrets and sensitive data
+- **PII detection** — optional centralized Presidio service scans output for secrets and sensitive data
 
 The alternative (agents running unsupervised on bare metal) is what's actually terrifying.
 
@@ -63,7 +63,7 @@ hortator budget-remaining
 
 Agents never touch YAML. The CLI handles CRD creation under the hood.
 
-If you're an AI developer writing agent logic, you interact with Hortator through the CLI or (in the future) a Python SDK.
+If you're an AI developer writing agent logic, you interact with Hortator through the CLI, the [Python SDK](https://pypi.org/project/hortator/) (`pip install hortator`), or the [TypeScript SDK](https://www.npmjs.com/package/@hortator/sdk) (`npm install @hortator/sdk`). Both SDKs support the OpenAI-compatible gateway API with streaming, and include integrations for LangChain, LangGraph, and CrewAI.
 
 ## What LLM providers does Hortator support?
 
@@ -81,7 +81,7 @@ The operator itself is lightweight:
 
 - **CPU:** ~100m request, ~500m limit
 - **Memory:** ~128Mi request, ~256Mi limit
-- **One Pod** for the operator (+ optional OTel Collector and Presidio sidecars)
+- **One Pod** for the operator (+ optional OTel Collector and Presidio service)
 
 Each agent task runs as a standard K8s Job. Resource usage depends on your agent workload, not Hortator.
 
@@ -93,7 +93,7 @@ Yes. A single `AgentTask` with `tier: legionary` works fine — it's just a mana
 
 **Open source (MIT):** Everything you need to run autonomous agents with guardrails — CRDs, operator, CLI, runtime, budget tracking, health monitoring, OTel events.
 
-**Enterprise (separate license):** Governance and compliance features — AgentPolicy CRD, Presidio PII detection, LiteLLM proxy integration, retained PVC → vector storage graduation, object storage archival, cross-namespace policies, OIDC/SSO.
+**Enterprise (separate license):** Governance and compliance features — AgentPolicy CRD, Presidio PII detection (centralized service), LiteLLM proxy integration, retained PVC → vector storage graduation, object storage archival, cross-namespace policies, OIDC/SSO.
 
 See [Enterprise Overview](enterprise/overview.md) for details.
 

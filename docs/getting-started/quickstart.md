@@ -4,34 +4,37 @@ Get Hortator running in your cluster in under 5 minutes.
 
 ## Prerequisites
 
-- Kubernetes 1.24+ cluster
+- Kubernetes 1.28+ cluster (RKE2, K3s, EKS, GKE, etc.)
 - Helm 3.x
 - An LLM API key (OpenAI, Anthropic, or local Ollama)
+- **Default StorageClass** — required for tribune/centurion tiers. RKE2/K3s don't ship one by default; install [local-path-provisioner](https://github.com/rancher/local-path-provisioner):
+  ```bash
+  kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.30/deploy/local-path-storage.yaml
+  kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  ```
 
 ## Install
 
 ```bash
-# Add the Hortator Helm repo
-helm repo add hortator https://charts.hortator.io
-helm repo update
-
-# Install with examples enabled
-helm install hortator hortator/hortator \
-  --namespace hortator-system \
-  --create-namespace \
+# Install the operator
+helm install hortator oci://ghcr.io/michael-niemand/hortator/charts/hortator \
+  --namespace hortator-system --create-namespace \
   --set models.default.endpoint=https://api.anthropic.com/v1 \
-  --set models.default.name=claude-sonnet \
-  --set models.default.apiKeyRef.secretName=llm-credentials \
-  --set models.default.apiKeyRef.key=api-key \
-  --set examples.enabled=true
+  --set models.default.name=claude-sonnet-4-20250514
+
+# Create a secret with your API key
+kubectl create namespace hortator-demo
+kubectl create secret generic anthropic-api-key \
+  --namespace hortator-demo \
+  --from-literal=api-key=sk-ant-...
 ```
 
-!!! note "Create your API key secret first"
+!!! note "Using OpenAI instead?"
     ```bash
-    kubectl create namespace hortator-system
-    kubectl create secret generic llm-credentials \
-      --namespace hortator-system \
-      --from-literal=api-key=sk-your-key-here
+    helm install hortator oci://ghcr.io/michael-niemand/hortator/charts/hortator \
+      --namespace hortator-system --create-namespace \
+      --set models.default.endpoint=https://api.openai.com/v1 \
+      --set models.default.name=gpt-4o
     ```
 
 ## Verify Installation
@@ -45,9 +48,12 @@ kubectl get crd | grep hortator
 
 # Check example roles
 kubectl get clusteragentroles
+```
 
-# Check the hello-world task
-kubectl get agenttasks -n hortator-demo
+## Run Your First Task
+
+```bash
+kubectl apply -f examples/quickstart/hello-world.yaml
 ```
 
 ## Watch Your First Agent
@@ -57,7 +63,7 @@ kubectl get agenttasks -n hortator-demo
 kubectl get agenttasks -n hortator-demo -w
 
 # Check the agent's logs
-kubectl logs -n hortator-demo -l hortator.io/task=hello-world -f
+kubectl logs -n hortator-demo -l hortator.ai/task=hello-world -c agent
 
 # Get the result
 kubectl get agenttask hello-world -n hortator-demo -o jsonpath='{.status.output}'
@@ -66,7 +72,7 @@ kubectl get agenttask hello-world -n hortator-demo -o jsonpath='{.status.output}
 ## Create Your Own Task
 
 ```yaml
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: my-first-task

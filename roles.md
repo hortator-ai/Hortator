@@ -13,7 +13,7 @@ Roles are `AgentRole` CRDs — cluster-scoped, versioned in git, deployed via Gi
 Composes naturally with `AgentTask` and `AgentPolicy` as the third pillar of the Hortator CRD family.
 
 ```yaml
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: backend-dev
@@ -40,7 +40,7 @@ spec:
 The role provides the base rules. The flavor is free-form text appended as extra context — like an addendum. No structured override mechanism at MVP. Can add field-level overrides later if a pattern emerges.
 
 ```yaml
-apiVersion: hortator.io/v1alpha1
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: fix-auth-bug-42
