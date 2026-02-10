@@ -15,20 +15,22 @@ metadata:
     {{- include "hortator.labels" . | nindent 4 }}
 rules:
   - apiGroups:
-      - hortator.ai
+      - core.hortator.ai
     resources:
       - agenttasks
     verbs:
       - get
       - list
       - create
+      - update
   - apiGroups:
-      - hortator.ai
+      - core.hortator.ai
     resources:
       - agenttasks/status
     verbs:
       - get
       - update
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

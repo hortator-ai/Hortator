@@ -467,8 +467,10 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		return ctrl.Result{}, nil
 	}
 
-	// Create PVC if needed (centurion/tribune tiers)
-	if task.Spec.Tier == "centurion" || task.Spec.Tier == "tribune" {
+	// Create PVC for every task — all tiers get persistent storage so agents
+	// can produce artifacts (code, patches, reports) that survive pod completion.
+	// Legionaries get smaller default PVCs, cleaned up by TTL.
+	{
 		if err := r.ensurePVC(ctx, task); err != nil {
 			logger.Error(err, "Failed to ensure PVC")
 			task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
@@ -638,10 +640,14 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 	case corev1.PodSucceeded:
 		logger.Info("Pod succeeded", "pod", pod.Name)
 
-		// Collect pod logs, extract token usage, and extract the actual LLM result
-		task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
-		r.extractTokenUsage(task)
-		r.extractResult(task)
+		// The agent reports results directly to the CRD via `hortator report`.
+		// If the agent hasn't reported yet (legacy runtime or crash), fall back
+		// to extracting from pod logs for backward compatibility.
+		if task.Status.Output == "" {
+			task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
+			r.extractTokenUsage(task)
+			r.extractResult(task)
+		}
 		r.recordAttempt(task, nil, "completed")
 
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
@@ -791,7 +797,11 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 		return err
 	}
 
-	size := "1Gi"
+	// Default PVC size by tier: legionaries get less, centurion/tribune get more
+	size := "256Mi"
+	if task.Spec.Tier == "centurion" || task.Spec.Tier == "tribune" {
+		size = "1Gi"
+	}
 	if task.Spec.Storage != nil && task.Spec.Storage.Size != "" {
 		size = task.Spec.Storage.Size
 	}
@@ -998,8 +1008,9 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 			},
 		},
 		Spec: corev1.PodSpec{
-			RestartPolicy:  corev1.RestartPolicyNever,
-			InitContainers: initContainers,
+			RestartPolicy:      corev1.RestartPolicyNever,
+			ServiceAccountName: "hortator-worker",
+			InitContainers:     initContainers,
 			Containers: []corev1.Container{
 				{
 					Name:         "agent",
@@ -1016,47 +1027,23 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 	return pod, nil
 }
 
-// buildVolumes returns volumes and volume mounts based on the task tier.
+// buildVolumes returns volumes and volume mounts for the agent pod.
+// Every task gets a PVC so agents can produce artifacts (code, patches, etc.)
+// that survive pod completion. /inbox is EmptyDir (ephemeral input from operator).
 func (r *AgentTaskReconciler) buildVolumes(task *corev1alpha1.AgentTask) ([]corev1.Volume, []corev1.VolumeMount) {
-	tier := task.Spec.Tier
-	if tier == "" {
-		tier = "legionary"
-	}
-
-	usePVC := tier == "centurion" || tier == "tribune"
 	pvcName := fmt.Sprintf("%s-storage", task.Name)
 
-	var volumes []corev1.Volume
-	var mounts []corev1.VolumeMount
-
-	if usePVC {
-		// /workspace, /memory, /outbox on PVC (persistent); /inbox on EmptyDir (ephemeral input)
-		volumes = []corev1.Volume{
-			{Name: "inbox", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			{Name: "storage", VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
-			}},
-		}
-		mounts = []corev1.VolumeMount{
-			{Name: "inbox", MountPath: "/inbox"},
-			{Name: "storage", MountPath: "/outbox", SubPath: "outbox"},
-			{Name: "storage", MountPath: "/workspace", SubPath: "workspace"},
-			{Name: "storage", MountPath: "/memory", SubPath: "memory"},
-		}
-	} else {
-		// All EmptyDir for legionary
-		volumes = []corev1.Volume{
-			{Name: "inbox", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			{Name: "outbox", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			{Name: "workspace", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			{Name: "memory", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-		}
-		mounts = []corev1.VolumeMount{
-			{Name: "inbox", MountPath: "/inbox"},
-			{Name: "outbox", MountPath: "/outbox"},
-			{Name: "workspace", MountPath: "/workspace"},
-			{Name: "memory", MountPath: "/memory"},
-		}
+	volumes := []corev1.Volume{
+		{Name: "inbox", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		{Name: "storage", VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
+		}},
+	}
+	mounts := []corev1.VolumeMount{
+		{Name: "inbox", MountPath: "/inbox"},
+		{Name: "storage", MountPath: "/outbox", SubPath: "outbox"},
+		{Name: "storage", MountPath: "/workspace", SubPath: "workspace"},
+		{Name: "storage", MountPath: "/memory", SubPath: "memory"},
 	}
 
 	return volumes, mounts
