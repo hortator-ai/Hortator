@@ -72,10 +72,12 @@ func TestShouldRetry(t *testing.T) {
 func TestComputeBackoff(t *testing.T) {
 	r := &AgentTaskReconciler{}
 
+	// computeBackoff adds ±25% jitter, so we check that results fall within
+	// the expected range: [base*0.75, base*1.25] (clamped to min 1s).
 	tests := []struct {
-		name     string
-		task     *corev1alpha1.AgentTask
-		expected time.Duration
+		name    string
+		task    *corev1alpha1.AgentTask
+		baseVal int // expected base value in seconds (before jitter)
 	}{
 		{
 			name: "first attempt default backoff",
@@ -83,7 +85,7 @@ func TestComputeBackoff(t *testing.T) {
 				Spec:   corev1alpha1.AgentTaskSpec{Retry: &corev1alpha1.RetrySpec{BackoffSeconds: 30, MaxBackoffSeconds: 300}},
 				Status: corev1alpha1.AgentTaskStatus{Attempts: 1},
 			},
-			expected: 30 * time.Second,
+			baseVal: 30,
 		},
 		{
 			name: "second attempt doubles",
@@ -91,7 +93,7 @@ func TestComputeBackoff(t *testing.T) {
 				Spec:   corev1alpha1.AgentTaskSpec{Retry: &corev1alpha1.RetrySpec{BackoffSeconds: 30, MaxBackoffSeconds: 300}},
 				Status: corev1alpha1.AgentTaskStatus{Attempts: 2},
 			},
-			expected: 60 * time.Second,
+			baseVal: 60,
 		},
 		{
 			name: "third attempt quadruples",
@@ -99,7 +101,7 @@ func TestComputeBackoff(t *testing.T) {
 				Spec:   corev1alpha1.AgentTaskSpec{Retry: &corev1alpha1.RetrySpec{BackoffSeconds: 30, MaxBackoffSeconds: 300}},
 				Status: corev1alpha1.AgentTaskStatus{Attempts: 3},
 			},
-			expected: 120 * time.Second,
+			baseVal: 120,
 		},
 		{
 			name: "capped at max",
@@ -107,7 +109,7 @@ func TestComputeBackoff(t *testing.T) {
 				Spec:   corev1alpha1.AgentTaskSpec{Retry: &corev1alpha1.RetrySpec{BackoffSeconds: 30, MaxBackoffSeconds: 60}},
 				Status: corev1alpha1.AgentTaskStatus{Attempts: 5},
 			},
-			expected: 60 * time.Second,
+			baseVal: 60,
 		},
 		{
 			name: "custom base backoff",
@@ -115,7 +117,7 @@ func TestComputeBackoff(t *testing.T) {
 				Spec:   corev1alpha1.AgentTaskSpec{Retry: &corev1alpha1.RetrySpec{BackoffSeconds: 10, MaxBackoffSeconds: 300}},
 				Status: corev1alpha1.AgentTaskStatus{Attempts: 1},
 			},
-			expected: 10 * time.Second,
+			baseVal: 10,
 		},
 		{
 			name: "nil retry spec uses defaults",
@@ -123,15 +125,26 @@ func TestComputeBackoff(t *testing.T) {
 				Spec:   corev1alpha1.AgentTaskSpec{Retry: nil},
 				Status: corev1alpha1.AgentTaskStatus{Attempts: 1},
 			},
-			expected: 30 * time.Second,
+			baseVal: 30,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := r.computeBackoff(tt.task)
-			if got != tt.expected {
-				t.Errorf("computeBackoff() = %v, want %v", got, tt.expected)
+			// Run multiple times to account for jitter randomness.
+			// Jitter is ±25% but integer math can round up slightly, so we
+			// use a generous 30% tolerance.
+			for i := 0; i < 50; i++ {
+				got := r.computeBackoff(tt.task)
+				minVal := time.Duration(float64(tt.baseVal)*0.70) * time.Second
+				if minVal < time.Second {
+					minVal = time.Second
+				}
+				maxVal := time.Duration(float64(tt.baseVal)*1.30+1) * time.Second
+				if got < minVal || got > maxVal {
+					t.Errorf("computeBackoff() = %v, want between %v and %v (base=%ds, iteration %d)",
+						got, minVal, maxVal, tt.baseVal, i)
+				}
 			}
 		})
 	}
