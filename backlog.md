@@ -26,7 +26,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P1** Handle all terminal phases in `waitForTask` — BudgetExceeded, TimedOut, Cancelled, Retrying + context timeout. [M8] ✅ 2026-02-10
 
 ### Minor
-- [ ] **P2** Add integration tests for reconciler, gateway, CLI, policy enforcement. Current coverage ~5-10%. [L1]
+- [ ] **P1** Test coverage — target 50%+ before launch. Unit tests for controller + gateway added 2026-02-10 (parseQuantity, buildResources, tierRank, setCompletionStatus, extractResult, isTransientFailure, enforcePolicy logic, sanitizeName, buildPrompt, buildAgentTask, extractTaskState, isTerminalPhase, mapPhaseToFinishReason, auth caching). Still need: integration tests for reconciler flow, CLI commands, full policy enforcement with real client. [L1]
 - [ ] **P2** Standardize license headers — LICENSE file is MIT but source files have bare `Copyright 2026.` from kubebuilder scaffold. [L2]
 - [ ] **P2** Single source of truth for CRDs — currently duplicated in `crds/`, `charts/hortator/crds/`, `config/crd/bases/`. Add Makefile target to sync from generated source. [L5]
 - [ ] **P2** Clean up dead tier-to-model mapping in `entrypoint.sh` — OpenAI mapping is dead code when Anthropic keys present. [L6]
