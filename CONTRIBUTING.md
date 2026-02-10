@@ -70,6 +70,13 @@ Types: `feat`, `fix`, `improvement`, `build`, `ci`, `chore`, `docs`, `perf`, `re
 - Run `gofmt` and `goimports`
 - Add tests for new functionality
 - Update documentation as needed
+- All Go source files must include the MIT license header (see `hack/boilerplate.go.txt`):
+  ```go
+  /*
+  Copyright (c) 2026 GeneClackman
+  SPDX-License-Identifier: MIT
+  */
+  ```
 
 ## Pull Request Process
 
