@@ -122,6 +122,13 @@ func buildAgentTask(name, namespace, role, tier, prompt string, req *ChatComplet
 					// Level 1 prep: session label will go here
 					// "hortator.ai/session": sessionID,
 				},
+				"annotations": func() map[string]interface{} {
+					ann := map[string]interface{}{}
+					if req.NoCache {
+						ann["hortator.ai/no-cache"] = "true"
+					}
+					return ann
+				}(),
 			},
 			"spec": spec,
 		},

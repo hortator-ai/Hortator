@@ -112,6 +112,19 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	if d.WarmPool.Size == 0 {
 		d.WarmPool.Size = 2
 	}
+	if v, ok := cm.Data["resultCacheEnabled"]; ok {
+		d.ResultCacheEnabled = v == "true"
+	}
+	if v, ok := cm.Data["resultCacheTTLSeconds"]; ok {
+		if ttl, err := strconv.Atoi(v); err == nil {
+			d.ResultCacheTTL = time.Duration(ttl) * time.Second
+		}
+	}
+	if v, ok := cm.Data["resultCacheMaxEntries"]; ok {
+		if max, err := strconv.Atoi(v); err == nil {
+			d.ResultCacheMaxEntries = max
+		}
+	}
 
 	r.defaultsMu.Lock()
 	r.defaults = d

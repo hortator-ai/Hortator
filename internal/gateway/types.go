@@ -26,6 +26,7 @@ type ChatCompletionRequest struct {
 	Capabilities []string `json:"x_capabilities,omitempty"`
 	Tier         string   `json:"x_tier,omitempty"`
 	Budget       *Budget  `json:"x_budget,omitempty"`
+	NoCache      bool     `json:"x_no_cache,omitempty"`
 }
 
 type Message struct {

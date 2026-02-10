@@ -11,6 +11,9 @@ data:
   presidioEndpoint: {{ if .Values.presidio.enabled }}"http://{{ include "hortator.fullname" . }}-presidio.{{ .Release.Namespace }}.svc:3000"{{ else }}""{{ end }}
   warmPoolEnabled: {{ .Values.warmPool.enabled | quote }}
   warmPoolSize: {{ .Values.warmPool.size | quote }}
+  resultCacheEnabled: {{ .Values.resultCache.enabled | quote }}
+  resultCacheTTLSeconds: {{ .Values.resultCache.ttlSeconds | quote }}
+  resultCacheMaxEntries: {{ .Values.resultCache.maxEntries | quote }}
   # Agent defaults — the operator reads this at startup to configure
   # reconciliation behavior and default values for AgentTask Pods.
   config.yaml: |
