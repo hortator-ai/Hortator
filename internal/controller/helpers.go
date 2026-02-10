@@ -101,6 +101,17 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	if v, ok := cm.Data["presidioEndpoint"]; ok && v != "" {
 		d.PresidioEndpoint = v
 	}
+	if v, ok := cm.Data["warmPoolEnabled"]; ok {
+		d.WarmPool.Enabled = v == "true"
+	}
+	if v, ok := cm.Data["warmPoolSize"]; ok {
+		if size, err := strconv.Atoi(v); err == nil {
+			d.WarmPool.Size = size
+		}
+	}
+	if d.WarmPool.Size == 0 {
+		d.WarmPool.Size = 2
+	}
 
 	r.defaultsMu.Lock()
 	r.defaults = d

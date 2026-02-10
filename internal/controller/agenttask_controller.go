@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -53,13 +54,15 @@ type ClusterDefaults struct {
 	EnforceNamespaceLabels bool
 	PresidioEnabled        bool
 	PresidioEndpoint       string
+	WarmPool               WarmPoolConfig
 }
 
 // AgentTaskReconciler reconciles a AgentTask object
 type AgentTaskReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	Clientset kubernetes.Interface
+	Scheme     *runtime.Scheme
+	Clientset  kubernetes.Interface
+	RESTConfig *rest.Config
 
 	// Namespace the operator runs in (for ConfigMap lookup)
 	Namespace string
@@ -69,6 +72,9 @@ type AgentTaskReconciler struct {
 	defaultsMu  sync.RWMutex
 	defaultsAt  time.Time
 	defaultsTTL time.Duration // 0 means use defaultConfigCacheTTL
+
+	// Last warm pool reconciliation time (cooldown)
+	warmPoolAt time.Time
 }
 
 // +kubebuilder:rbac:groups=core.hortator.ai,resources=agentpolicies,verbs=get;list;watch
@@ -113,6 +119,13 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	logger.V(1).Info("Reconciling task", "task", task.Name, "phase", task.Status.Phase)
 
+	// Periodically reconcile warm pool (piggyback on task reconciliation)
+	if r.defaults.WarmPool.Enabled {
+		if err := r.reconcileWarmPool(ctx); err != nil {
+			logger.Error(err, "Failed to reconcile warm pool")
+		}
+	}
+
 	// Phase machine
 	switch task.Status.Phase {
 	case "", corev1alpha1.AgentTaskPhasePending:
@@ -130,6 +143,8 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 }
+
+// +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 
 // handleTTLCleanup deletes terminal tasks after their retention period expires.
 func (r *AgentTaskReconciler) handleTTLCleanup(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
@@ -273,6 +288,42 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
+	}
+
+	// Try warm pool first (if enabled)
+	if r.defaults.WarmPool.Enabled {
+		if pod, err := r.claimWarmPod(ctx, task); err != nil {
+			logger.Error(err, "Failed to claim warm pod, falling back to normal creation")
+		} else if pod != nil {
+			// Inject task into warm pod
+			if err := r.injectTask(ctx, task, pod.Name); err != nil {
+				logger.Error(err, "Failed to inject task into warm pod", "pod", pod.Name)
+				_ = r.Delete(ctx, pod)
+			} else {
+				logger.Info("Claimed warm pod", "pod", pod.Name)
+				emitTaskEvent(ctx, "hortator.task.started", task)
+
+				task.Status.Phase = corev1alpha1.AgentTaskPhaseRunning
+				task.Status.PodName = pod.Name
+				now := metav1.Now()
+				task.Status.StartedAt = &now
+				task.Status.Message = "Task running (warm pod)"
+				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseRunning), task.Namespace).Inc()
+				tasksActive.WithLabelValues(task.Namespace).Inc()
+				if err := r.Status().Update(ctx, task); err != nil {
+					return ctrl.Result{}, err
+				}
+
+				// Replenish pool in background
+				go func() {
+					if err := r.replenishWarmPool(context.Background()); err != nil {
+						logger.Error(err, "Failed to replenish warm pool")
+					}
+				}()
+
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+		}
 	}
 
 	// Create PVC
