@@ -839,6 +839,11 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 		annotations["hortator.ai/retention"] = fmt.Sprintf("%dd", *task.Spec.Storage.RetainDays)
 	}
 
+	storageQty, err := parseQuantity(size, "PVC storage size")
+	if err != nil {
+		return err
+	}
+
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvcName,
@@ -852,7 +857,7 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse(size),
+					corev1.ResourceStorage: storageQty,
 				},
 			},
 		},
