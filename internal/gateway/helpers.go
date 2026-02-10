@@ -57,11 +57,36 @@ func buildPrompt(messages []Message) string {
 //	2. Set spec.storage.retain = true
 //	3. Add label "hortator.ai/session" = sessionID
 //	4. Set spec.storage.existingClaim = "session-<sessionID>" (if PVC exists)
-func buildAgentTask(name, namespace, role, tier, prompt string, req *ChatCompletionRequest) *unstructured.Unstructured {
+// ModelConfig holds the LLM endpoint configuration resolved from an AgentRole.
+type ModelConfig struct {
+	Name       string
+	Endpoint   string
+	SecretName string
+	SecretKey  string
+}
+
+func buildAgentTask(name, namespace, role, tier, prompt string, req *ChatCompletionRequest, modelCfg *ModelConfig) *unstructured.Unstructured {
 	spec := map[string]interface{}{
 		"prompt": prompt,
 		"role":   role,
 		"tier":   tier,
+	}
+
+	// Set model configuration from AgentRole
+	if modelCfg != nil {
+		model := map[string]interface{}{
+			"name": modelCfg.Name,
+		}
+		if modelCfg.Endpoint != "" {
+			model["endpoint"] = modelCfg.Endpoint
+		}
+		if modelCfg.SecretName != "" {
+			model["apiKeyRef"] = map[string]interface{}{
+				"secretName": modelCfg.SecretName,
+				"key":        modelCfg.SecretKey,
+			}
+		}
+		spec["model"] = model
 	}
 
 	if len(req.Capabilities) > 0 {
