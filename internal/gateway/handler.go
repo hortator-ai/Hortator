@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,9 +36,17 @@ type Handler struct {
 	Clientset  kubernetes.Interface
 	DynClient  dynamic.Interface
 	AuthSecret string
+
+	// Cached auth keys with TTL to avoid K8s API call on every HTTP request.
+	authKeys map[string]bool
+	authMu   sync.RWMutex
+	authAt   time.Time
+	authTTL  time.Duration // 0 means 60s default
 }
 
-// authenticate validates the Bearer token against the K8s Secret.
+// authenticate validates the Bearer token against a cached copy of the K8s Secret.
+// The cache refreshes every 60s (configurable via authTTL) to avoid hitting the
+// K8s API on every HTTP request while still picking up key rotations promptly.
 func (h *Handler) authenticate(r *http.Request) error {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
@@ -48,21 +57,49 @@ func (h *Handler) authenticate(r *http.Request) error {
 	}
 	token := strings.TrimPrefix(auth, "Bearer ")
 
-	secret, err := h.Clientset.CoreV1().Secrets(h.Namespace).Get(
-		r.Context(), h.AuthSecret, metav1.GetOptions{},
-	)
+	keys, err := h.getAuthKeys(r.Context())
 	if err != nil {
-		return fmt.Errorf("failed to read auth secret: %w", err)
+		return err
 	}
-
-	// Check if token matches any key in the secret's data.
-	// This allows multiple API keys (e.g., per-team or per-user).
-	for _, v := range secret.Data {
-		if string(v) == token {
-			return nil
-		}
+	if keys[token] {
+		return nil
 	}
 	return fmt.Errorf("invalid API key")
+}
+
+// getAuthKeys returns cached auth keys, refreshing from K8s Secret if stale.
+func (h *Handler) getAuthKeys(ctx context.Context) (map[string]bool, error) {
+	ttl := h.authTTL
+	if ttl == 0 {
+		ttl = 60 * time.Second
+	}
+
+	h.authMu.RLock()
+	if h.authKeys != nil && time.Since(h.authAt) < ttl {
+		keys := h.authKeys
+		h.authMu.RUnlock()
+		return keys, nil
+	}
+	h.authMu.RUnlock()
+
+	secret, err := h.Clientset.CoreV1().Secrets(h.Namespace).Get(
+		ctx, h.AuthSecret, metav1.GetOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read auth secret: %w", err)
+	}
+
+	keys := make(map[string]bool, len(secret.Data))
+	for _, v := range secret.Data {
+		keys[string(v)] = true
+	}
+
+	h.authMu.Lock()
+	h.authKeys = keys
+	h.authAt = time.Now()
+	h.authMu.Unlock()
+
+	return keys, nil
 }
 
 // writeError writes an OpenAI-compatible error response.

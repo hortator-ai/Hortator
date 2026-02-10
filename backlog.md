@@ -21,9 +21,9 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ### Moderate
 - [ ] **P1** Split `agenttask_controller.go` into `pod_builder.go`, `policy.go`, `cleanup.go`, `metrics.go`. Pure refactor. [M2]
-- [ ] **P1** Cache gateway auth secret — `authenticate()` fetches K8s Secret on every HTTP request. Add TTL cache (60s). [M3]
-- [ ] **P1** Add `--role`, `--tier`, `--parent` flags to `hortator spawn` CLI — critical hierarchy fields not wired. [M6]
-- [ ] **P1** Handle all terminal phases in `waitForTask` — `BudgetExceeded`, `TimedOut`, `Cancelled`, `Retrying` cause infinite polling. Also add max wait timeout. [M8]
+- [x] **P1** Cache gateway auth secret — `authenticate()` fetches K8s Secret on every HTTP request. Added TTL cache (60s). [M3] ✅ 2026-02-10
+- [x] **P1** Add `--role`, `--tier`, `--parent` flags to `hortator spawn` CLI + `--wait-timeout`. [M6] ✅ 2026-02-10
+- [x] **P1** Handle all terminal phases in `waitForTask` — BudgetExceeded, TimedOut, Cancelled, Retrying + context timeout. [M8] ✅ 2026-02-10
 
 ### Minor
 - [ ] **P2** Add integration tests for reconciler, gateway, CLI, policy enforcement. Current coverage ~5-10%. [L1]
