@@ -342,6 +342,34 @@ examples:
   enabled: false                  # Don't install by default
   namespace: hortator-demo
 
+# ── API Gateway (OpenAI-compatible) ──────────────────────────────────────────
+# Exposes Tribune as /v1/chat/completions so any OpenAI-compatible tool
+# (Cursor, Continue, Cody, other agents) can submit work to Hortator.
+
+gateway:
+  enabled: false                  # Opt-in: requires Gateway API CRDs
+  replicas: 1
+
+  # Name of the K8s Secret containing API keys for authentication.
+  # Each key in the secret's data is a valid API key.
+  authSecret: hortator-gateway-auth
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+  # HTTPRoute configuration (requires Gateway API + a GatewayClass)
+  route:
+    enabled: false                # Set to true + configure gatewayName
+    gatewayName: ""               # Name of the Gateway resource
+    gatewayNamespace: ""          # Namespace of the Gateway (if cross-namespace)
+    sectionName: http             # Listener name on the Gateway
+    hostnames: []                 # e.g. ["api.hortator.example.com"]
+
 # ── Enterprise ──────────────────────────────────────────────────────────────
 
 enterprise:

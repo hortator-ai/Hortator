@@ -1,0 +1,401 @@
+package gateway
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	ctrl "sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+var agentTaskGVR = schema.GroupVersionResource{
+	Group:    "core.hortator.ai",
+	Version:  "v1alpha1",
+	Resource: "agenttasks",
+}
+
+var agentRoleGVR = schema.GroupVersionResource{
+	Group:    "core.hortator.ai",
+	Version:  "v1alpha1",
+	Resource: "agentroles",
+}
+
+// Handler serves the OpenAI-compatible API endpoints.
+type Handler struct {
+	Namespace  string
+	Clientset  kubernetes.Interface
+	DynClient  dynamic.Interface
+	AuthSecret string
+}
+
+// authenticate validates the Bearer token against the K8s Secret.
+func (h *Handler) authenticate(r *http.Request) error {
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return fmt.Errorf("missing Authorization header")
+	}
+	if !strings.HasPrefix(auth, "Bearer ") {
+		return fmt.Errorf("invalid Authorization format, expected Bearer token")
+	}
+	token := strings.TrimPrefix(auth, "Bearer ")
+
+	secret, err := h.Clientset.CoreV1().Secrets(h.Namespace).Get(
+		r.Context(), h.AuthSecret, metav1.GetOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to read auth secret: %w", err)
+	}
+
+	// Check if token matches any key in the secret's data.
+	// This allows multiple API keys (e.g., per-team or per-user).
+	for _, v := range secret.Data {
+		if string(v) == token {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid API key")
+}
+
+// writeError writes an OpenAI-compatible error response.
+func writeError(w http.ResponseWriter, status int, msg, errType, code string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(ErrorResponse{
+		Error: ErrorDetail{Message: msg, Type: errType, Code: code},
+	})
+}
+
+// ChatCompletions handles POST /v1/chat/completions.
+//
+// Thread continuity (Level 1, future):
+//
+//	When implementing sessions, read X-Hortator-Session here.
+//	If present and valid, look up existing PVC by session label.
+//	Set task.spec.storage = {retain: true, sessionId: <id>}.
+//	The operator will mount the existing PVC instead of creating a new one.
+func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
+	log := ctrl.Log.WithName("gateway.chat")
+
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "invalid_request_error", "method_not_allowed")
+		return
+	}
+
+	if err := h.authenticate(r); err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error(), "authentication_error", "invalid_api_key")
+		return
+	}
+
+	// Level 1 prep: capture session header for future use
+	// sessionID := r.Header.Get("X-Hortator-Session")
+	// _ = sessionID // TODO(level-1): map to PVC name, set storage.retain
+
+	var req ChatCompletionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error(), "invalid_request_error", "invalid_body")
+		return
+	}
+
+	if req.Model == "" {
+		writeError(w, http.StatusBadRequest, "model is required", "invalid_request_error", "missing_model")
+		return
+	}
+	if len(req.Messages) == 0 {
+		writeError(w, http.StatusBadRequest, "messages is required", "invalid_request_error", "missing_messages")
+		return
+	}
+
+	// Extract role from model field: "hortator/tech-lead" → "tech-lead"
+	role := req.Model
+	if strings.HasPrefix(role, "hortator/") {
+		role = strings.TrimPrefix(role, "hortator/")
+	}
+
+	// Build prompt from messages (concatenate user messages, include system as context)
+	prompt := buildPrompt(req.Messages)
+
+	// Determine tier — default to tribune (the entry point for decomposition).
+	// The tribune decides whether to delegate or answer directly.
+	tier := "tribune"
+	if req.Tier != "" {
+		tier = req.Tier
+	}
+
+	// Create AgentTask
+	taskName := fmt.Sprintf("gw-%s-%d", sanitizeName(role), time.Now().UnixMilli())
+	task := buildAgentTask(taskName, h.Namespace, role, tier, prompt, &req)
+
+	log.Info("creating task", "name", taskName, "role", role, "tier", tier, "stream", req.Stream)
+
+	created, err := h.DynClient.Resource(agentTaskGVR).Namespace(h.Namespace).Create(
+		r.Context(), task, metav1.CreateOptions{},
+	)
+	if err != nil {
+		log.Error(err, "failed to create AgentTask")
+		writeError(w, http.StatusInternalServerError, "failed to create task: "+err.Error(), "server_error", "task_creation_failed")
+		return
+	}
+
+	taskName = created.GetName()
+
+	if req.Stream {
+		h.streamResponse(r.Context(), w, taskName, req.Model)
+	} else {
+		h.blockingResponse(r.Context(), w, taskName, req.Model)
+	}
+}
+
+// blockingResponse waits for task completion and returns a single JSON response.
+func (h *Handler) blockingResponse(ctx context.Context, w http.ResponseWriter, taskName, model string) {
+	log := ctrl.Log.WithName("gateway.blocking")
+
+	state, err := h.watchTaskUntilDone(ctx, taskName)
+	if err != nil {
+		log.Error(err, "watch failed", "task", taskName)
+		writeError(w, http.StatusGatewayTimeout, "task watch failed: "+err.Error(), "server_error", "watch_failed")
+		return
+	}
+
+	finishReason := mapPhaseToFinishReason(state.Phase)
+
+	resp := ChatCompletionResponse{
+		ID:      "chatcmpl-" + taskName,
+		Object:  "chat.completion",
+		Created: time.Now().Unix(),
+		Model:   model,
+		Choices: []Choice{{
+			Index:        0,
+			Message:      &Message{Role: "assistant", Content: state.Output},
+			FinishReason: &finishReason,
+		}},
+		Usage: &Usage{
+			PromptTokens:     state.TokensIn,
+			CompletionTokens: state.TokensOut,
+			TotalTokens:      state.TokensIn + state.TokensOut,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// streamResponse sends SSE chunks as the task progresses.
+func (h *Handler) streamResponse(ctx context.Context, w http.ResponseWriter, taskName, model string) {
+	log := ctrl.Log.WithName("gateway.stream")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported", "server_error", "no_flusher")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	chunkID := "chatcmpl-" + taskName
+	created := time.Now().Unix()
+
+	// Send initial acknowledgment
+	h.sendStreamChunk(w, flusher, chunkID, model, created, fmt.Sprintf("[task %s created, waiting for agent...]\n", taskName))
+
+	watcher, err := h.DynClient.Resource(agentTaskGVR).Namespace(h.Namespace).Watch(ctx, metav1.ListOptions{
+		FieldSelector: "metadata.name=" + taskName,
+	})
+	if err != nil {
+		log.Error(err, "failed to start watch")
+		h.sendStreamChunk(w, flusher, chunkID, model, created, "[error: failed to watch task]\n")
+		h.sendStreamDone(w, flusher)
+		return
+	}
+	defer watcher.Stop()
+
+	lastPhase := ""
+	lastMessage := ""
+
+	for {
+		select {
+		case <-ctx.Done():
+			h.sendStreamDone(w, flusher)
+			return
+		case event, ok := <-watcher.ResultChan():
+			if !ok {
+				h.sendStreamDone(w, flusher)
+				return
+			}
+			if event.Type == watch.Error {
+				h.sendStreamChunk(w, flusher, chunkID, model, created, "[error: watch error]\n")
+				h.sendStreamDone(w, flusher)
+				return
+			}
+
+			obj, ok := event.Object.(*unstructured.Unstructured)
+			if !ok {
+				continue
+			}
+
+			state := extractTaskState(obj)
+
+			// Send progress updates on phase or message changes
+			if state.Phase != lastPhase {
+				h.sendStreamChunk(w, flusher, chunkID, model, created,
+					fmt.Sprintf("[%s: %s]\n", state.Phase, state.Message))
+				lastPhase = state.Phase
+				lastMessage = state.Message
+			} else if state.Message != lastMessage && state.Message != "" {
+				h.sendStreamChunk(w, flusher, chunkID, model, created,
+					fmt.Sprintf("[%s]\n", state.Message))
+				lastMessage = state.Message
+			}
+
+			// Report child tasks
+			for _, child := range state.Children {
+				h.sendStreamChunk(w, flusher, chunkID, model, created,
+					fmt.Sprintf("[child: %s]\n", child))
+			}
+
+			// Terminal state — send final output
+			if isTerminalPhase(state.Phase) {
+				if state.Output != "" {
+					h.sendStreamChunk(w, flusher, chunkID, model, created, state.Output)
+				}
+
+				// Send final chunk with finish_reason and usage
+				finishReason := mapPhaseToFinishReason(state.Phase)
+				chunk := StreamChunk{
+					ID:      chunkID,
+					Object:  "chat.completion.chunk",
+					Created: created,
+					Model:   model,
+					Choices: []StreamChoice{{
+						Index:        0,
+						Delta:        Message{},
+						FinishReason: &finishReason,
+					}},
+					Usage: &Usage{
+						PromptTokens:     state.TokensIn,
+						CompletionTokens: state.TokensOut,
+						TotalTokens:      state.TokensIn + state.TokensOut,
+					},
+				}
+				data, _ := json.Marshal(chunk)
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				flusher.Flush()
+
+				h.sendStreamDone(w, flusher)
+				return
+			}
+		}
+	}
+}
+
+// watchTaskUntilDone blocks until the AgentTask reaches a terminal phase.
+func (h *Handler) watchTaskUntilDone(ctx context.Context, taskName string) (*taskState, error) {
+	watcher, err := h.DynClient.Resource(agentTaskGVR).Namespace(h.Namespace).Watch(ctx, metav1.ListOptions{
+		FieldSelector: "metadata.name=" + taskName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start watch: %w", err)
+	}
+	defer watcher.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case event, ok := <-watcher.ResultChan():
+			if !ok {
+				return nil, fmt.Errorf("watch channel closed")
+			}
+			obj, ok := event.Object.(*unstructured.Unstructured)
+			if !ok {
+				continue
+			}
+			state := extractTaskState(obj)
+			if isTerminalPhase(state.Phase) {
+				return state, nil
+			}
+		}
+	}
+}
+
+// sendStreamChunk writes a single SSE data event with content.
+func (h *Handler) sendStreamChunk(w http.ResponseWriter, flusher http.Flusher, id, model string, created int64, content string) {
+	chunk := StreamChunk{
+		ID:      id,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   model,
+		Choices: []StreamChoice{{
+			Index: 0,
+			Delta: Message{Role: "assistant", Content: content},
+		}},
+	}
+	data, _ := json.Marshal(chunk)
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	flusher.Flush()
+}
+
+// sendStreamDone writes the final [DONE] SSE event.
+func (h *Handler) sendStreamDone(w http.ResponseWriter, flusher http.Flusher) {
+	fmt.Fprint(w, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
+// ListModels handles GET /v1/models.
+// Returns AgentRoles in the namespace as available "models".
+// If no AgentRoles exist, returns a default entry.
+func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "invalid_request_error", "method_not_allowed")
+		return
+	}
+
+	if err := h.authenticate(r); err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error(), "authentication_error", "invalid_api_key")
+		return
+	}
+
+	roles, err := h.DynClient.Resource(agentRoleGVR).Namespace(h.Namespace).List(
+		r.Context(), metav1.ListOptions{},
+	)
+
+	var models []ModelObject
+	if err == nil {
+		for _, role := range roles.Items {
+			models = append(models, ModelObject{
+				ID:      "hortator/" + role.GetName(),
+				Object:  "model",
+				Created: role.GetCreationTimestamp().Unix(),
+				OwnedBy: "hortator",
+			})
+		}
+	}
+
+	// Always include a default model
+	if len(models) == 0 {
+		models = append(models, ModelObject{
+			ID:      "hortator/default",
+			Object:  "model",
+			Created: time.Now().Unix(),
+			OwnedBy: "hortator",
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ModelListResponse{
+		Object: "list",
+		Data:   models,
+	})
+}
