@@ -54,4 +54,33 @@ _Discovered during sandbox deployment on 2026-02-09_
 
 ---
 
+## BUG-014: Presidio native sidecar exits 137 (SIGKILL) — expected but noisy
+- **Context:** After converting Presidio from regular container to native sidecar (init container with `restartPolicy=Always`), K8s terminates it with SIGKILL (exit 137) when the agent completes. This is correct behavior — native sidecars get killed after main containers exit. But the exit code 137 / reason "Error" looks alarming in `kubectl describe pod`.
+- **Severity:** Cosmetic / low. Tasks complete successfully.
+- **Suggestion:** Consider adding a `preStop` hook to Presidio that gracefully shuts down, or just document that exit 137 on the sidecar is expected.
+
+## BUG-015: Presidio not reachable — "WARN: Presidio not reachable, skipping PII scan"
+- **Context:** Both hello-world and build-rest-api log `WARN: Presidio not reachable, skipping PII scan`. The Presidio sidecar is present (exit 137 confirms it ran), but the agent's entrypoint can't reach it in time. The native sidecar starts as an init container and should be ready before the agent container, but the readiness probe may not gate the agent container start.
+- **Severity:** Medium. PII scanning is silently skipped on every task.
+- **Root cause:** Native sidecar init containers with `restartPolicy=Always` run alongside the main container, but K8s doesn't wait for their readiness probe before starting the main container. The old `|| return 0` fallback from BUG-011 means the agent just skips the scan.
+- **Suggestion:** Add a startup wait loop in the agent entrypoint that polls Presidio's `/health` endpoint (e.g., 30 retries × 1s) before proceeding with the scan. Or use a `postStart` lifecycle hook on the agent container.
+
+## BUG-016: Reconciler conflict error on status update
+- **Context:** `Operation cannot be fulfilled on agenttasks.core.hortator.ai "build-rest-api": the object has been modified; please apply your changes to the latest version and try again`
+- **Severity:** Low. K8s optimistic concurrency working as designed — the controller retries on next reconcile and succeeds. But it indicates the controller may be doing multiple status updates without re-fetching the latest version.
+- **Suggestion:** Add a `retry.RetryOnConflict` wrapper around status updates, or re-fetch the task before each status update in the reconcile loop.
+
+## BUG-017: Task ID always "unknown" in runtime logs
+- **Context:** Both tasks log `Task=unknown` — the runtime isn't reading the task ID from `/inbox/task.json` or environment.
+- **Severity:** Low. Cosmetic but makes debugging multi-task scenarios harder.
+- **Suggestion:** Ensure the operator sets `HORTATOR_TASK_ID` env var or the runtime reads `taskId` from `/inbox/task.json`.
+
+## BUG-018: build-rest-api (tribune) didn't actually spawn children
+- **Context:** The multi-tier task completed with only 133 input / 4096 output tokens and no child tasks were created. A tribune task that's supposed to decompose work and delegate to centurions/legionaries should spawn child AgentTasks. It appears the agent just generated a text response without using the `hortator spawn` CLI.
+- **Severity:** High. Multi-tier orchestration (the core value prop) isn't working end-to-end.
+- **Root cause:** Likely the agent runtime doesn't have the hortator CLI installed, or the prompt/system message doesn't instruct the agent to use it, or the agent's capabilities don't include the right tool bindings.
+- **Suggestion:** Verify `hortator` CLI is in the agent image PATH, verify the runtime injects instructions about available tools, and check that `spawn` capability maps to actual CLI access.
+
+---
+
 _Add more as we go._

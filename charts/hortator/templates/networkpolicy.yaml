@@ -71,4 +71,31 @@ spec:
       ports:
         - port: {{ .Values.networkPolicies.apiServerPort | default 6443 }}
           protocol: TCP
+{{- if .Values.presidio.enabled }}
+---
+# presidio policy: allows agent pods to reach the Presidio service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hortator.fullname" . }}-cap-presidio
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      hortator.ai/managed: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: presidio
+      ports:
+        - port: 3000
+          protocol: TCP
+{{- end }}
 {{- end }}

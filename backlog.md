@@ -4,6 +4,12 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ---
 
+## 🐛 Bug Fixes
+
+- [x] **P0** Convert Presidio from sidecar to centralized Deployment+Service ✅ 2026-02-10 — Sidecar exit code 137 (SIGKILL on pod completion) shows "Init: Error" in pod status. Deploy Presidio as a shared service in hortator-system namespace, remove sidecar injection from operator, add Presidio Deployment/Service as Helm subchart. Toggle on/off via `presidio.enabled`. (2026-02-10)
+
+---
+
 ## MVP Scope
 
 1. AgentTask CRD definition
