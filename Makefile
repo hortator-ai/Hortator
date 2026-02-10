@@ -44,8 +44,30 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen sync-crds ## Generate CRDs, RBAC, webhooks and sync to all locations.
+
+.PHONY: sync-crds
+sync-crds: controller-gen ## Regenerate CRDs and sync to crds/ and charts/hortator/crds/.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd:allowDangerousTypes=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	@echo "Syncing generated CRDs from config/crd/bases/ → crds/"
+	cp config/crd/bases/*.yaml crds/
+	@echo "Syncing all CRDs from crds/ → charts/hortator/crds/"
+	cp crds/*.yaml charts/hortator/crds/
+	@echo "CRDs synced successfully."
+
+.PHONY: verify-crds
+verify-crds: ## Verify CRDs are in sync across all locations.
+	@echo "Checking CRDs are in sync..."
+	@diff -q config/crd/bases/core.hortator.ai_agenttasks.yaml crds/core.hortator.ai_agenttasks.yaml > /dev/null 2>&1 || \
+		{ echo "ERROR: crds/core.hortator.ai_agenttasks.yaml is out of sync with config/crd/bases/. Run 'make sync-crds'."; exit 1; }
+	@diff -q config/crd/bases/core.hortator.ai_agentpolicies.yaml crds/core.hortator.ai_agentpolicies.yaml > /dev/null 2>&1 || \
+		{ echo "ERROR: crds/core.hortator.ai_agentpolicies.yaml is out of sync with config/crd/bases/. Run 'make sync-crds'."; exit 1; }
+	@for f in crds/*.yaml; do \
+		chart_f="charts/hortator/crds/$$(basename $$f)"; \
+		diff -q "$$f" "$$chart_f" > /dev/null 2>&1 || \
+			{ echo "ERROR: $$chart_f is out of sync with $$f. Run 'make sync-crds'."; exit 1; }; \
+	done
+	@echo "All CRDs are in sync."
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
