@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -135,12 +136,21 @@ func main() {
 		operatorNamespace = "hortator-system"
 	}
 
+	// Result cache — enabled via ConfigMap (resultCacheEnabled=true).
+	// Defaults: 10min TTL, 1000 max entries. In-memory only; restarts clear cache.
+	resultCache := controller.NewResultCache(controller.ResultCacheConfig{
+		Enabled:    os.Getenv("RESULT_CACHE_ENABLED") == "true",
+		TTL:        10 * time.Minute,
+		MaxEntries: 1000,
+	})
+
 	if err = (&controller.AgentTaskReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Clientset:  clientset,
-		Namespace:  operatorNamespace,
-		RESTConfig: mgr.GetConfig(),
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		Clientset:   clientset,
+		Namespace:   operatorNamespace,
+		RESTConfig:  mgr.GetConfig(),
+		ResultCache: resultCache,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentTask")
 		os.Exit(1)

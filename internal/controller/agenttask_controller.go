@@ -55,6 +55,9 @@ type ClusterDefaults struct {
 	PresidioEnabled        bool
 	PresidioEndpoint       string
 	WarmPool               WarmPoolConfig
+	ResultCacheEnabled     bool
+	ResultCacheTTL         time.Duration
+	ResultCacheMaxEntries  int
 }
 
 // AgentTaskReconciler reconciles a AgentTask object
@@ -75,6 +78,9 @@ type AgentTaskReconciler struct {
 
 	// Last warm pool reconciliation time (cooldown)
 	warmPoolAt time.Time
+
+	// Result cache for deduplication of identical prompt+role tasks.
+	ResultCache *ResultCache
 }
 
 // +kubebuilder:rbac:groups=core.hortator.ai,resources=agentpolicies,verbs=get;list;watch
@@ -290,6 +296,41 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		return ctrl.Result{}, nil
 	}
 
+	// Check result cache before spawning (if enabled and task hasn't opted out).
+	// Cache hits return immediately without creating any K8s resources — the task
+	// transitions directly to Completed with the cached output.
+	if r.ResultCache != nil && !shouldSkipCache(task) {
+		cacheKey := CacheKey(task.Spec.Prompt, task.Spec.Role)
+		if cached := r.ResultCache.Get(cacheKey); cached != nil {
+			logger.Info("Cache hit", "task", task.Name, "key", cacheKey[:12])
+			task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
+			task.Status.Output = cached.Output
+			task.Status.Message = "Completed (cache hit)"
+			task.Status.TokensUsed = &corev1alpha1.TokenUsage{
+				Input:  cached.TokensIn,
+				Output: cached.TokensOut,
+			}
+			now := metav1.Now()
+			task.Status.StartedAt = &now
+			setCompletionStatus(task)
+			// Annotate for observability
+			if task.Annotations == nil {
+				task.Annotations = make(map[string]string)
+			}
+			task.Annotations["hortator.ai/cache-hit"] = cacheKey[:12]
+			if err := r.Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
+			emitTaskEvent(ctx, "hortator.task.completed.cached", task)
+			if err := r.Status().Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			r.notifyParentTask(ctx, task)
+			return ctrl.Result{}, nil
+		}
+	}
+
 	// Try warm pool first (if enabled)
 	if r.defaults.WarmPool.Enabled {
 		if pod, err := r.claimWarmPod(ctx, task); err != nil {
@@ -439,6 +480,21 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		task.Status.Message = "Task completed successfully"
 		setCompletionStatus(task)
 		emitTaskEvent(ctx, "hortator.task.completed", task)
+
+		// Store result in cache for deduplication of future identical tasks.
+		if r.ResultCache != nil && !shouldSkipCache(task) {
+			cacheKey := CacheKey(task.Spec.Prompt, task.Spec.Role)
+			var tokensIn, tokensOut int64
+			if task.Status.TokensUsed != nil {
+				tokensIn = task.Status.TokensUsed.Input
+				tokensOut = task.Status.TokensUsed.Output
+			}
+			r.ResultCache.Put(cacheKey, &CacheResult{
+				Output:    task.Status.Output,
+				TokensIn:  tokensIn,
+				TokensOut: tokensOut,
+			})
+		}
 
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
 		tasksActive.WithLabelValues(task.Namespace).Dec()
