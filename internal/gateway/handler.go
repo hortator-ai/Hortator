@@ -327,7 +327,7 @@ func (h *Handler) streamResponse(ctx context.Context, w http.ResponseWriter, tas
 					},
 				}
 				data, _ := json.Marshal(chunk)
-				fmt.Fprintf(w, "data: %s\n\n", data)
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 				flusher.Flush()
 
 				h.sendStreamDone(w, flusher)
@@ -380,13 +380,13 @@ func (h *Handler) sendStreamChunk(w http.ResponseWriter, flusher http.Flusher, i
 		}},
 	}
 	data, _ := json.Marshal(chunk)
-	fmt.Fprintf(w, "data: %s\n\n", data)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
 }
 
 // sendStreamDone writes the final [DONE] SSE event.
 func (h *Handler) sendStreamDone(w http.ResponseWriter, flusher http.Flusher) {
-	fmt.Fprint(w, "data: [DONE]\n\n")
+	_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
 	flusher.Flush()
 }
 

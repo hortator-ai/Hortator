@@ -342,7 +342,7 @@ func TestEnsurePVC(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		pvc := &corev1.PersistentVolumeClaim{}
-		if err := r.Client.Get(ctx, client_key("default", "t1-storage"), pvc); err != nil {
+		if err := r.Get(ctx, client_key("default", "t1-storage"), pvc); err != nil {
 			t.Fatalf("PVC not found: %v", err)
 		}
 		qty := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
@@ -361,7 +361,7 @@ func TestEnsurePVC(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		pvc := &corev1.PersistentVolumeClaim{}
-		if err := r.Client.Get(ctx, client_key("default", "t2-storage"), pvc); err != nil {
+		if err := r.Get(ctx, client_key("default", "t2-storage"), pvc); err != nil {
 			t.Fatalf("PVC not found: %v", err)
 		}
 		qty := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
@@ -380,7 +380,7 @@ func TestEnsurePVC(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		pvc := &corev1.PersistentVolumeClaim{}
-		if err := r.Client.Get(ctx, client_key("default", "t3-storage"), pvc); err != nil {
+		if err := r.Get(ctx, client_key("default", "t3-storage"), pvc); err != nil {
 			t.Fatalf("PVC not found: %v", err)
 		}
 		qty := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
@@ -399,7 +399,7 @@ func TestEnsurePVC(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		pvc := &corev1.PersistentVolumeClaim{}
-		if err := r.Client.Get(ctx, client_key("default", "t4-storage"), pvc); err != nil {
+		if err := r.Get(ctx, client_key("default", "t4-storage"), pvc); err != nil {
 			t.Fatalf("PVC not found: %v", err)
 		}
 		if pvc.Annotations["hortator.ai/retention"] != "30d" {
@@ -417,7 +417,7 @@ func TestEnsurePVC(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		pvc := &corev1.PersistentVolumeClaim{}
-		if err := r.Client.Get(ctx, client_key("default", "t5-storage"), pvc); err != nil {
+		if err := r.Get(ctx, client_key("default", "t5-storage"), pvc); err != nil {
 			t.Fatalf("PVC not found: %v", err)
 		}
 		if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != "fast-ssd" {

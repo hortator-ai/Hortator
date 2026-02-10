@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -307,7 +308,7 @@ func TestIsTransientFailure(t *testing.T) {
 			},
 		}
 		task := &corev1alpha1.AgentTask{}
-		if r.isTransientFailure(nil, task, pod) {
+		if r.isTransientFailure(context.TODO(), task, pod) {
 			t.Error("exit code 0 should not be transient")
 		}
 	})
@@ -326,7 +327,7 @@ func TestIsTransientFailure(t *testing.T) {
 			},
 		}
 		task := &corev1alpha1.AgentTask{}
-		if !r.isTransientFailure(nil, task, pod) {
+		if !r.isTransientFailure(context.TODO(), task, pod) {
 			t.Error("exit code 1 should be transient")
 		}
 	})
@@ -345,7 +346,7 @@ func TestIsTransientFailure(t *testing.T) {
 			},
 		}
 		task := &corev1alpha1.AgentTask{}
-		if !r.isTransientFailure(nil, task, pod) {
+		if !r.isTransientFailure(context.TODO(), task, pod) {
 			t.Error("exit code 137 (OOM) should be transient")
 		}
 	})
@@ -359,7 +360,7 @@ func TestIsTransientFailure(t *testing.T) {
 			},
 		}
 		task := &corev1alpha1.AgentTask{}
-		if !r.isTransientFailure(nil, task, pod) {
+		if !r.isTransientFailure(context.TODO(), task, pod) {
 			t.Error("no terminated state should be transient")
 		}
 	})
