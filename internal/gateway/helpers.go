@@ -57,6 +57,7 @@ func buildPrompt(messages []Message) string {
 //	2. Set spec.storage.retain = true
 //	3. Add label "hortator.ai/session" = sessionID
 //	4. Set spec.storage.existingClaim = "session-<sessionID>" (if PVC exists)
+
 // ModelConfig holds the LLM endpoint configuration resolved from an AgentRole.
 type ModelConfig struct {
 	Name       string
