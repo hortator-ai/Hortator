@@ -1,30 +1,31 @@
 # Hortator Code Review
 
-> Review date: 2026-02-10
->
-> **Update (2026-02-10):** All Critical (C1–C4) and most Moderate (M2, M3, M5, M6, M8) issues have been resolved. Controller was refactored from ~1318 lines into focused files: `pod_builder.go`, `policy.go`, `helpers.go`, `metrics.go`. Test coverage significantly improved with unit tests across controller, gateway, helpers, pod builder, policy, warm pool, and result cache. See `backlog.md` for detailed status.
+> Review date: 2026-02-10 (revision 2 — full re-review after recent changes)
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [What Changed Since Last Review](#what-changed-since-last-review)
 - [Component Breakdown](#component-breakdown)
   - [API Types](#1-api-types-apiv1alpha1)
   - [Operator Controller](#2-operator-controller-internalcontroller)
   - [CLI](#3-cli-cmdhortator)
   - [Gateway](#4-gateway-cmdgateway-internalgateway)
   - [Runtime](#5-runtime-runtime)
-  - [Helm Chart](#6-helm-chart-chartshortator)
-  - [CRDs](#7-crds-crds)
-  - [CI/CD](#8-cicd-githubworkflows)
+  - [SDKs](#6-sdks-sdk)
+  - [Helm Chart](#7-helm-chart-chartshortator)
+  - [CRDs](#8-crds-crds)
+  - [CI/CD](#9-cicd-githubworkflows)
+  - [Documentation](#10-documentation-docs)
 - [What's Good](#whats-good)
   - [Architecture & Design](#architecture--design)
   - [Code Quality](#code-quality)
 - [What Could Be Improved](#what-could-be-improved)
-  - [Critical Issues](#critical-issues)
-  - [Moderate Issues](#moderate-issues)
+  - [Medium Issues](#medium-issues)
   - [Minor Issues / Polish](#minor-issues--polish)
+- [Previously Reported Issues — Now Resolved](#previously-reported-issues--now-resolved)
 - [Summary](#summary)
 
 ---
@@ -35,90 +36,141 @@ Hortator is a Kubernetes operator that orchestrates AI agents in a hierarchical 
 
 ---
 
+## What Changed Since Last Review
+
+Significant improvements were made across the board addressing most Critical and Moderate issues from the first review:
+
+| Area | Change |
+|------|--------|
+| **Controller refactor** | Monolithic 1318-line `agenttask_controller.go` split into 7 focused files: `agenttask_controller.go` (701 lines), `helpers.go`, `metrics.go`, `pod_builder.go`, `policy.go`, `result_cache.go`, `warm_pool.go` |
+| **ConfigMap caching** | `loadClusterDefaults` now cached with 30s TTL via `refreshDefaultsIfStale()` and `sync.RWMutex` — no longer hits K8s API every reconcile |
+| **`MustParse` panics fixed** | All `resource.MustParse` calls replaced with `parseQuantity()` helper that returns clean errors |
+| **Retry jitter added** | `computeBackoff()` now adds ±25% jitter to prevent thundering herd |
+| **Init container pinned** | `busybox:latest` replaced with `busybox:1.37.0` |
+| **Shell interpolation fixed** | Init container now uses `printf '%s' "$TASK_JSON"` via env var instead of shell string interpolation |
+| **CLI `--role`/`--tier`/`--parent` added** | `spawn` command now sets `Role`, `Tier`, and `ParentTaskID` |
+| **CLI terminal phases fixed** | `waitForTask` handles all phases: `BudgetExceeded`, `TimedOut`, `Cancelled`, `Retrying` |
+| **CLI wait timeout** | `waitForTask` now uses `context.WithTimeout` via `--wait-timeout` flag (default 1h) |
+| **Gateway auth caching** | `authenticate` now caches K8s Secret keys with 60s TTL |
+| **License headers** | All files now consistently use MIT SPDX headers |
+| **Makefile** | Now a proper kubebuilder Makefile with `make build`, `make test`, `make sync-crds`, `make verify-crds` |
+| **CRD sync** | `make sync-crds` and `make verify-crds` keep CRDs in sync across `config/crd/bases/`, `crds/`, and `charts/hortator/crds/`. CI enforces sync. Removed stale `agentpolicy.yaml` and `agenttask.yaml` from `crds/` and `charts/` |
+| **Warm Pod pool** | New opt-in feature for sub-second task assignment with pre-provisioned idle Pods |
+| **Result cache** | New opt-in content-addressable cache with SHA-256 keying, LRU eviction, TTL expiry |
+| **Test coverage** | Added `controller_unit_test.go`, `helpers_test.go`, `pod_builder_test.go`, `policy_test.go`, `result_cache_test.go`, `warm_pool_test.go`, `gateway_handler_test.go`, `gateway_test.go`, plus SDK tests |
+| **Python SDK** | Sync/async client, SSE streaming, LangChain + CrewAI integrations, tests, examples |
+| **TypeScript SDK** | Zero-dependency client, streaming, LangChain.js integration, tests |
+| **Documentation** | Previously placeholder pages (`crds.md`, `storage.md`, `telemetry.md`) now have real content. New `warm-pool.md` design doc. |
+
+---
+
 ## Component Breakdown
 
 ### 1. API Types (`api/v1alpha1/`)
 
-**`agenttask_types.go`** — The core CRD type definitions. Defines `AgentTask` (the main workload) and all supporting types (`ModelSpec`, `RetrySpec`, `BudgetSpec`, `StorageSpec`, `HealthSpec`, `PresidioSpec`). The status struct tracks phase, output, token usage, child tasks, retry history, and timing.
+**`agenttask_types.go`** — Core CRD type definitions for `AgentTask` and all supporting types (`ModelSpec`, `RetrySpec`, `BudgetSpec`, `StorageSpec`, `HealthSpec`, `PresidioSpec`, `EnvVar`, `ResourceRequirements`). The status struct tracks phase, output, token usage, child tasks, retry history, and timing.
 
-**`agentpolicy_types.go`** — Defines `AgentPolicy` for namespace-scoped constraints (capability allow/deny lists, image restrictions, budget caps, concurrency limits, egress allowlists).
+**`agentpolicy_types.go`** — Defines `AgentPolicy` for namespace-scoped governance constraints (capability allow/deny lists, image restrictions, budget caps, concurrency limits, egress allowlists).
 
 ### 2. Operator Controller (`internal/controller/`)
 
-**`agenttask_controller.go`** (~1318 lines) — The heart of the system. A standard controller-runtime reconciler that implements:
+Now split into 7 files with clear responsibilities:
 
-- **Phase machine**: Pending → Running → Completed / Failed / TimedOut / BudgetExceeded / Cancelled, with a Retrying intermediate state.
-- **`handlePending`**: Validates namespace labels, enforces capability inheritance (children can't escalate beyond parent), enforces `AgentPolicy` restrictions, creates PVCs, builds and creates Pods.
-- **`handleRunning`**: Monitors pod status, handles success/failure/timeout, extracts results from logs or CRD status, manages retries for transient failures.
-- **`handleRetrying`**: Waits for backoff timer, transitions back to Pending.
-- **`handleTTLCleanup`**: Deletes terminal tasks after retention period expires.
-- **`buildPod`**: Constructs the Pod spec with init container (writes `task.json`), agent container, volumes (`/inbox`, `/outbox`, `/workspace`, `/memory`), env vars (API keys, model config), and resource limits.
-- **`enforcePolicy`**: Iterates all `AgentPolicy` objects in namespace, checking capabilities, images, budget, timeout, tier, and concurrency.
-- **Observability**: Prometheus metrics (`hortator_tasks_total`, `hortator_tasks_active`, `hortator_task_duration_seconds`) and OpenTelemetry spans for lifecycle events.
+| File | Lines | Responsibility |
+|------|-------|----------------|
+| `agenttask_controller.go` | 701 | Main reconciler, phase machine, retry logic, SetupWithManager |
+| `helpers.go` | 256 | Config caching, duration parsing, log collection, parent notification, token/result extraction |
+| `pod_builder.go` | 329 | Pod and PVC construction, resource parsing, volume setup |
+| `policy.go` | 147 | AgentPolicy enforcement (capabilities, images, budget, tier, concurrency) |
+| `metrics.go` | 68 | Prometheus metrics and OpenTelemetry tracing |
+| `result_cache.go` | 167 | Content-addressable result cache with SHA-256 keying and LRU eviction |
+| `warm_pool.go` | 336 | Warm Pod pool management (reconcile, replenish, build, claim, inject) |
+
+**Phase machine flow:** `Pending` → policy checks → cache check → warm pool or cold Pod → `Running` → pod monitoring → `Completed`/`Failed`/`TimedOut` → TTL cleanup.
 
 ### 3. CLI (`cmd/hortator/`)
 
-A Cobra-based CLI designed to run inside agent pods. Commands:
+Cobra-based CLI with all critical flags now implemented:
 
 | Command | Purpose |
 |---------|---------|
-| `spawn` | Creates AgentTask CRDs (agents spawning agents) |
+| `spawn` | Creates AgentTask CRDs with `--role`, `--tier`, `--parent`, `--wait`, `--wait-timeout` |
 | `status` | Checks task phase |
 | `result` | Gets task output |
 | `logs` | Streams pod logs |
 | `cancel` | Sets phase to Cancelled |
 | `list` | Lists tasks in namespace |
 | `tree` | Visualizes parent/child hierarchy |
-| `report` | Agents report results back to CRD status (primary reporting path) |
+| `report` | Agents report results back to CRD status |
 | `delete` | Removes tasks |
 | `version` | Prints version info |
 
 ### 4. Gateway (`cmd/gateway/`, `internal/gateway/`)
 
-An OpenAI-compatible HTTP API that translates standard chat completion requests into AgentTask CRDs:
+OpenAI-compatible HTTP API that translates chat completion requests into AgentTask CRDs:
 
-- `POST /v1/chat/completions` — Creates an AgentTask, watches it, returns results in OpenAI format.
-- `GET /v1/models` — Lists AgentRoles as available "models".
-- Supports both blocking and SSE streaming responses.
-- Bearer token authentication against a K8s Secret.
-- Model resolution from AgentRole CRDs with intelligent defaults.
+- `POST /v1/chat/completions` — Creates an AgentTask, watches it, returns results in OpenAI format
+- `GET /v1/models` — Lists AgentRoles as available "models"
+- Both blocking and SSE streaming responses
+- Bearer token authentication with cached K8s Secret (60s TTL)
+- Model resolution from AgentRole CRDs with intelligent defaults
 
 ### 5. Runtime (`runtime/`)
 
-A bash entrypoint script (`entrypoint.sh`) that runs inside agent pods:
+Bash entrypoint script running inside agent pods:
 
-- Reads `/inbox/task.json`.
-- Scans prompt for PII via Presidio (if configured).
-- Calls either Anthropic or OpenAI API based on available env vars (or runs in echo mode).
-- Maps tiers to model names.
-- Reports results via `hortator report` CLI (primary) or stdout markers (fallback).
-- Writes `result.json` and `usage.json` to `/outbox/`.
-- Handles SIGTERM gracefully.
+- Reads `/inbox/task.json`, calls Anthropic or OpenAI API (or echo mode)
+- PII scanning via centralized Presidio service
+- Reports results via `hortator report` CLI (primary) or stdout markers (fallback)
+- Writes `result.json` and `usage.json` to `/outbox/`
+- Graceful SIGTERM handling
 
-### 6. Helm Chart (`charts/hortator/`)
+### 6. SDKs (`sdk/`)
 
-Comprehensive Helm chart with templates for:
+#### Python SDK (`sdk/python/`)
 
-- Operator Deployment with health probes and metrics.
-- Gateway Deployment (optional) with HTTPRoute support.
-- Presidio Deployment (optional, centralized service).
-- NetworkPolicies (capability-driven: `web-fetch`, `spawn`, `presidio`).
-- RBAC (operator ClusterRole + worker namespace Role).
-- ServiceMonitor for Prometheus.
-- ConfigMap with full operator configuration.
+- **`hortator` package**: Sync `HortatorClient` and async `AsyncHortatorClient`
+- `run()` for single prompts, `chat()` for multi-turn, `stream()` for SSE
+- `list_models()` to discover available roles
+- Custom exceptions: `HortatorError`, `AuthenticationError`, `RateLimitError`
+- **Integrations**: `HortatorLangChainLLM` (LangChain), `HortatorCrewAITool` (CrewAI)
+- **Tests**: `test_client.py`, `test_models.py`, `test_streaming.py`
+- **Examples**: basic usage, streaming, LangChain tool, CrewAI delegation
+- Built on `httpx` for both sync and async
 
-### 7. CRDs (`crds/`)
+#### TypeScript SDK (`sdk/typescript/`)
 
-Three CRD definitions: `AgentTask`, `AgentRole`/`ClusterAgentRole`, and `AgentPolicy`. Well-structured with validation, enums, defaults, and printer columns.
+- **`@hortator/sdk`**: Zero-dependency client using native `fetch`
+- `run()`, `chat()`, `stream()` (returns `AsyncIterableIterator<StreamChunk>`)
+- `listModels()` for role discovery
+- Custom `HortatorError` with status code and error type
+- **Integration**: `HortatorLangChainLLM` for LangChain.js
+- **Tests**: `client.test.ts`, `streaming.test.ts`
+- Built with tsup, targets ESM and CJS
 
-### 8. CI/CD (`.github/workflows/`)
+### 7. Helm Chart (`charts/hortator/`)
 
-Three workflows:
+Comprehensive Helm chart with templates for operator, gateway, Presidio, NetworkPolicies, RBAC, ServiceMonitor, and ConfigMap. New configuration sections for warm pool and result cache.
 
-- **CI** (`ci.yaml`): lint (golangci-lint + Helm lint), test (envtest), build (Go + Docker), release (on tags).
-- **Image builds** (`build-images.yml`): multi-arch Docker images pushed to `ghcr.io`.
-- **PR checks** (`pr-check.yaml`): verifies `go.mod` tidy, generated code, CRD manifests.
-- **Dependabot** (`dependabot.yml`): weekly updates for Go modules and GitHub Actions.
+### 8. CRDs (`crds/`)
+
+Three CRD definitions synced via `make sync-crds`: `AgentTask` (generated), `AgentPolicy` (generated), `AgentRole`/`ClusterAgentRole` (hand-maintained). CI enforces sync across all three locations.
+
+### 9. CI/CD (`.github/workflows/`)
+
+- **CI** (`ci.yaml`): lint, test (with coverage), build, release (on tags)
+- **Image builds** (`build-images.yml`): multi-arch Docker images
+- **PR checks** (`pr-check.yaml`): verifies go.mod tidy, generated code, CRD sync
+
+### 10. Documentation (`docs/`)
+
+Previously placeholder pages are now populated:
+- `architecture/crds.md` — Full CRD reference with field tables
+- `architecture/storage.md` — Storage model, PVC lifecycle, retention, quotas
+- `architecture/telemetry.md` — Prometheus metrics and OpenTelemetry events
+- `architecture/warm-pool.md` — Comprehensive design doc with decisions, alternatives, limitations
+
+Still placeholder: `configuration/agentrole.md`, `configuration/agenttask.md`, `configuration/helm-values.md`, `guides/budget.md`, `guides/model-routing.md`, `guides/presidio.md`, `enterprise/overview.md`.
 
 ---
 
@@ -126,140 +178,134 @@ Three workflows:
 
 ### Architecture & Design
 
-1. **Strong conceptual model.** The Roman hierarchy metaphor maps cleanly to a real decomposition pattern (strategic → coordination → execution). The three-tier model is intuitive and the tier-based defaults (storage size, model selection) are well thought out.
+1. **Strong conceptual model.** The Roman hierarchy maps cleanly to task decomposition (strategic → coordination → execution). Tier-based defaults for storage, model selection, and PVC sizing are well thought out.
 
-2. **Kubernetes-native done right.** CRDs with status subresource, controller-runtime reconciler, owner references for garbage collection, finalizers for cleanup, proper RBAC markers. The phase-based state machine in the reconciler is clean and easy to follow.
+2. **Kubernetes-native done right.** CRDs with status subresource, controller-runtime reconciler, owner references, finalizers, proper RBAC markers. The phase-based state machine is clean and well-separated across files.
 
-3. **Security-first design.** Capability inheritance (children can't escalate beyond parent), per-namespace `AgentPolicy` enforcement, generated NetworkPolicies from capabilities, and namespace label restrictions are all solid guardrails for "agents spawning agents."
+3. **Security-first design.** Capability inheritance, per-namespace `AgentPolicy`, generated NetworkPolicies, and namespace label restrictions provide defense in depth for autonomous agent hierarchies.
 
-4. **Clean separation of concerns.** The operator, CLI, gateway, and runtime are cleanly separated. Agents interact via CLI (never YAML), platform engineers via Helm/CRDs, and external systems via the OpenAI-compatible gateway. Three distinct personas, three distinct interfaces.
+4. **Clean separation of concerns.** Operator, CLI, gateway, runtime, and SDKs are cleanly separated. Three personas (platform engineers, agents, external clients) each have a dedicated interface.
 
-5. **Presidio architecture pivot.** The decision to move from sidecar to centralized Deployment+Service was smart — it avoids the exit-code-137 problem and simplifies pod lifecycle.
+5. **Intentional PVC lifecycle design.** The three-stage storage funnel (hot PVC → tagged retention → cold S3/vector graduation) is natural for agent workloads. TTL cleanup is the garbage collector for untagged PVCs; `hortator retain` preserves important results.
 
-6. **Result reporting dual path.** The primary `hortator report` CRD-patching path with stdout marker fallback is pragmatic. The system works even with older runtimes or if the CLI fails.
+6. **Warm Pod pool is well-designed.** One-shot consumption avoids state leakage. Generic pools avoid fragmentation. `kubectl exec` for injection is pragmatic. Graceful degradation means the feature can't break the happy path. The design doc in `docs/architecture/warm-pool.md` is thorough with clear decision rationale.
 
-7. **The gateway is clever.** Exposing AgentRoles as OpenAI-compatible "models" means any OpenAI SDK or tool can drive Hortator without custom integration. SSE streaming with progress updates is a nice touch.
+7. **Result cache is appropriately scoped.** In-memory, SHA-256 keyed on prompt+role, LRU eviction, TTL expiry, opt-out annotation. Correctly only caches successes. The cache is a pure optimization — system works identically without it.
 
-8. **Intentional PVC lifecycle design.** The three-stage storage funnel (hot PVC → mid-term tagged retention → cold S3/vector graduation) is a natural fit for agent workloads where you don't know upfront which artifacts matter. TTL cleanup acts as the garbage collector for untagged PVCs, while `hortator retain` and tags preserve important results for later graduation.
+8. **Controller refactor is well-executed.** The split into `pod_builder.go`, `policy.go`, `helpers.go`, `metrics.go`, `result_cache.go`, `warm_pool.go` creates clear boundaries. Each file has a focused responsibility and can be tested independently.
+
+9. **The gateway is clever.** Exposing AgentRoles as OpenAI "models" means any OpenAI SDK can drive Hortator. SSE streaming with progress updates is a nice touch. Auth caching avoids API server pressure.
+
+10. **SDKs are production-quality.** Both Python and TypeScript SDKs have clean APIs (sync/async, streaming, context managers), proper error handling, framework integrations (LangChain, CrewAI), and tests. The Python SDK uses `httpx` for both sync and async, avoiding two HTTP libraries.
 
 ### Code Quality
 
-9. **Well-structured Go.** Idiomatic Go, clean package layout, proper error handling in most places, good use of controller-runtime primitives. The reconciler methods are reasonably sized and logically separated.
+11. **Comprehensive test coverage.** Unit tests now cover: resource parsing, pod building, policy enforcement, retry logic, result cache, warm pool, gateway handlers, gateway helpers, SDK clients, and SDK streaming. Table-driven tests throughout.
 
-10. **Good Prometheus metrics.** The three metrics (total, active gauge, duration histogram) cover the essential observability needs. The exponential histogram buckets are sensible for AI task durations.
+12. **Proper error handling.** `parseQuantity()` replaces all `MustParse` calls. The warm pool degrades gracefully. Auth caching falls back to fresh fetch. The result cache is opt-in and skip-safe.
 
-11. **Retry logic is well-tested.** `retry_test.go` has thorough table-driven tests covering edge cases (nil spec, zero max, exhaustion, custom backoff, capping). This is the best-tested part of the codebase.
+13. **Thread safety.** ConfigMap defaults, auth keys, and warm pool state all use `sync.RWMutex`. The result cache has proper locking for concurrent reads and writes.
 
-12. **Comprehensive Helm values.** The `values.yaml` is well-organized with sensible defaults for every configuration area.
+14. **CRD sync workflow.** `make sync-crds` → `make verify-crds` → CI enforcement eliminates the duplicate CRD drift problem. The CRD docs now explain the source-of-truth workflow.
+
+15. **Good Prometheus metrics.** Three core metrics (total, active gauge, duration histogram) with OTel attributes that properly correlate to the task hierarchy.
 
 ---
 
 ## What Could Be Improved
 
-### Critical Issues
+### Medium Issues
 
-**C1: ConfigMap reload on every reconciliation.**
-`loadClusterDefaults` is called on every single `Reconcile()` invocation (controller line 149). This means a K8s API call to fetch the ConfigMap on every reconciliation event. At scale with many tasks this will create unnecessary API server load. Consider using an informer/cache or a periodic refresh with a timer (e.g., every 30 seconds).
+**M1: Warm pool PVCs and Pods have no owner reference — orphan risk.**
+Warm pool Pods and PVCs (lines 168–243 in `warm_pool.go`) are created without owner references and not tied to any CRD. If the operator crashes or is redeployed, orphaned warm Pods/PVCs may accumulate. The PVC is owned by the task *after* claiming (`claimWarmPod` sets the owner ref), but unclaimed warm resources have no owner. Consider a cleanup mechanism — either a label-based sweeper on startup or a TTL annotation on idle warm Pods.
 
-**C2: `resource.MustParse` will panic.**
-In `buildPod` (controller lines 934–964), invalid resource strings from user input or ConfigMap values will cause `MustParse` to panic, crashing the operator. Use `resource.ParseQuantity` and return errors instead:
+**M2: Warm pool `replenishWarmPool` uses `resource.ParseQuantity` directly.**
+In `buildWarmPod()` (lines 122–141 of `warm_pool.go`), resource strings are parsed with `resource.ParseQuantity` which is fine but inconsistent with the rest of the codebase that now uses `parseQuantity()`. If an invalid default value sneaks in, this won't panic (ParseQuantity returns an error) but the error is silently swallowed with `if err == nil`. Consider using `parseQuantity()` consistently and returning the error.
 
-```go
-// Current (dangerous):
-resources.Requests[corev1.ResourceCPU] = resource.MustParse(r.defaults.DefaultRequestsCPU)
+**M3: Policy enforcement is still O(n*m) for concurrency checks.**
+`enforcePolicy` in `policy.go` (lines 129–141) fetches ALL tasks in the namespace on every pending task reconciliation to count running tasks. At scale (hundreds of tasks per namespace), this is expensive. Consider maintaining a running-task counter in the reconciler or using an informer-based count.
 
-// Should be:
-qty, err := resource.ParseQuantity(r.defaults.DefaultRequestsCPU)
-if err != nil {
-    return nil, fmt.Errorf("invalid default CPU request %q: %w", r.defaults.DefaultRequestsCPU, err)
-}
-resources.Requests[corev1.ResourceCPU] = qty
-```
+**M4: No validation webhook.**
+CRDs rely on kubebuilder validation markers, but there is no admission webhook for complex cross-field constraints (e.g., "child budget must not exceed parent budget", "tier must be <= parent tier"). Invalid tasks are only caught at reconciliation time, consuming an API write and reconcile cycle before failing.
 
-**C3: No jitter in retry backoff.**
-The `computeBackoff` function uses pure exponential backoff without jitter. When multiple tasks fail simultaneously (e.g., an API outage), they'll all retry at the exact same time, causing a thundering herd. Add random jitter:
+**M5: `AgentRole`/`ClusterAgentRole` still lack Go types.**
+The gateway uses `unstructured.Unstructured` to read AgentRole CRDs (handler.go lines 422–453). This means no generated deep-copy, no compile-time field validation, and no ability to use them in typed controller code. The CRD docs (crds.md line 13) acknowledge this as a known gap. Adding Go types would enable typed watches and a potential AgentRole controller.
 
-```go
-jitter := time.Duration(rand.Int63n(int64(backoff) / 4))
-return time.Duration(backoff)*time.Second + jitter
-```
+**M6: PVC owner reference vs. retention model tension.**
+PVCs are created with `SetControllerReference(task, pvc, ...)` (pod_builder.go line 79). K8s garbage collection will cascade-delete the PVC when the AgentTask is deleted. The `retain=true` check prevents the AgentTask from TTL deletion, but if an AgentTask is deleted by any other means, the PVC goes with it. When S3/vector graduation is implemented, retained PVCs will need to outlive their AgentTasks — consider detaching the owner reference when retention is set.
 
-**C4: Init container uses `busybox:latest`.**
-The init container that writes `task.json` (controller line 982) uses `busybox:latest` — a mutable tag that could break reproducibility or be blocked by image policies. Pin to a specific version or digest.
+**M7: No rate limiting on the gateway.**
+The gateway has no rate limiting. A misbehaving client could create unlimited AgentTasks. Consider adding per-client rate limiting, or at minimum checking `AgentPolicy.maxConcurrentTasks` at the gateway layer before creating the CRD.
 
-### Moderate Issues
-
-**M1: PVC owner reference vs. retention model.**
-PVCs are created with `SetControllerReference(task, pvc, ...)` (controller line 837), which means K8s garbage collection will cascade-delete the PVC when the owning AgentTask is deleted. This is fine for the current MVP since `retain=true` prevents the AgentTask itself from being TTL-deleted. However, once S3/vector graduation is implemented, retained PVCs will need to outlive their AgentTasks. At that point, consider detaching the owner reference on retained PVCs or moving to a separate PVC lifecycle controller.
-
-**M2: The reconciler file is too large** (1318 lines).
-`agenttask_controller.go` contains all reconciliation logic, pod building, policy enforcement, log collection, token extraction, PVC management, and volume construction. Consider splitting into separate files: `pod_builder.go`, `policy.go`, `cleanup.go`, `metrics.go`.
-
-**M3: Authentication on every gateway request.**
-The gateway's `authenticate` method (handler.go line 41) fetches the K8s Secret on every HTTP request. This should be cached with a TTL (e.g., 60 seconds) to avoid hammering the API server under load.
-
-**M4: No rate limiting on the gateway.**
-The OpenAI-compatible gateway has no rate limiting. A misbehaving client could create unlimited AgentTasks. Consider adding per-client rate limiting, or at minimum leveraging `AgentPolicy.maxConcurrentTasks` at the gateway layer.
-
-**M5: Shell interpolation in the init container.**
-`buildPod` escapes single quotes for shell and pipes the task spec JSON through `echo '...' > /inbox/task.json` (controller line 976–982). If the task spec contains backticks, dollar signs, or other shell metacharacters, this could break or be a security issue. Use a ConfigMap volume or a proper binary init container that writes from stdin instead of shell interpolation.
-
-**M6: Missing `--role` and `--tier` in the `spawn` CLI.**
-The `spawn` command (spawn.go lines 84–95) creates an `AgentTask` but never sets `Role`, `Tier`, or `ParentTaskID`. These are critical fields for the hierarchy system. The README shows `--role` being used, but it's not implemented in the code.
-
-**M7: `waitForTask` uses polling, not watches.**
-The CLI's `waitForTask` (spawn.go line 125) polls every 2 seconds. For a K8s-native tool, using a Watch would be more efficient and responsive.
-
-**M8: Missing terminal phase handling in CLI `waitForTask`.**
-The `waitForTask` function only handles `Completed`, `Failed`, `Running`, and `Pending`. It ignores `BudgetExceeded`, `TimedOut`, `Cancelled`, and `Retrying` — these will cause infinite polling.
-
-**M9: Policy enforcement is O(n*m).**
-`enforcePolicy` lists all policies and all running tasks for concurrency checks. The concurrent task counting (controller lines 1162–1173) fetches ALL tasks in the namespace on every pending task reconciliation. At scale, use a cached counter or informer.
-
-**M10: No validation webhook.**
-The CRDs rely on kubebuilder validation markers, but there is no admission webhook to enforce complex constraints (e.g., "tier must match parent tier hierarchy", "budget must not exceed parent budget"). Invalid tasks are only caught at reconciliation time, consuming resources before failing.
+**M8: Cache key doesn't include model or tier.**
+`CacheKey` in `result_cache.go` (line 65) hashes only `prompt + role`. Two tasks with the same prompt and role but different models or tiers would share the same cache entry. If the same prompt sent to `claude-opus` vs. `gpt-4o-mini` should produce different outputs, the cache key should include the model name and tier.
 
 ### Minor Issues / Polish
 
-**L1: Test coverage is very thin (~5–10%).**
-The controller test is essentially the kubebuilder scaffold with a TODO comment. The retry tests are good but only cover helper functions. There are no integration tests for the actual reconciliation flow (`handlePending`, `handleRunning`, etc.), no tests for the gateway, no tests for the CLI, and no tests for policy enforcement.
+**L1: Remaining "Coming soon" documentation pages.**
+About 30% of docs are still placeholders: `configuration/agentrole.md`, `configuration/agenttask.md`, `configuration/helm-values.md`, `guides/budget.md`, `guides/model-routing.md`, `guides/presidio.md`, `enterprise/overview.md`. The core architecture docs are now solid.
 
-**L2: Inconsistent license headers.**
-The controller has Apache 2.0 headers, but the README states MIT. The `LICENSE` file should be checked for consistency.
+**L2: `waitForTask` still uses polling, not watches.**
+The CLI's `waitForTask` (spawn.go line 134) polls every 2 seconds. For a K8s-native tool, a Watch would be more efficient and responsive. This is acceptable for CLI usage but adds unnecessary latency for short tasks.
 
-**L3: Several "Coming soon" doc pages.**
-About 40% of the documentation pages are placeholders: `crds.md`, `storage.md`, `telemetry.md`, `helm-values.md`, `agentrole.md`, `agenttask.md`, `budget.md`, `model-routing.md`, `presidio.md`, and the enterprise docs.
+**L3: Entrypoint tier-to-model mapping is duplicated.**
+`entrypoint.sh` maps tiers to OpenAI models (fast→gpt-4o-mini, think→gpt-4o, deep→gpt-4o) then overrides with Anthropic models when `ANTHROPIC_API_KEY` is set (fast→sonnet, think→sonnet, deep→opus). The initial OpenAI mapping is dead code when Anthropic keys are present.
 
-**L4: `Makefile` contains backlog, not make targets.**
-The `Makefile` is actually a markdown document with project planning notes, not a functional Makefile. This means there are no `make build`, `make test`, etc. targets — a friction point for contributors.
+**L4: Warm pool Pods always provision in operator namespace.**
+`replenishWarmPool` and `buildWarmPod` use `r.Namespace` (the operator namespace), but tasks may be in different namespaces. If a task in namespace `ai-team` tries to claim a warm Pod, the warm Pod is in `hortator-system` — the task and Pod are in different namespaces. The `claimWarmPod` also lists in `r.Namespace`. This means warm pool only works for tasks in the operator's namespace. The warm-pool.md doc notes this as a limitation ("per-operator-namespace"), but this should be more prominently documented or enforced.
 
-**L5: Duplicate CRD files.**
-CRD YAMLs exist in `crds/`, `charts/hortator/crds/`, and `config/crd/bases/`. There is no mechanism ensuring they stay in sync.
+**L5: Result cache `order` slice grows unbounded with expired entries.**
+In `result_cache.go`, the `order` slice (used for LRU eviction) tracks insertion order. When entries are lazily removed on TTL expiry (line 98), the corresponding key stays in `order` until it's eventually skipped by `evictOldest`. With high churn and long TTLs, this slice could accumulate stale keys. This is minor but could be addressed with periodic compaction.
 
-**L6: Entrypoint tier-to-model mapping is duplicated.**
-The tier-to-model mapping logic exists twice in `entrypoint.sh`: first for OpenAI models (fast→gpt-4o-mini, think→gpt-4o) and then overridden for Anthropic (fast→sonnet, deep→opus). The initial mapping is dead code when Anthropic keys are present.
+**L6: The `stream.Close()` return value is now properly handled.**
+`helpers.go` line 182 uses `defer func() { _ = stream.Close() }()` which is correct. Good fix from the previous review.
 
-**L7: `AgentRole`/`ClusterAgentRole` aren't Go types.**
-They appear only as CRD YAMLs but have no corresponding Go types in `api/v1alpha1/`. The gateway uses `unstructured.Unstructured` to read them. This means they can't be used in strongly-typed controller code and there's no generated deep-copy or validation.
+**L7: SDK `_check_response` is called inside streaming context.**
+In the Python SDK `client.py` line 122, `_check_response(resp)` is called inside `self._client.stream(...)` context manager. For httpx streaming responses, the status code is available but the body may not be fully read yet. If the server returns a 401 with a JSON error body, `resp.text` inside a streaming context may not return the full body. Consider reading the body before raising, or using `resp.raise_for_status()` with a custom handler.
 
-**L8: No context timeout on `waitForTask`.**
-The CLI's `waitForTask` uses `context.Background()` (from `runSpawn` line 69), meaning `--wait` will block forever if the task never completes and timeout enforcement fails. It should inherit a context with a timeout.
+---
+
+## Previously Reported Issues — Now Resolved
+
+The following issues from the first review have been addressed:
+
+| ID | Issue | Resolution |
+|----|-------|------------|
+| C1 | ConfigMap reload on every reconciliation | Cached with 30s TTL via `refreshDefaultsIfStale()` + `sync.RWMutex` |
+| C2 | `resource.MustParse` panics | Replaced with `parseQuantity()` that returns errors |
+| C3 | No jitter in retry backoff | `computeBackoff()` now adds ±25% jitter |
+| C4 | Init container uses `busybox:latest` | Pinned to `busybox:1.37.0` |
+| M2 | Reconciler file too large (1318 lines) | Split into 7 focused files |
+| M3 | Auth on every gateway request | Cached with 60s TTL via `getAuthKeys()` + `sync.RWMutex` |
+| M5 | Shell interpolation in init container | Now uses env var: `printf '%s' "$TASK_JSON"` |
+| M6 | Missing `--role`/`--tier` in spawn CLI | Added `--role`, `--tier`, `--parent` flags |
+| M8 | Missing terminal phases in `waitForTask` | All phases now handled: `BudgetExceeded`, `TimedOut`, `Cancelled`, `Retrying` |
+| L1 | Test coverage ~5-10% | Comprehensive unit tests across controller, gateway, and SDKs |
+| L2 | Inconsistent license headers | All files now use MIT SPDX headers |
+| L3 | Placeholder docs | Core architecture docs (`crds.md`, `storage.md`, `telemetry.md`) now populated |
+| L4 | Makefile was backlog markdown | Now a proper kubebuilder Makefile with build/test/sync targets |
+| L5 | Duplicate CRDs with no sync | `make sync-crds` + `make verify-crds` + CI enforcement |
+| L8 | No context timeout on `waitForTask` | `--wait-timeout` flag with `context.WithTimeout` |
 
 ---
 
 ## Summary
 
-Hortator is a well-architected project with a clear vision and solid Kubernetes-native foundations. The core design — agents-as-pods with hierarchy, capability inheritance, budget controls, and an OpenAI-compatible gateway — is genuinely compelling. The code is clean and idiomatic Go.
+This revision of the codebase shows substantial improvement. All Critical issues and most Moderate issues from the first review have been addressed. The codebase has evolved from a solid MVP into a production-hardening phase with:
 
-The main areas needing attention:
+- Clean architecture (7-file controller split, proper caching, thread safety)
+- Two new features (warm Pod pool, result cache) with thorough design documentation
+- Two SDKs (Python + TypeScript) with framework integrations
+- Significantly improved test coverage across all components
+- Proper build tooling (Makefile, CRD sync, CI enforcement)
+
+**Remaining priority areas:**
 
 | Priority | Area | Impact |
 |----------|------|--------|
-| **Critical** | `MustParse` panics, no jitter in retries, ConfigMap reload per reconcile, mutable init image | Operator crashes or thundering herds in production |
-| **High** | Test coverage (~5–10%) | Can't refactor or ship with confidence |
-| **Medium** | `spawn` CLI missing `--role`/`--tier`/`--parent`, `waitForTask` incomplete | Core user-facing features broken |
-| **Medium** | Shell interpolation in init container | Security risk and fragility |
-| **Medium** | Gateway rate limiting and auth caching | Scalability under load |
-| **Low** | Controller file size, duplicate CRDs, Makefile, doc placeholders | Developer experience and maintenance burden |
+| **Medium** | Orphan warm pool resources, cache key scope, policy O(n*m) | Production reliability at scale |
+| **Medium** | PVC owner ref vs. retention, no rate limiting | Preparation for graduation pipeline + security |
+| **Medium** | AgentRole Go types, validation webhook | Developer experience and early error detection |
+| **Low** | Remaining doc placeholders, CLI polling, entrypoint duplication | Polish and developer experience |
 
-The foundation is strong. The improvements are mostly about hardening for production rather than architectural rework.
+The foundation is production-ready for moderate scale. The improvement trajectory is strong — the codebase went from ~5% test coverage to comprehensive tests, addressed all crash risks, and added two significant features with clean design.
