@@ -175,5 +175,12 @@ presidio_scan "$SUMMARY"
 # --- Write results ---
 write_result "completed" "$SUMMARY" "$INPUT_TOKENS" "$OUTPUT_TOKENS"
 
+# Output the result for the operator to capture.
+# The operator parses this marker to extract the actual LLM response
+# separate from runtime log noise.
+echo "[hortator-result-begin]"
+echo "$SUMMARY"
+echo "[hortator-result-end]"
+
 echo "[hortator-runtime] Done. Tokens: in=${INPUT_TOKENS} out=${OUTPUT_TOKENS}"
 exit 0
