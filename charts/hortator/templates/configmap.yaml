@@ -8,9 +8,7 @@ metadata:
 data:
   # Flat keys read directly by the operator controller
   presidioEnabled: {{ .Values.presidio.enabled | quote }}
-  presidioImage: {{ .Values.presidio.image | quote }}
-  presidioScoreThreshold: {{ .Values.presidio.scoreThreshold | quote }}
-  presidioAction: {{ .Values.presidio.action | quote }}
+  presidioEndpoint: {{ if .Values.presidio.enabled }}"http://{{ include "hortator.fullname" . }}-presidio.{{ .Release.Namespace }}.svc:3000"{{ else }}""{{ end }}
   # Agent defaults — the operator reads this at startup to configure
   # reconciliation behavior and default values for AgentTask Pods.
   config.yaml: |

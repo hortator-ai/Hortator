@@ -1,0 +1,82 @@
+{{- if .Values.presidio.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hortator.fullname" . }}-presidio
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: presidio
+spec:
+  replicas: {{ .Values.presidio.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "hortator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: presidio
+  template:
+    metadata:
+      labels:
+        {{- include "hortator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: presidio
+    spec:
+      containers:
+        - name: presidio-analyzer
+          image: {{ .Values.presidio.image }}
+          imagePullPolicy: {{ .Values.presidio.imagePullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: PRESIDIO_SCORE_THRESHOLD
+              value: {{ .Values.presidio.scoreThreshold | quote }}
+            - name: PRESIDIO_ACTION
+              value: {{ .Values.presidio.action | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.presidio.resources | nindent 12 }}
+          {{- if .Values.presidio.recognizers }}
+          volumeMounts:
+            - name: presidio-config
+              mountPath: /etc/presidio/config.yaml
+              subPath: config.yaml
+          {{- end }}
+      {{- if .Values.presidio.recognizers }}
+      volumes:
+        - name: presidio-config
+          configMap:
+            name: {{ include "hortator.fullname" . }}-presidio-config
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hortator.fullname" . }}-presidio
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: presidio
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "hortator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: presidio
+{{- end }}
