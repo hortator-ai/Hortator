@@ -1,0 +1,42 @@
+{
+  "name": "@hortator/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Hortator — Kubernetes-native AI agent orchestration",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./langchain": {
+      "import": "./dist/integrations/langchain.js",
+      "require": "./dist/integrations/langchain.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": { "optional": true }
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  },
+  "license": "MIT"
+}
