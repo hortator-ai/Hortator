@@ -1,3 +1,8 @@
+/*
+Copyright (c) 2026 GeneClackman
+SPDX-License-Identifier: MIT
+*/
+
 // Package gateway implements the OpenAI-compatible API translation layer.
 //
 // Thread Continuity:

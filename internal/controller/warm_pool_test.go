@@ -1,3 +1,8 @@
+/*
+Copyright (c) 2026 GeneClackman
+SPDX-License-Identifier: MIT
+*/
+
 package controller
 
 import (

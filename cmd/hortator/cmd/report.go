@@ -1,6 +1,9 @@
 /*
-Copyright 2026 Hortator Authors.
+Copyright (c) 2026 GeneClackman
+SPDX-License-Identifier: MIT
+*/
 
+/*
 The report command allows agents to write results directly to their AgentTask
 CRD status. This is the primary mechanism for returning results from agent
 work — no stdout parsing, no file scraping, just a clean API call.
