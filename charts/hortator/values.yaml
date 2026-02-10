@@ -91,6 +91,16 @@ warmPool:
   # Number of warm pods to maintain per namespace
   size: 2
 
+# Content-addressable result cache. Identical prompt+role tasks return instantly
+# from cache without spawning Pods. In-memory only; restarts clear cache.
+# Opt-out per task via annotation: hortator.ai/no-cache: "true"
+resultCache:
+  enabled: false
+  # Time-to-live for cached results
+  ttlSeconds: 600
+  # Maximum number of cached entries (LRU eviction when exceeded)
+  maxEntries: 1000
+
 # ── Runtime Conventions ─────────────────────────────────────────────────────
 # Filesystem and context management settings for agent Pods.
 
