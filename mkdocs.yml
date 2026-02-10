@@ -69,6 +69,10 @@ nav:
     - CRDs: architecture/crds.md
     - Storage Model: architecture/storage.md
     - Telemetry: architecture/telemetry.md
+  - Design Documents:
+    - Retry Semantics: design-retry-semantics.md
+    - File Delivery & RAG: design-file-delivery-and-rag.md
+    - API Surface (Concept): concept-api-surface.md
   - Guides:
     - Choosing Strategies: guides/choosing-strategies.md
     - Model Routing: guides/model-routing.md
