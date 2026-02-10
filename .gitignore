@@ -40,3 +40,5 @@ sdk/python/.venv/
 sdk/python/__pycache__/
 **/__pycache__/
 *.pyc
+sdk/typescript/node_modules/
+sdk/typescript/dist/
