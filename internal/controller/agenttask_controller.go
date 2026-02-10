@@ -51,7 +51,7 @@ import (
 
 const (
 	finalizerName = "agenttask.core.hortator.ai/finalizer"
-	maxOutputLen  = 1000
+	maxOutputLen  = 16000
 )
 
 // Prometheus metrics
@@ -638,9 +638,10 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 	case corev1.PodSucceeded:
 		logger.Info("Pod succeeded", "pod", pod.Name)
 
-		// Collect pod logs and extract token usage
+		// Collect pod logs, extract token usage, and extract the actual LLM result
 		task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
 		r.extractTokenUsage(task)
+		r.extractResult(task)
 		r.recordAttempt(task, nil, "completed")
 
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
@@ -681,6 +682,8 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		if agentExitCode != nil && *agentExitCode == 0 {
 			logger.Info("Agent succeeded but sidecar failed, treating as success", "pod", pod.Name)
 			task.Status.Output = r.collectPodLogs(ctx, task.Namespace, task.Status.PodName)
+			r.extractTokenUsage(task)
+			r.extractResult(task)
 			task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
 			task.Status.Message = "Task completed (sidecar failed)"
 			setCompletionStatus(task)
@@ -1202,6 +1205,25 @@ func (r *AgentTaskReconciler) extractTokenUsage(task *corev1alpha1.AgentTask) {
 			Input:  input,
 			Output: output,
 		}
+	}
+}
+
+// extractResult pulls the actual LLM response from between
+// [hortator-result-begin] and [hortator-result-end] markers in the log output.
+// If markers are found, status.output is replaced with just the result content.
+// If not found (older runtime), status.output keeps the raw logs as before.
+func (r *AgentTaskReconciler) extractResult(task *corev1alpha1.AgentTask) {
+	if task.Status.Output == "" {
+		return
+	}
+	const beginMarker = "[hortator-result-begin]\n"
+	const endMarker = "\n[hortator-result-end]"
+
+	beginIdx := strings.Index(task.Status.Output, beginMarker)
+	endIdx := strings.Index(task.Status.Output, endMarker)
+	if beginIdx >= 0 && endIdx > beginIdx {
+		result := task.Status.Output[beginIdx+len(beginMarker) : endIdx]
+		task.Status.Output = strings.TrimSpace(result)
 	}
 }
 
