@@ -34,3 +34,9 @@ Thumbs.db
 # Build artifacts
 dist/
 site/
+
+# Python SDK
+sdk/python/.venv/
+sdk/python/__pycache__/
+**/__pycache__/
+*.pyc
