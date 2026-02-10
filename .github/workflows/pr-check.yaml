@@ -31,3 +31,8 @@ jobs:
         run: |
           controller-gen crd paths="./..." output:crd:artifacts:config=config/crd/bases
           git diff --exit-code
+
+      - name: Verify CRDs are synced across locations
+        run: |
+          make sync-crds
+          git diff --exit-code -- crds/ charts/hortator/crds/
