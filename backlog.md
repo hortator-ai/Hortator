@@ -175,7 +175,7 @@ examples/
 - [x] **P0** As an AI developer, I want the runtime to support configurable LLM backends via env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY) ✅ 2026-02-08
 - [x] **P1** As an agent, I want the hortator CLI pre-installed in the runtime so I can spawn sub-workers ✅ 2026-02-08
 - [x] **P1** As an AI developer, I want the runtime to have common tools pre-installed (git, curl, python, node) ✅ 2026-02-08
-- [ ] **P2** As an AI developer, I want to specify a custom runtime image in the AgentTask spec
+- [x] **P2** As an AI developer, I want to specify a custom runtime image in the AgentTask spec ✅ 2026-02-11
 
 ## 💾 EPIC: Storage
 
