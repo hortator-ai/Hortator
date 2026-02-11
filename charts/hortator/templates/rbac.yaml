@@ -96,6 +96,17 @@ rules:
       - get
       - list
       - watch
+  # Roles and RoleBindings (for worker RBAC in task namespaces)
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+      - rolebindings
+    verbs:
+      - create
+      - get
+      - list
+      - watch
   # Events
   - apiGroups:
       - ""

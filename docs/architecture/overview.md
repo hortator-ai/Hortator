@@ -238,7 +238,7 @@ The operator is split into focused files under `internal/controller/`:
 | File | Purpose |
 |------|---------|
 | `agenttask_controller.go` | Main reconciliation loop, phase machine, struct definitions |
-| `pod_builder.go` | Pod spec construction, PVC creation, volume mounts, knowledge discovery integration |
+| `pod_builder.go` | Pod spec construction, PVC creation, volume mounts, worker RBAC provisioning, knowledge discovery integration |
 | `helpers.go` | Config loading, PVC reader, token extraction, parent notification, child result injection |
 | `metrics.go` | Prometheus metrics (tasks, duration, cost, stuck detection) and OTel event emission |
 | `budget.go` | LiteLLM price map loader, cost calculation, budget enforcement |
@@ -247,3 +247,15 @@ The operator is split into focused files under `internal/controller/`:
 | `policy.go` | AgentPolicy enforcement |
 | `warm_pool.go` | Warm Pod pool management |
 | `result_cache.go` | Content-addressable result cache |
+
+## Worker RBAC
+
+Agent worker pods run under the `hortator-worker` ServiceAccount. This ServiceAccount (along with its Role and RoleBinding) is **automatically provisioned** by the operator in each task's namespace during reconciliation. This ensures worker pods can interact with the Kubernetes API (e.g., creating child AgentTasks via the `hortator` CLI) regardless of which namespace they run in.
+
+The Helm chart also pre-provisions these resources in the operator's own namespace (`hortator-system` by default) via `workerRbac.create`.
+
+The worker Role grants:
+- `get`, `list`, `create`, `update` on `agenttasks`
+- `get`, `update`, `patch` on `agenttasks/status`
+
+The operator's ClusterRole includes permissions to create ServiceAccounts, Roles, and RoleBindings in any namespace to support this auto-provisioning.
