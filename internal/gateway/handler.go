@@ -178,7 +178,7 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	taskName := fmt.Sprintf("gw-%s-%d", sanitizeName(role), time.Now().UnixMilli())
 	task := buildAgentTask(taskName, h.Namespace, role, tier, prompt, &req, modelCfg)
 
-	log.Info("creating task", "name", taskName, "role", role, "tier", tier, "stream", req.Stream)
+	log.Info("audit: chat.completions", "role", role, "tier", tier, "stream", req.Stream, "task", taskName)
 
 	created, err := h.DynClient.Resource(agentTaskGVR).Namespace(h.Namespace).Create(
 		r.Context(), task, metav1.CreateOptions{},
@@ -473,6 +473,8 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := ctrl.Log.WithName("gateway.models")
+
 	roles, err := h.DynClient.Resource(agentRoleGVR).Namespace(h.Namespace).List(
 		r.Context(), metav1.ListOptions{},
 	)
@@ -498,6 +500,8 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 			OwnedBy: "hortator",
 		})
 	}
+
+	log.Info("audit: list.models", "count", len(models))
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(ModelListResponse{
