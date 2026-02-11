@@ -23,6 +23,8 @@ def execute_tool(name: str, args: dict, task_name: str, task_ns: str) -> dict:
                 return _exec_get_result(args)
             case "cancel_task":
                 return _exec_cancel_task(args)
+            case "checkpoint_and_wait":
+                return _exec_checkpoint_and_wait(args)
             case "run_shell":
                 return _exec_run_shell(args)
             case "read_file":
@@ -152,6 +154,22 @@ def _exec_cancel_task(args: dict) -> dict:
         return {"success": False, "error": result.stderr.strip()}
 
     return {"success": True, "message": f"Task {task_name} cancelled"}
+
+
+# ── Checkpoint ───────────────────────────────────────────────────────────────
+
+def _exec_checkpoint_and_wait(args: dict) -> dict:
+    """Signal the loop to checkpoint and exit with 'waiting' status.
+
+    This doesn't do the actual checkpoint saving — the loop handles that.
+    We return a sentinel that the loop detects after tool execution.
+    """
+    summary = args.get("summary", "")
+    return {
+        "success": True,
+        "_checkpoint_and_wait": True,
+        "summary": summary,
+    }
 
 
 # ── Shell Execution ──────────────────────────────────────────────────────────

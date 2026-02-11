@@ -337,7 +337,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			task.Status.Message = "namespace not enabled for Hortator: add label hortator.ai/enabled=true"
 			setCompletionStatus(task)
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -356,7 +356,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 				task.Status.Message = fmt.Sprintf("parent task %s not found", task.Spec.ParentTaskID)
 				setCompletionStatus(task)
 				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
-				if err := r.Status().Update(ctx, task); err != nil {
+				if err := r.updateStatusWithRetry(ctx, task); err != nil {
 					return ctrl.Result{}, err
 				}
 				return ctrl.Result{}, nil
@@ -374,7 +374,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 				task.Status.Message = fmt.Sprintf("capability escalation denied: %s not in parent capabilities", cap)
 				setCompletionStatus(task)
 				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
-				if err := r.Status().Update(ctx, task); err != nil {
+				if err := r.updateStatusWithRetry(ctx, task); err != nil {
 					return ctrl.Result{}, err
 				}
 				return ctrl.Result{}, nil
@@ -388,7 +388,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		task.Status.Message = fmt.Sprintf("policy violation: %s", violation)
 		setCompletionStatus(task)
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -422,7 +422,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
 			emitTaskEvent(ctx, "hortator.task.completed.cached", task)
 			r.Recorder.Event(task, corev1.EventTypeNormal, "CacheHit", "Result served from cache")
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			r.notifyParentTask(ctx, task)
@@ -451,7 +451,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 				task.Status.Message = "Task running (warm pod)"
 				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseRunning), task.Namespace).Inc()
 				tasksActive.WithLabelValues(task.Namespace).Inc()
-				if err := r.Status().Update(ctx, task); err != nil {
+				if err := r.updateStatusWithRetry(ctx, task); err != nil {
 					return ctrl.Result{}, err
 				}
 
@@ -473,7 +473,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
 		task.Status.Message = fmt.Sprintf("Failed to create PVC: %v", err)
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -486,7 +486,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
 		task.Status.Message = fmt.Sprintf("Failed to build pod: %v", err)
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -505,7 +505,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			task.Status.Message = "Task running"
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseRunning), task.Namespace).Inc()
 			tasksActive.WithLabelValues(task.Namespace).Inc()
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
@@ -524,7 +524,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 	task.Status.Message = "Task running"
 	tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseRunning), task.Namespace).Inc()
 	tasksActive.WithLabelValues(task.Namespace).Inc()
-	if err := r.Status().Update(ctx, task); err != nil {
+	if err := r.updateStatusWithRetry(ctx, task); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -541,7 +541,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		setCompletionStatus(task)
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
 		tasksActive.WithLabelValues(task.Namespace).Dec()
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -558,7 +558,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			setCompletionStatus(task)
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
 			tasksActive.WithLabelValues(task.Namespace).Dec()
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -595,7 +595,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseBudgetExceeded), task.Namespace).Inc()
 			budgetExceededTotal.WithLabelValues(task.Namespace).Inc()
 			tasksActive.WithLabelValues(task.Namespace).Dec()
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			r.notifyParentTask(ctx, task)
@@ -617,7 +617,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			r.Recorder.Event(task, corev1.EventTypeNormal, "TaskWaiting", "Agent checkpointed, waiting for children")
 
 			tasksActive.WithLabelValues(task.Namespace).Dec()
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{}, nil
@@ -655,7 +655,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		// Record cost metric
 		r.recordCostMetric(task)
 
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -688,7 +688,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			r.Recorder.Eventf(task, corev1.EventTypeNormal, "TaskCompleted", "Task completed in %s", task.Status.Duration)
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
 			tasksActive.WithLabelValues(task.Namespace).Dec()
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			r.notifyParentTask(ctx, task)
@@ -712,7 +712,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			r.Recorder.Eventf(task, corev1.EventTypeNormal, "TaskRetrying", "Retrying (attempt %d/%d)", task.Status.Attempts, task.Spec.Retry.MaxAttempts)
 			logger.Info("Scheduling retry", "attempt", task.Status.Attempts, "backoff", backoff)
 
-			if err := r.Status().Update(ctx, task); err != nil {
+			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{RequeueAfter: backoff}, nil
@@ -730,7 +730,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			taskDuration.Observe(task.Status.CompletedAt.Time.Sub(task.Status.StartedAt.Time).Seconds())
 		}
 
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -753,7 +753,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 				r.Recorder.Event(task, corev1.EventTypeWarning, "TaskFailed", "Task failed: "+task.Status.Message)
 				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseTimedOut), task.Namespace).Inc()
 				tasksActive.WithLabelValues(task.Namespace).Dec()
-				if err := r.Status().Update(ctx, task); err != nil {
+				if err := r.updateStatusWithRetry(ctx, task); err != nil {
 					return ctrl.Result{}, err
 				}
 				return ctrl.Result{}, nil
@@ -767,7 +767,8 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			r.defaultsMu.RUnlock()
 
 			if healthCfg.Enabled && healthCfg.StuckDetection.Enabled {
-				cfg := resolveStuckConfig(healthCfg.StuckDetection, task)
+				roleHealth := r.fetchRoleHealth(ctx, task)
+				cfg := resolveStuckConfig(healthCfg.StuckDetection, roleHealth, task)
 				score := r.checkStuckSignals(ctx, task, pod, cfg)
 
 				// Update tool diversity metric
@@ -796,7 +797,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 func (r *AgentTaskReconciler) handleRetrying(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
 	if task.Status.NextRetryTime == nil {
 		task.Status.Phase = corev1alpha1.AgentTaskPhasePending
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{Requeue: true}, nil
@@ -811,7 +812,7 @@ func (r *AgentTaskReconciler) handleRetrying(ctx context.Context, task *corev1al
 	task.Status.Phase = corev1alpha1.AgentTaskPhasePending
 	task.Status.NextRetryTime = nil
 	task.Status.Message = fmt.Sprintf("Retry attempt %d", task.Status.Attempts+1)
-	if err := r.Status().Update(ctx, task); err != nil {
+	if err := r.updateStatusWithRetry(ctx, task); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{Requeue: true}, nil
@@ -914,7 +915,7 @@ func (r *AgentTaskReconciler) handleWaiting(ctx context.Context, task *corev1alp
 		task.Status.PendingChildren = nil // Clear for the next run
 		task.Status.Message = "Children completed, restarting agent"
 		r.Recorder.Event(task, corev1.EventTypeNormal, "TaskReincarnating", "All children done, restarting agent pod")
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{Requeue: true}, nil
