@@ -142,7 +142,6 @@ var (
 	styleLegionary = lipgloss.NewStyle().Faint(true)
 
 	styleSelected = lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("15"))
-	styleLabel    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	styleCostOk   = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
 	styleCostHigh = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 
@@ -273,12 +272,12 @@ func (m model) View() string {
 	logo := styleLogo.Render(hortatorLogo)
 	nsLine := styleSubtle.Render(fmt.Sprintf("                        namespace: %s", nsLabel))
 	headerContent := lipgloss.JoinVertical(lipgloss.Left, logo, nsLine)
-	headerBox := styleBorder.Copy().Width(contentWidth).Render(headerContent)
+	headerBox := styleBorder.Width(contentWidth).Render(headerContent)
 	sections = append(sections, headerBox)
 
 	// --- Error ---
 	if m.lastErr != nil {
-		errBox := styleBorder.Copy().
+		errBox := styleBorder.
 			Width(contentWidth).
 			BorderForeground(lipgloss.Color("9")).
 			Render(fmt.Sprintf("  Error: %v", m.lastErr))
@@ -315,7 +314,7 @@ func (m model) View() string {
 	}
 
 	taskContent := strings.Join(taskLines, "\n")
-	taskBox := styleBorder.Copy().Width(contentWidth).Render(taskContent)
+	taskBox := styleBorder.Width(contentWidth).Render(taskContent)
 	// Inject "Tasks" and hint into top border
 	taskBox = injectBorderTitle(taskBox, " Tasks ", " ↑↓ navigate ")
 	sections = append(sections, taskBox)
@@ -323,7 +322,7 @@ func (m model) View() string {
 	// --- Details ---
 	if m.showDetail && m.cursor < len(m.tasks) {
 		detailContent := renderDetails(m.tasks[m.cursor], contentWidth-4)
-		detailBox := styleBorder.Copy().Width(contentWidth).Render(detailContent)
+		detailBox := styleBorder.Width(contentWidth).Render(detailContent)
 		detailBox = injectBorderTitle(detailBox, " Details ", "")
 		sections = append(sections, detailBox)
 	}
@@ -340,7 +339,7 @@ func (m model) View() string {
 			}
 			logContent = strings.Join(lines, "\n")
 		}
-		logBox := styleBorder.Copy().Width(contentWidth).Render(logContent)
+		logBox := styleBorder.Width(contentWidth).Render(logContent)
 		logBox = injectBorderTitle(logBox, " Logs (tail) ", "")
 		sections = append(sections, logBox)
 	}
@@ -521,7 +520,7 @@ func renderDetails(item taskItem, _ int) string {
 
 	started := "-"
 	if t.Status.StartedAt != nil {
-		started = t.Status.StartedAt.Time.Format("15:04:05")
+		started = t.Status.StartedAt.Format("15:04:05")
 	}
 	dur := t.Status.Duration
 	if dur == "" {
