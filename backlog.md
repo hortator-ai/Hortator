@@ -30,7 +30,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P2** Standardize license headers — LICENSE file is MIT but source files have bare `Copyright 2026.` from kubebuilder scaffold. [L2] ✅ 2026-02-10
 - [x] **P2** Single source of truth for CRDs — removed stale duplicates (`agenttask.yaml`, `agentpolicy.yaml`), added `make sync-crds` and `make verify-crds` targets, CI enforcement in PR checks. [L5] ✅ 2026-02-10
 - [ ] **P2** Clean up dead tier-to-model mapping in `entrypoint.sh` — OpenAI mapping is dead code when Anthropic keys present. [L6]
-- [ ] **P2** Generate Go types for AgentRole/ClusterAgentRole — gateway currently uses `unstructured.Unstructured`, losing type safety and validation. [L7]
+- [x] **P2** Generate Go types for AgentRole/ClusterAgentRole — gateway currently uses `unstructured.Unstructured`, losing type safety and validation. [L7] ✅ 2026-02-11
 
 ## 📋 Post-MVP Priorities
 
