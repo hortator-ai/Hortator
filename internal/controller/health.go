@@ -22,12 +22,12 @@ import (
 
 // StuckScore holds the results of behavioral stuck-detection analysis.
 type StuckScore struct {
-	ToolDiversity    float64 // unique_tools / total_tool_calls (0-1)
-	RepeatedPrompts  int     // count of identical prompt hashes in window
-	StatusStaleMins  float64 // minutes since last progress report
-	Aggregate        float64 // weighted overall score (0-1, higher = more stuck)
-	IsStuck          bool
-	Reason           string
+	ToolDiversity   float64 // unique_tools / total_tool_calls (0-1)
+	RepeatedPrompts int     // count of identical prompt hashes in window
+	StatusStaleMins float64 // minutes since last progress report
+	Aggregate       float64 // weighted overall score (0-1, higher = more stuck)
+	IsStuck         bool
+	Reason          string
 }
 
 var (
