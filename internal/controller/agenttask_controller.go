@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -55,6 +56,9 @@ type AgentTaskReconciler struct {
 	Scheme     *runtime.Scheme
 	Clientset  kubernetes.Interface
 	RESTConfig *rest.Config
+
+	// Recorder emits K8s Events on AgentTask objects, visible via kubectl describe.
+	Recorder record.EventRecorder
 
 	// Namespace the operator runs in (for ConfigMap lookup)
 	Namespace string
@@ -312,6 +316,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			}
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
 			emitTaskEvent(ctx, "hortator.task.completed.cached", task)
+			r.Recorder.Event(task, corev1.EventTypeNormal, "CacheHit", "Result served from cache")
 			if err := r.Status().Update(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -332,6 +337,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			} else {
 				logger.Info("Claimed warm pod", "pod", pod.Name)
 				emitTaskEvent(ctx, "hortator.task.started", task)
+				r.Recorder.Event(task, corev1.EventTypeNormal, "TaskStarted", "Agent pod created: "+pod.Name)
 
 				task.Status.Phase = corev1alpha1.AgentTaskPhaseRunning
 				task.Status.PodName = pod.Name
@@ -404,6 +410,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 
 	logger.Info("Created pod", "pod", pod.Name)
 	emitTaskEvent(ctx, "hortator.task.started", task)
+	r.Recorder.Event(task, corev1.EventTypeNormal, "TaskStarted", "Agent pod created: "+pod.Name)
 
 	task.Status.Phase = corev1alpha1.AgentTaskPhaseRunning
 	task.Status.PodName = pod.Name
@@ -468,7 +475,8 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
 		task.Status.Message = "Task completed successfully"
 		setCompletionStatus(task)
-		emitTaskEvent(ctx, "hortator.task.completed", task)
+		emitTaskEvent(ctx, "hortator.task.completed", task, terminalEventAttrs(task)...)
+		r.Recorder.Eventf(task, corev1.EventTypeNormal, "TaskCompleted", "Task completed in %s", task.Status.Duration)
 
 		// Store result in cache for deduplication of future identical tasks.
 		if r.ResultCache != nil && !shouldSkipCache(task) {
@@ -520,7 +528,8 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			task.Status.Message = "Task completed (sidecar failed)"
 			setCompletionStatus(task)
 			r.recordAttempt(task, agentExitCode, "completed (sidecar failed)")
-			emitTaskEvent(ctx, "hortator.task.completed", task)
+			emitTaskEvent(ctx, "hortator.task.completed", task, terminalEventAttrs(task)...)
+			r.Recorder.Eventf(task, corev1.EventTypeNormal, "TaskCompleted", "Task completed in %s", task.Status.Duration)
 			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCompleted), task.Namespace).Inc()
 			tasksActive.WithLabelValues(task.Namespace).Dec()
 			if err := r.Status().Update(ctx, task); err != nil {
@@ -544,6 +553,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			task.Status.Message = fmt.Sprintf("Retrying in %s (attempt %d/%d): %s",
 				backoff.Round(time.Second), task.Status.Attempts, task.Spec.Retry.MaxAttempts, failureReason)
 			emitTaskEvent(ctx, "hortator.task.retrying", task)
+			r.Recorder.Eventf(task, corev1.EventTypeNormal, "TaskRetrying", "Retrying (attempt %d/%d)", task.Status.Attempts, task.Spec.Retry.MaxAttempts)
 			logger.Info("Scheduling retry", "attempt", task.Status.Attempts, "backoff", backoff)
 
 			if err := r.Status().Update(ctx, task); err != nil {
@@ -555,7 +565,8 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
 		task.Status.Message = failureReason
 		setCompletionStatus(task)
-		emitTaskEvent(ctx, "hortator.task.failed", task)
+		emitTaskEvent(ctx, "hortator.task.failed", task, terminalEventAttrs(task)...)
+		r.Recorder.Event(task, corev1.EventTypeWarning, "TaskFailed", "Task failed: "+failureReason)
 
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
 		tasksActive.WithLabelValues(task.Namespace).Dec()
@@ -582,7 +593,8 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 				task.Status.Phase = corev1alpha1.AgentTaskPhaseTimedOut
 				task.Status.Message = fmt.Sprintf("Task timed out after %s", timeout)
 				setCompletionStatus(task)
-				emitTaskEvent(ctx, "hortator.task.failed", task)
+				emitTaskEvent(ctx, "hortator.task.failed", task, terminalEventAttrs(task)...)
+				r.Recorder.Event(task, corev1.EventTypeWarning, "TaskFailed", "Task failed: "+task.Status.Message)
 				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseTimedOut), task.Namespace).Inc()
 				tasksActive.WithLabelValues(task.Namespace).Dec()
 				if err := r.Status().Update(ctx, task); err != nil {

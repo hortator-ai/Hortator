@@ -60,8 +60,30 @@ func taskEventAttrs(task *corev1alpha1.AgentTask) []attribute.KeyValue {
 }
 
 // emitTaskEvent starts a span and records a named event with task attributes.
-func emitTaskEvent(ctx context.Context, eventName string, task *corev1alpha1.AgentTask) {
+// Optional extra attributes are appended (used for terminal events with token/cost data).
+func emitTaskEvent(ctx context.Context, eventName string, task *corev1alpha1.AgentTask, extra ...attribute.KeyValue) {
+	attrs := taskEventAttrs(task)
+	attrs = append(attrs, extra...)
 	_, span := tracer.Start(ctx, eventName)
 	defer span.End()
-	span.AddEvent(eventName, trace.WithAttributes(taskEventAttrs(task)...))
+	span.AddEvent(eventName, trace.WithAttributes(attrs...))
+}
+
+// terminalEventAttrs returns extra OTel attributes for completed/failed events,
+// including token usage, cost, duration, and attempt count.
+func terminalEventAttrs(task *corev1alpha1.AgentTask) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("hortator.task.duration", task.Status.Duration),
+		attribute.Int("hortator.task.attempts", task.Status.Attempts),
+	}
+	if task.Status.TokensUsed != nil {
+		attrs = append(attrs,
+			attribute.Int64("hortator.task.tokens.input", task.Status.TokensUsed.Input),
+			attribute.Int64("hortator.task.tokens.output", task.Status.TokensUsed.Output),
+		)
+	}
+	if task.Status.EstimatedCostUsd != "" {
+		attrs = append(attrs, attribute.String("hortator.task.cost_usd", task.Status.EstimatedCostUsd))
+	}
+	return attrs
 }
