@@ -35,7 +35,7 @@ func newTestHandler(secrets ...*corev1.Secret) *Handler {
 	}
 	return &Handler{
 		Namespace:  "default",
-		Clientset:  k8sfake.NewSimpleClientset(objs...),
+		Clientset:  k8sfake.NewClientset(objs...),
 		DynClient:  dynamicfake.NewSimpleDynamicClient(newDynScheme()),
 		AuthSecret: "gateway-keys",
 	}
@@ -190,7 +190,7 @@ func TestResolveModelConfig(t *testing.T) {
 		dynClient := dynamicfake.NewSimpleDynamicClient(scheme, role)
 		h := &Handler{
 			Namespace: "default",
-			Clientset: k8sfake.NewSimpleClientset(),
+			Clientset: k8sfake.NewClientset(),
 			DynClient: dynClient,
 		}
 		cfg := h.resolveModelConfig(context.TODO(), "dev")
@@ -221,7 +221,7 @@ func TestResolveModelConfig(t *testing.T) {
 		}
 		scheme := k8sruntime.NewScheme()
 		dynClient := dynamicfake.NewSimpleDynamicClient(scheme, role)
-		h := &Handler{Namespace: "default", Clientset: k8sfake.NewSimpleClientset(), DynClient: dynClient}
+		h := &Handler{Namespace: "default", Clientset: k8sfake.NewClientset(), DynClient: dynClient}
 		cfg := h.resolveModelConfig(context.TODO(), "dev")
 		if cfg == nil {
 			t.Fatal("expected non-nil config")
@@ -245,7 +245,7 @@ func TestResolveModelConfig(t *testing.T) {
 		}
 		scheme := k8sruntime.NewScheme()
 		dynClient := dynamicfake.NewSimpleDynamicClient(scheme, role)
-		h := &Handler{Namespace: "default", Clientset: k8sfake.NewSimpleClientset(), DynClient: dynClient}
+		h := &Handler{Namespace: "default", Clientset: k8sfake.NewClientset(), DynClient: dynClient}
 		cfg := h.resolveModelConfig(context.TODO(), "dev")
 		if cfg == nil {
 			t.Fatal("expected non-nil config")
@@ -264,7 +264,7 @@ func TestResolveModelConfig(t *testing.T) {
 		}
 		h := &Handler{
 			Namespace: "default",
-			Clientset: k8sfake.NewSimpleClientset(secret),
+			Clientset: k8sfake.NewClientset(secret),
 			DynClient: dynClient,
 		}
 		cfg := h.resolveModelConfig(context.TODO(), "nonexistent")
@@ -281,7 +281,7 @@ func TestResolveModelConfig(t *testing.T) {
 		dynClient := dynamicfake.NewSimpleDynamicClient(scheme)
 		h := &Handler{
 			Namespace: "default",
-			Clientset: k8sfake.NewSimpleClientset(),
+			Clientset: k8sfake.NewClientset(),
 			DynClient: dynClient,
 		}
 		cfg := h.resolveModelConfig(context.TODO(), "nonexistent")
