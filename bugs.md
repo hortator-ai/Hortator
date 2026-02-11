@@ -56,11 +56,11 @@ _Discovered during sandbox deployment on 2026-02-09_
 ## BUG-014: ✅ FIXED — Presidio native sidecar exits 137 (SIGKILL) — expected but noisy
 - **Fix:** Added `preStop` lifecycle hook (`sleep 5`) to the Presidio deployment to allow graceful drain. Documented in Helm NOTES.txt that exit 137 on Presidio during pod transitions is expected. (2026-02-11)
 
-## BUG-015: Presidio not reachable — "WARN: Presidio not reachable, skipping PII scan"
-- **Context:** Both hello-world and build-rest-api log `WARN: Presidio not reachable, skipping PII scan`. The Presidio sidecar is present (exit 137 confirms it ran), but the agent's entrypoint can't reach it in time. The native sidecar starts as an init container and should be ready before the agent container, but the readiness probe may not gate the agent container start.
+## BUG-015: ✅ FIXED — Presidio not reachable — "WARN: Presidio not reachable, skipping PII scan"
+- **Context:** Both hello-world and build-rest-api log `WARN: Presidio not reachable, skipping PII scan`. The Presidio service isn't ready when the agent entrypoint starts polling.
 - **Severity:** Medium. PII scanning is silently skipped on every task.
-- **Root cause:** Native sidecar init containers with `restartPolicy=Always` run alongside the main container, but K8s doesn't wait for their readiness probe before starting the main container. The old `|| return 0` fallback from BUG-011 means the agent just skips the scan.
-- **Suggestion:** Add a startup wait loop in the agent entrypoint that polls Presidio's `/health` endpoint (e.g., 30 retries × 1s) before proceeding with the scan. Or use a `postStart` lifecycle hook on the agent container.
+- **Root cause:** Presidio Deployment (centralized service) takes 30-60s to start on first boot (spaCy model loading). The original 30s wait loop was too short.
+- **Fix:** Increased default Presidio wait timeout from 30s to 60s in both runtimes (`entrypoint.sh` and `main.py`). Made configurable via `PRESIDIO_WAIT_SECONDS` env var for clusters with slow starts. (2026-02-11)
 
 ## BUG-016: ✅ FIXED — Reconciler conflict error on status update
 - **Fix:** Added `updateStatusWithRetry()` helper using `retry.RetryOnConflict` from `k8s.io/client-go/util/retry`. Re-fetches the latest CR version before each retry attempt. All ~22 `Status().Update()` calls in `agenttask_controller.go` and `helpers.go` now use the retry wrapper. (2026-02-11)
@@ -68,11 +68,21 @@ _Discovered during sandbox deployment on 2026-02-09_
 ## BUG-017: ✅ FIXED — Task ID always "unknown" in runtime logs
 - **Fix:** `pod_builder.go` now injects `taskId: task.Name` into the `task.json` payload. Both runtimes (`entrypoint.sh` and `main.py`) also fall back to the `HORTATOR_TASK_NAME` env var when `taskId` is missing from task.json. Belt-and-suspenders approach. (2026-02-11)
 
-## BUG-018: build-rest-api (tribune) didn't actually spawn children
-- **Context:** The multi-tier task completed with only 133 input / 4096 output tokens and no child tasks were created. A tribune task that's supposed to decompose work and delegate to centurions/legionaries should spawn child AgentTasks. It appears the agent just generated a text response without using the `hortator spawn` CLI.
-- **Severity:** High. Multi-tier orchestration (the core value prop) isn't working end-to-end.
-- **Root cause:** Likely the agent runtime doesn't have the hortator CLI installed, or the prompt/system message doesn't instruct the agent to use it, or the agent's capabilities don't include the right tool bindings.
-- **Suggestion:** Verify `hortator` CLI is in the agent image PATH, verify the runtime injects instructions about available tools, and check that `spawn` capability maps to actual CLI access.
+## BUG-018: ✅ FIXED — build-rest-api (tribune) didn't actually spawn children
+- **Context:** The multi-tier task completed with only 133 input / 4096 output tokens and no child tasks were created. Tribune used bash single-shot runtime instead of the Python agentic runtime.
+- **Severity:** High. Multi-tier orchestration (the core value prop) wasn't working end-to-end.
+- **Root causes (multiple):**
+  1. **CI didn't build/push the `agent-agentic` image.** The `ci.yaml` release job and E2E job only built operator + bash agent images, not the agentic runtime image. Without the image on the registry, tribune pods fell back to the bash runtime (single LLM call, no tools).
+  2. **Agent pods missing NetworkPolicy labels.** Pods lacked `hortator.ai/managed: "true"` and `hortator.ai/cap-*` labels, so capability-based NetworkPolicies (spawn egress to K8s API, Presidio access) never matched.
+  3. **`LITELLM_API_BASE` wrongly set for known providers.** The agentic runtime set `LITELLM_API_BASE` to `https://api.anthropic.com/v1` which broke litellm's Anthropic routing (it tried OpenAI-compatible `/chat/completions` path against Anthropic's `/messages` endpoint).
+  4. **Tribune/centurion didn't auto-include `spawn` capability.** If user omitted `spawn` from capabilities, the agentic runtime got no spawn tools and the LLM answered directly instead of delegating.
+  5. **Quickstart script didn't build agentic image or pass correct Helm values.** Used wrong `--set` paths and skipped the agentic Dockerfile entirely.
+- **Fix (2026-02-11):**
+  1. Added `agent-agentic` build to `ci.yaml` release job, E2E job, and build job.
+  2. Pod builder now sets `hortator.ai/managed: "true"` and per-capability labels (`hortator.ai/cap-spawn`, etc.) on all agent pods.
+  3. Agentic runtime only sets `LITELLM_API_BASE` for custom endpoints (not anthropic.com or openai.com).
+  4. Tribune/centurion tiers auto-inject `spawn` into effective capabilities (pod labels + env var) even if not specified in the AgentTask spec.
+  5. Quickstart script builds all three images and uses correct Helm values paths.
 
 ---
 

@@ -15,6 +15,7 @@ CLUSTER_NAME="${HORTATOR_CLUSTER:-hortator-dev}"
 NAMESPACE="hortator-system"
 OPERATOR_IMAGE="hortator-operator:dev"
 RUNTIME_IMAGE="hortator-runtime:dev"
+AGENTIC_IMAGE="hortator-agent-agentic:dev"
 
 # Colors
 RED='\033[0;31m'
@@ -64,16 +65,24 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 log "Building operator image..."
 docker build -t "$OPERATOR_IMAGE" "$REPO_ROOT"
 
-log "Building runtime image..."
+log "Building runtime image (legionary)..."
 if [[ -f "$REPO_ROOT/runtime/Dockerfile" ]]; then
     docker build -t "$RUNTIME_IMAGE" -f "$REPO_ROOT/runtime/Dockerfile" "$REPO_ROOT"
 else
     warn "No runtime Dockerfile found, skipping runtime image build."
 fi
 
+log "Building agentic runtime image (tribune/centurion)..."
+if [[ -f "$REPO_ROOT/runtime/agentic/Dockerfile" ]]; then
+    docker build -t "$AGENTIC_IMAGE" -f "$REPO_ROOT/runtime/agentic/Dockerfile" "$REPO_ROOT"
+else
+    warn "No agentic Dockerfile found, skipping agentic image build."
+fi
+
 log "Loading images into Kind..."
 kind load docker-image "$OPERATOR_IMAGE" --name "$CLUSTER_NAME"
 kind load docker-image "$RUNTIME_IMAGE" --name "$CLUSTER_NAME" 2>/dev/null || true
+kind load docker-image "$AGENTIC_IMAGE" --name "$CLUSTER_NAME" 2>/dev/null || true
 
 # --- Install CRDs ---
 header "Installing CRDs"
@@ -86,9 +95,11 @@ kubectl create namespace "$NAMESPACE" 2>/dev/null || true
 
 helm upgrade --install hortator "$REPO_ROOT/charts/hortator" \
     --namespace "$NAMESPACE" \
-    --set image.repository="${OPERATOR_IMAGE%%:*}" \
-    --set image.tag="${OPERATOR_IMAGE##*:}" \
-    --set image.pullPolicy=Never \
+    --set operator.image.repository="${OPERATOR_IMAGE%%:*}" \
+    --set operator.image.tag="${OPERATOR_IMAGE##*:}" \
+    --set operator.image.pullPolicy=Never \
+    --set agent.image="$RUNTIME_IMAGE" \
+    --set agent.agenticImage="$AGENTIC_IMAGE" \
     --set presidio.enabled=false \
     --wait --timeout 120s
 

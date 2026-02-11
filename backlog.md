@@ -9,6 +9,8 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P1** AgentTask CR garbage collection — completed/failed CRs accumulate indefinitely. Operator now deletes old CRs and PVCs based on configurable TTL per-phase (completed/failed/cancelled). Respects `hortator.ai/retain` annotation. ✅ 2026-02-11
 - [x] **P0** Runtime lacks agentic loop — tribunes cannot actually spawn legionaries. `entrypoint.sh` makes a single LLM call and writes the response. For real multi-tier orchestration, the runtime needs: (1) tool-calling LLM integration, (2) parse tool calls from response, (3) execute `hortator spawn` + wait for results, (4) feed results back to LLM for consolidation. Without this, the entire tribune→centurion→legionary hierarchy is manual-only. (2026-02-11 E2E finding). **Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md)** ✅ 2026-02-11
 - [x] **P0** Convert Presidio from sidecar to centralized Deployment+Service ✅ 2026-02-10 — Sidecar exit code 137 (SIGKILL on pod completion) shows "Init: Error" in pod status. Deploy Presidio as a shared service in hortator-system namespace, remove sidecar injection from operator, add Presidio Deployment/Service as Helm subchart. Toggle on/off via `presidio.enabled`. (2026-02-10)
+- [x] **P0** BUG-018: Tribune multi-tier orchestration broken — five root causes (missing CI image build, missing pod labels, broken litellm routing, no auto-spawn capability, quickstart script issues). All fixed. ✅ 2026-02-11
+- [x] **P1** BUG-015: Presidio not reachable — 30s wait timeout too short for first boot. Increased to 60s, made configurable via `PRESIDIO_WAIT_SECONDS`. ✅ 2026-02-11
 
 ---
 

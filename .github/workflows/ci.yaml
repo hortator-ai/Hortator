@@ -76,10 +76,14 @@ jobs:
           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
           setup-envtest use
 
-      - name: Build operator image
+      - name: Build and load images
         run: |
           docker build -t example.com/hortator:v0.0.1 .
+          docker build -t example.com/hortator-agent:v0.0.1 -f runtime/Dockerfile .
+          docker build -t example.com/hortator-agent-agentic:v0.0.1 -f runtime/agentic/Dockerfile .
           kind load docker-image example.com/hortator:v0.0.1 --name hortator-e2e
+          kind load docker-image example.com/hortator-agent:v0.0.1 --name hortator-e2e
+          kind load docker-image example.com/hortator-agent-agentic:v0.0.1 --name hortator-e2e
 
       - name: Run E2E tests
         run: |
@@ -105,6 +109,9 @@ jobs:
 
       - name: Build runtime image
         run: docker build -t hortator-runtime:test -f runtime/Dockerfile .
+
+      - name: Build agentic runtime image
+        run: docker build -t hortator-agent-agentic:test -f runtime/agentic/Dockerfile .
 
   release:
     runs-on: ubuntu-latest
@@ -138,6 +145,14 @@ jobs:
                         -f runtime/Dockerfile .
           docker push ghcr.io/michael-niemand/hortator/runtime:${{ steps.tag.outputs.TAG }}
           docker push ghcr.io/michael-niemand/hortator/runtime:latest
+
+      - name: Build and push agentic runtime image
+        run: |
+          docker build -t ghcr.io/michael-niemand/hortator/agent-agentic:${{ steps.tag.outputs.TAG }} \
+                        -t ghcr.io/michael-niemand/hortator/agent-agentic:latest \
+                        -f runtime/agentic/Dockerfile .
+          docker push ghcr.io/michael-niemand/hortator/agent-agentic:${{ steps.tag.outputs.TAG }}
+          docker push ghcr.io/michael-niemand/hortator/agent-agentic:latest
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

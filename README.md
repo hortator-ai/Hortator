@@ -372,18 +372,15 @@ See [full FAQ](docs/faq.md) for more.
 - TypeScript SDK (`@hortator/sdk` — zero deps, streaming, LangChain.js integration)
 
 ### Next
-- Python agentic runtime for tribune/centurion tiers (tool-calling loop, checkpoint/restore)
-- Reincarnation model (event-driven Tribune lifecycle with `Waiting` phase)
-- Artifact download endpoint (`GET /api/v1/tasks/{id}/artifacts`)
-- Async task submission (`X-Hortator-Async` header)
-- Budget enforcement with LiteLLM integration
-- Stuck detection + auto-escalation
-- Retained PVC knowledge discovery (tag matching → vector graduation)
+- CRD regeneration (run `controller-gen` to pick up AgentRole health field)
+- Full end-to-end validation of Tribune orchestration flow
 - Multi-tenancy (cross-namespace policies)
-- `hortator watch` TUI for live task tree visualization
+- Gateway session continuity (Level 1: PVC reuse across requests)
+- CRD validation webhook
 
 ### Future
 - Object storage archival for completed task artifacts
+- RAG integration (vector store access capability)
 - OIDC/SSO *(Enterprise)*
 - Web dashboard for task hierarchy visualization
 - Go SDK
