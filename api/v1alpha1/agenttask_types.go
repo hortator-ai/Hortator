@@ -15,6 +15,7 @@ type AgentTaskPhase string
 const (
 	AgentTaskPhasePending        AgentTaskPhase = "Pending"
 	AgentTaskPhaseRunning        AgentTaskPhase = "Running"
+	AgentTaskPhaseWaiting        AgentTaskPhase = "Waiting"
 	AgentTaskPhaseCompleted      AgentTaskPhase = "Completed"
 	AgentTaskPhaseFailed         AgentTaskPhase = "Failed"
 	AgentTaskPhaseBudgetExceeded AgentTaskPhase = "BudgetExceeded"
@@ -283,7 +284,7 @@ type AgentTaskSpec struct {
 // AgentTaskStatus defines the observed state of AgentTask
 type AgentTaskStatus struct {
 	// Phase is the current phase of the task.
-	// +kubebuilder:validation:Enum=Pending;Running;Completed;Failed;BudgetExceeded;TimedOut;Cancelled;Retrying
+	// +kubebuilder:validation:Enum=Pending;Running;Waiting;Completed;Failed;BudgetExceeded;TimedOut;Cancelled;Retrying
 	// +optional
 	Phase AgentTaskPhase `json:"phase,omitempty"`
 
@@ -318,6 +319,10 @@ type AgentTaskStatus struct {
 	// ChildTasks are the task IDs of spawned children.
 	// +optional
 	ChildTasks []string `json:"childTasks,omitempty"`
+
+	// PendingChildren tracks children the task is waiting on (set when entering Waiting phase).
+	// +optional
+	PendingChildren []string `json:"pendingChildren,omitempty"`
 
 	// Message provides human-readable status information.
 	// +optional

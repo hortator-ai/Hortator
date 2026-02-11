@@ -65,6 +65,8 @@ spec:
           env:
             - name: HORTATOR_DEFAULT_AGENT_IMAGE
               value: {{ .Values.agent.image }}
+            - name: HORTATOR_AGENTIC_IMAGE
+              value: {{ .Values.agent.agenticImage }}
             - name: HORTATOR_DEFAULT_TIMEOUT
               value: {{ .Values.agent.timeout }}
       {{- with .Values.operator.nodeSelector }}

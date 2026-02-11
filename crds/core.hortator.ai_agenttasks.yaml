@@ -382,11 +382,18 @@ spec:
               output:
                 description: Output contains the result/output from the agent.
                 type: string
+              pendingChildren:
+                description: PendingChildren tracks children the task is waiting
+                  on (set when entering Waiting phase).
+                items:
+                  type: string
+                type: array
               phase:
                 description: Phase is the current phase of the task.
                 enum:
                 - Pending
                 - Running
+                - Waiting
                 - Completed
                 - Failed
                 - BudgetExceeded

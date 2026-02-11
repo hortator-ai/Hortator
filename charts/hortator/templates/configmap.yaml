@@ -14,11 +14,13 @@ data:
   resultCacheEnabled: {{ .Values.resultCache.enabled | quote }}
   resultCacheTTLSeconds: {{ .Values.resultCache.ttlSeconds | quote }}
   resultCacheMaxEntries: {{ .Values.resultCache.maxEntries | quote }}
+  agenticImage: {{ .Values.agent.agenticImage | quote }}
   # Agent defaults — the operator reads this at startup to configure
   # reconciliation behavior and default values for AgentTask Pods.
   config.yaml: |
     agent:
       image: {{ .Values.agent.image | quote }}
+      agenticImage: {{ .Values.agent.agenticImage | quote }}
       timeout: {{ .Values.agent.timeout | quote }}
       defaultTimeoutSeconds: {{ .Values.agent.defaultTimeoutSeconds }}
       resources:

@@ -100,6 +100,7 @@ graph TB
 | **Warm Pod Pool** | Pre-provisioned idle Pods that accept tasks immediately (<1s vs 5-30s cold start). Optional, opt-in via `warmPool.enabled`. See [warm-pool.md](warm-pool.md). |
 | **Result Cache** | Content-addressable cache keyed on SHA-256(prompt+role). Identical tasks return instantly without spawning Pods. In-memory LRU with TTL. Optional, opt-in via `resultCache.enabled`. |
 | **Presidio Service** | Centralized PII detection Deployment+Service (not a sidecar). Agent pods call via cluster DNS. Enterprise feature. |
+| **Agentic Runtime** | Python tool-calling loop for tribune/centurion tiers. Uses `litellm` for provider-agnostic LLM calls, supports checkpoint/restore for the reincarnation model. Located at `runtime/agentic/`. |
 
 ## Task Lifecycle
 
@@ -191,8 +192,11 @@ Applies to: model selection, health thresholds, Presidio config, budget limits, 
 stateDiagram-v2
     [*] --> Active: Task created
     Active --> Completed: Task succeeds
+    Active --> Waiting: Agent checkpoints (tribune/centurion)
     Active --> Failed: Task fails
     Active --> Cancelled: Task cancelled
+
+    Waiting --> Active: All children complete → reincarnate
     
     Completed --> TTL_Window: PVC annotated (expires-at)
     Failed --> TTL_Window: PVC annotated (shorter TTL)
