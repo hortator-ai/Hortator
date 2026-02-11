@@ -43,6 +43,38 @@ spec:
 | `tools` | []string | Default capabilities granted to tasks using this role |
 | `defaultModel` | string | Default model name |
 | `references` | []string | URLs for reference documentation |
+| `health` | HealthSpec | Per-role health/stuck detection overrides (see below) |
+
+## Per-Role Health Overrides
+
+The `health` field allows role-specific stuck detection configuration. This sits between cluster defaults (ConfigMap) and per-task overrides in the resolution cascade:
+
+**ConfigMap defaults -> AgentRole -> AgentTask** (most specific wins)
+
+```yaml
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: qa-engineer
+spec:
+  defaultModel: claude-sonnet-4-20250514
+  tools: [shell, web-fetch]
+  health:
+    stuckDetection:
+      # QA engineers naturally repeat tests, so allow more prompt repetition
+      maxRepeatedPrompts: 8
+      toolDiversityMin: 0.15
+      action: warn
+```
+
+### Health Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `health.stuckDetection.toolDiversityMin` | float64 | Minimum tool diversity ratio (0-1). Lower = more lenient. |
+| `health.stuckDetection.maxRepeatedPrompts` | int | Max identical prompts before flagging as stuck. |
+| `health.stuckDetection.statusStaleMinutes` | int | Minutes without progress before staleness penalty. |
+| `health.stuckDetection.action` | string | Action on stuck: `warn`, `kill`, or `escalate`. |
 
 ## Gateway Integration
 

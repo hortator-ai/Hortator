@@ -23,7 +23,7 @@ Generic agent executor container for Hortator-managed AI agent pods.
   "role": "worker|planner|reviewer",
   "flavor": "string",
   "parentTaskId": "string|null",
-  "tier": "fast|think|deep",
+  "tier": "tribune|centurion|legionary",
   "budget": 0,
   "capabilities": ["string"],
   "prior_work": "string"
@@ -62,25 +62,26 @@ Generic agent executor container for Hortator-managed AI agent pods.
 | `HORTATOR_PROMPT` | task.json | The task prompt |
 | `HORTATOR_ROLE` | task.json | Agent role |
 | `HORTATOR_FLAVOR` | task.json | Task flavor |
-| `HORTATOR_TIER` | task.json | Model tier (fast/think/deep) |
+| `HORTATOR_TIER` | task.json | Hierarchy tier (tribune/centurion/legionary) |
 | `HORTATOR_BUDGET` | task.json | Token budget |
 | `HORTATOR_TASK_NAME` | operator | K8s task name |
 | `HORTATOR_MODEL` | operator | Override model selection |
 | `OPENAI_API_KEY` | secret | Enables OpenAI backend |
 | `ANTHROPIC_API_KEY` | secret | Enables Anthropic backend (preferred) |
 
-## Tier → Model Mapping
+## Model Selection
 
-| Tier | OpenAI | Anthropic |
-|------|--------|-----------|
-| fast | gpt-4o-mini | claude-sonnet-4-20250514 |
-| think | gpt-4o | claude-sonnet-4-20250514 |
-| deep | gpt-4o | claude-opus-4-20250514 |
+Model selection is determined by the operator, not the runtime tier. The
+operator injects the `HORTATOR_MODEL` environment variable based on the
+task's `spec.model.name` or the AgentRole's `defaultModel` field. The
+`HORTATOR_TIER` value (tribune/centurion/legionary) controls which
+**runtime** is used (agentic vs bash), not which model.
 
 ## Behavior
 
-- If `ANTHROPIC_API_KEY` is set, uses Anthropic (preferred)
-- If `OPENAI_API_KEY` is set, uses OpenAI
+- Model comes from `HORTATOR_MODEL` env var (set by operator from the AgentRole or AgentTask spec)
+- If `ANTHROPIC_API_KEY` is set and no model is configured, uses Anthropic (preferred)
+- If `OPENAI_API_KEY` is set and no model is configured, uses OpenAI
 - If neither is set, runs in **echo mode** (returns prompt as summary)
 - Handles SIGTERM gracefully for operator-initiated timeouts
 - Exits 0 on success, non-zero on failure

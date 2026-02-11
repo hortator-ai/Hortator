@@ -178,9 +178,26 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 	retainedPVCs := r.mountRetainedPVCs(task, &volumes, &volumeMounts)
 
 	// Init container writes task.json via env var to avoid shell interpolation.
-	taskSpecJSON, err := json.Marshal(task.Spec)
+	// We wrap the spec in a map that includes taskId (the CR name) so runtimes
+	// can identify themselves without relying solely on env vars.
+	taskPayload := map[string]any{
+		"taskId": task.Name,
+	}
+	specJSON, err := json.Marshal(task.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal task spec: %w", err)
+	}
+	// Merge spec fields into the payload so existing consumers (prompt, tier, etc.) still work
+	var specMap map[string]any
+	if err := json.Unmarshal(specJSON, &specMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal task spec: %w", err)
+	}
+	for k, v := range specMap {
+		taskPayload[k] = v
+	}
+	taskSpecJSON, err := json.Marshal(taskPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal task payload: %w", err)
 	}
 
 	// Build context.json with prior work references (from retained PVCs)

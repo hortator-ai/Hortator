@@ -26,6 +26,12 @@ type AgentRoleSpec struct {
 	// Tools is a list of tool names available to this role.
 	// +optional
 	Tools []string `json:"tools,omitempty"`
+
+	// Health defines per-role health/stuck detection overrides.
+	// These sit between the cluster defaults and per-task overrides in the cascade:
+	// ConfigMap defaults -> AgentRole -> AgentTask (most specific wins).
+	// +optional
+	Health *HealthSpec `json:"health,omitempty"`
 }
 
 // +kubebuilder:object:root=true

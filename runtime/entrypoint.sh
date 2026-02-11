@@ -90,10 +90,12 @@ presidio_scan() {
 [[ -f "$TASK_FILE" ]] || die "task.json not found at ${TASK_FILE}"
 
 TASK_ID=$(jq -r '.taskId // "unknown"' "$TASK_FILE")
+# Fall back to HORTATOR_TASK_NAME env var if taskId is missing from task.json
+[[ "$TASK_ID" == "unknown" ]] && TASK_ID="${HORTATOR_TASK_NAME:-unknown}"
 PROMPT=$(jq -r '.prompt // ""' "$TASK_FILE")
 ROLE=$(jq -r '.role // "worker"' "$TASK_FILE")
 FLAVOR=$(jq -r '.flavor // "default"' "$TASK_FILE")
-TIER=$(jq -r '.tier // "fast"' "$TASK_FILE")
+TIER=$(jq -r '.tier // "legionary"' "$TASK_FILE")
 BUDGET=$(jq -r '.budget // 0' "$TASK_FILE")
 PRIOR_WORK=$(jq -r '.prior_work // ""' "$TASK_FILE")
 

@@ -153,7 +153,7 @@ def main():
     with open(TASK_FILE) as f:
         task = json.load(f)
 
-    task_id = task.get("taskId", task.get("prompt", "unknown")[:40])
+    task_id = task.get("taskId") or os.environ.get("HORTATOR_TASK_NAME") or task.get("prompt", "unknown")[:40]
     prompt = task.get("prompt", "")
     role = task.get("role", "worker")
     tier = task.get("tier", "centurion")

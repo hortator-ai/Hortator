@@ -121,6 +121,7 @@ Tools are gated by the agent's capabilities (from the AgentTask spec or inherite
 | `check_status` | `spawn` | Reads status of a child task via `hortator status`. |
 | `get_result` | `spawn` | Retrieves the output of a completed child via `hortator result`. |
 | `cancel_task` | `spawn` | Cancels a running child via `hortator cancel`. |
+| `checkpoint_and_wait` | `spawn` | Saves checkpoint state and exits with `Waiting` status. The operator restarts the agent when all pending children complete, injecting their results. This is the mechanism behind the reincarnation model. |
 | `run_shell` | `shell` | Executes a shell command in `/workspace/`. |
 | `read_file` | (always) | Reads a file from the agent's filesystem. |
 | `write_file` | (always) | Writes a file to `/outbox/artifacts/` or `/workspace/`. |

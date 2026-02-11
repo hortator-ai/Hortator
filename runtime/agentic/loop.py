@@ -144,6 +144,9 @@ def agentic_loop(
 
         if finish_reason == "tool_calls" or assistant_message.tool_calls:
             # Execute each tool call
+            checkpoint_requested = False
+            checkpoint_summary = ""
+
             for tool_call in assistant_message.tool_calls or []:
                 func_name = tool_call.function.name
                 try:
@@ -163,6 +166,11 @@ def agentic_loop(
                         if result.get("async"):
                             pending_children.append(child_name)
 
+                # Detect checkpoint_and_wait sentinel
+                if result.get("_checkpoint_and_wait"):
+                    checkpoint_requested = True
+                    checkpoint_summary = result.get("summary", "")
+
                 # Track artifacts from write_file
                 if func_name == "write_file" and result.get("success"):
                     path = result.get("path", "")
@@ -175,6 +183,27 @@ def agentic_loop(
                     "tool_call_id": tool_call.id,
                     "content": json.dumps(result),
                 })
+
+            # If the agent called checkpoint_and_wait, save state and exit
+            if checkpoint_requested and pending_children:
+                print(f"[hortator-agentic] Checkpoint requested. "
+                      f"Pending children: {pending_children}")
+                _save_waiting_checkpoint(
+                    state_file, task_name, spawned_children,
+                    pending_children, decisions, messages,
+                )
+                return LoopResult(
+                    status="waiting",
+                    output=json.dumps({
+                        "status": "waiting",
+                        "summary": checkpoint_summary,
+                        "pendingChildren": pending_children,
+                    }),
+                    tokens_in=total_in,
+                    tokens_out=total_out,
+                    artifacts=artifacts,
+                    pending_children=list(pending_children),
+                )
 
             continue
 
