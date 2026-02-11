@@ -19,9 +19,8 @@ _Discovered during sandbox deployment on 2026-02-09_
 - **Context:** Example uses `spec.roleRef` and `spec.retainPVC` but CRD has `spec.role` and no `retainPVC`
 - **Suggestion:** Fix examples to use `spec.role` and either add `retainPVC` to CRD or remove from example
 
-## BUG-006: Operator RBAC missing ConfigMap/Lease permissions for leader election
-- **Context:** Operator SA `hortator` can't list ConfigMaps at cluster scope. controller-runtime needs ConfigMaps (or Leases) for leader election + the operator likely needs them to read Helm config. Operator logs spam `configmaps is forbidden` and never reconciles tasks.
-- **Suggestion:** Add ConfigMaps + Leases + Secrets to the ClusterRole (or namespaced Role in hortator-system). Also needs Pods, PVCs, Secrets in target namespaces to actually spawn agent pods.
+## BUG-006: ✅ FIXED — Operator RBAC missing ConfigMap/Lease permissions for leader election
+- **Fix:** Helm chart RBAC was already comprehensive. Kustomize path `config/rbac/role.yaml` updated to add Secrets (get/list/watch), pods/exec (create), and AgentRole/ClusterAgentRole (get/list/watch). Leader election role binding namespace fixed from `system` to `hortator-system`. (2026-02-11)
 
 ## BUG-007: ✅ FIXED — Controller doesn't inject API key from model.apiKeyRef into agent pod env
 - **Context:** Task spec has `model.apiKeyRef.secretName` and `model.apiKeyRef.key`, but the controller doesn't create an env var from the secret reference. The entrypoint needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` but neither is set.
@@ -54,10 +53,8 @@ _Discovered during sandbox deployment on 2026-02-09_
 
 ---
 
-## BUG-014: Presidio native sidecar exits 137 (SIGKILL) — expected but noisy
-- **Context:** After converting Presidio from regular container to native sidecar (init container with `restartPolicy=Always`), K8s terminates it with SIGKILL (exit 137) when the agent completes. This is correct behavior — native sidecars get killed after main containers exit. But the exit code 137 / reason "Error" looks alarming in `kubectl describe pod`.
-- **Severity:** Cosmetic / low. Tasks complete successfully.
-- **Suggestion:** Consider adding a `preStop` hook to Presidio that gracefully shuts down, or just document that exit 137 on the sidecar is expected.
+## BUG-014: ✅ FIXED — Presidio native sidecar exits 137 (SIGKILL) — expected but noisy
+- **Fix:** Added `preStop` lifecycle hook (`sleep 5`) to the Presidio deployment to allow graceful drain. Documented in Helm NOTES.txt that exit 137 on Presidio during pod transitions is expected. (2026-02-11)
 
 ## BUG-015: Presidio not reachable — "WARN: Presidio not reachable, skipping PII scan"
 - **Context:** Both hello-world and build-rest-api log `WARN: Presidio not reachable, skipping PII scan`. The Presidio sidecar is present (exit 137 confirms it ran), but the agent's entrypoint can't reach it in time. The native sidecar starts as an init container and should be ready before the agent container, but the readiness probe may not gate the agent container start.
@@ -65,15 +62,11 @@ _Discovered during sandbox deployment on 2026-02-09_
 - **Root cause:** Native sidecar init containers with `restartPolicy=Always` run alongside the main container, but K8s doesn't wait for their readiness probe before starting the main container. The old `|| return 0` fallback from BUG-011 means the agent just skips the scan.
 - **Suggestion:** Add a startup wait loop in the agent entrypoint that polls Presidio's `/health` endpoint (e.g., 30 retries × 1s) before proceeding with the scan. Or use a `postStart` lifecycle hook on the agent container.
 
-## BUG-016: Reconciler conflict error on status update
-- **Context:** `Operation cannot be fulfilled on agenttasks.core.hortator.ai "build-rest-api": the object has been modified; please apply your changes to the latest version and try again`
-- **Severity:** Low. K8s optimistic concurrency working as designed — the controller retries on next reconcile and succeeds. But it indicates the controller may be doing multiple status updates without re-fetching the latest version.
-- **Suggestion:** Add a `retry.RetryOnConflict` wrapper around status updates, or re-fetch the task before each status update in the reconcile loop.
+## BUG-016: ✅ FIXED — Reconciler conflict error on status update
+- **Fix:** Added `updateStatusWithRetry()` helper using `retry.RetryOnConflict` from `k8s.io/client-go/util/retry`. Re-fetches the latest CR version before each retry attempt. All ~22 `Status().Update()` calls in `agenttask_controller.go` and `helpers.go` now use the retry wrapper. (2026-02-11)
 
-## BUG-017: Task ID always "unknown" in runtime logs
-- **Context:** Both tasks log `Task=unknown` — the runtime isn't reading the task ID from `/inbox/task.json` or environment.
-- **Severity:** Low. Cosmetic but makes debugging multi-task scenarios harder.
-- **Suggestion:** Ensure the operator sets `HORTATOR_TASK_ID` env var or the runtime reads `taskId` from `/inbox/task.json`.
+## BUG-017: ✅ FIXED — Task ID always "unknown" in runtime logs
+- **Fix:** `pod_builder.go` now injects `taskId: task.Name` into the `task.json` payload. Both runtimes (`entrypoint.sh` and `main.py`) also fall back to the `HORTATOR_TASK_NAME` env var when `taskId` is missing from task.json. Belt-and-suspenders approach. (2026-02-11)
 
 ## BUG-018: build-rest-api (tribune) didn't actually spawn children
 - **Context:** The multi-tier task completed with only 133 input / 4096 output tokens and no child tasks were created. A tribune task that's supposed to decompose work and delegate to centurions/legionaries should spawn child AgentTasks. It appears the agent just generated a text response without using the `hortator spawn` CLI.

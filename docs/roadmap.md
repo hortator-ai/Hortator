@@ -23,11 +23,25 @@ For the full prioritized backlog, see [backlog.md](https://github.com/michael-ni
 - **Reincarnation model** — Event-driven Tribune lifecycle: spawn children, checkpoint state, exit. Operator restarts Tribune when children complete. No idle pods, resilient to node failure, solves context overflow. [Design doc](design-agentic-loop.md)
 - **Artifact download endpoint** — `GET /api/v1/tasks/{id}/artifacts` on the gateway + `hortator result --artifacts` CLI. Enables async result retrieval for mega-tasks. [Design doc](design-agentic-loop.md)
 
+## Recently Completed (2026-02-11)
+
+- **Tribune reincarnation — `checkpoint_and_wait` tool** — Added `checkpoint_and_wait` tool to the agentic runtime so Tribunes can signal "I'm done, wake me when children finish." Completes the round-trip: runtime exits with `status=waiting` -> controller detects it -> `Waiting` phase -> children complete -> parent pod re-created. [Design doc](design-agentic-loop.md)
+- **E2E test fix** — `createTaskManifest` in E2E tests now properly emits capabilities and budget as real YAML fields instead of comments. Tribune test can now exercise `spawn` capability.
+- **Status update retry** — All `Status().Update()` calls wrapped with `retry.RetryOnConflict` to handle K8s optimistic concurrency. BUG-016 resolved.
+- **Task ID injection** — Operator now injects `taskId` into `task.json`. Runtimes fall back to `HORTATOR_TASK_NAME` env var. BUG-017 resolved.
+- **Stuck detection tests** — Unit tests for `checkStuckSignals`, `resolveStuckConfig`, aggregate scoring, and all action types.
+- **Per-role stuck detection overrides** — `AgentRoleSpec.Health` field enables per-role health config. Cascade: ConfigMap defaults -> AgentRole -> AgentTask.
+- **Budget smoke tests** — Unit tests for `IsBudgetExceeded` and `PriceMap.CalculateCost`. E2E tests added to CI via Kind cluster job.
+- **Kustomize RBAC fix** — Added Secrets, pods/exec, AgentRole/ClusterAgentRole to `config/rbac/role.yaml`. Fixed leader election namespace. BUG-006 resolved.
+- **Presidio exit 137 fix** — Added `preStop` hook and documented expected behavior. BUG-014 resolved.
+- **Dead tier-to-model cleanup** — Removed misleading tier-to-model mapping from `runtime/README.md`. Fixed tier default from "fast" to "legionary" in `entrypoint.sh`.
+- **TUI improvements** — Namespace text input (`n` key), describe view (`D` key showing prompt + output), status summary panel (`S` key with phase/tier counts and cost totals).
+- **Local quickstart script** — `hack/quickstart.sh` creates a Kind cluster, builds images, installs via Helm, and runs a demo task.
+
 ## Next Up
 
-- Full end-to-end validation of Tribune orchestration flow (agentic image build, multi-agent delegation, reincarnation)
-- Budget and stuck detection smoke tests in CI
-- Per-role and per-tier stuck detection overrides
+- CRD regeneration (run `controller-gen` to pick up AgentRole health field)
+- Full end-to-end validation of Tribune orchestration flow (agentic image build, multi-agent delegation, reincarnation with `checkpoint_and_wait`)
 
 ## Future
 

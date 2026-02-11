@@ -8,6 +8,7 @@ SPDX-License-Identifier: MIT
 package e2e
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -229,7 +230,14 @@ var _ = Describe("controller", Ordered, func() {
 	})
 })
 
+// specExtrasFields represents the JSON structure of specExtras parameter.
+type specExtrasFields struct {
+	Capabilities []string          `json:"capabilities,omitempty"`
+	Budget       map[string]any    `json:"budget,omitempty"`
+}
+
 // createTaskManifest generates an AgentTask YAML manifest as an io.Reader.
+// specExtras is a JSON string with optional fields like capabilities and budget.
 func createTaskManifest(name, tier, prompt, specExtras string) *strings.Reader {
 	manifest := fmt.Sprintf(`apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
@@ -243,9 +251,24 @@ spec:
 `, name, namespace, prompt, tier)
 
 	if specExtras != "" {
-		// specExtras is a JSON string with additional spec fields
-		// For simplicity, we just add capabilities inline
-		manifest += fmt.Sprintf("  # extras: %s\n", specExtras)
+		var extras specExtrasFields
+		if err := json.Unmarshal([]byte(specExtras), &extras); err == nil {
+			if len(extras.Capabilities) > 0 {
+				manifest += "  capabilities:\n"
+				for _, cap := range extras.Capabilities {
+					manifest += fmt.Sprintf("    - %s\n", cap)
+				}
+			}
+			if extras.Budget != nil {
+				manifest += "  budget:\n"
+				if v, ok := extras.Budget["maxTokens"]; ok {
+					manifest += fmt.Sprintf("    maxTokens: %v\n", v)
+				}
+				if v, ok := extras.Budget["maxCostUsd"]; ok {
+					manifest += fmt.Sprintf("    maxCostUsd: %v\n", v)
+				}
+			}
+		}
 	}
 
 	return strings.NewReader(manifest)

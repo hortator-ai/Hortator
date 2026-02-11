@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -57,6 +58,10 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid refresh interval: %w", err)
 	}
 
+	ti := textinput.New()
+	ti.Placeholder = "namespace..."
+	ti.CharLimit = 63
+
 	m := model{
 		namespace:  getNamespace(),
 		allNS:      watchAllNS,
@@ -64,6 +69,7 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		refreshInt: dur,
 		k8sClient:  k8sClient,
 		clientset:  clientset,
+		nsInput:    ti,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -106,6 +112,16 @@ type model struct {
 	logLines   []string
 	showLogs   bool
 	showDetail bool
+
+	// Namespace text input mode
+	nsInput     textinput.Model
+	nsInputMode bool
+
+	// Describe (full spec + output) view
+	showDescribe bool
+
+	// Status summary panel
+	showSummary bool
 }
 
 type taskItem struct {
@@ -159,6 +175,11 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// If namespace input mode is active, delegate to text input
+	if m.nsInputMode {
+		return m.updateNsInput(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -176,6 +197,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			m.showDetail = !m.showDetail
+			m.showDescribe = false // close describe when toggling details
 		case "l":
 			m.showLogs = !m.showLogs
 			if m.showLogs && len(m.tasks) > 0 {
@@ -185,17 +207,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			return m, fetchTasks(m)
 		case "n":
-			// Cycle to next namespace
-			if len(m.namespaces) > 0 {
-				m.nsIndex = (m.nsIndex + 1) % len(m.namespaces)
-				m.namespace = m.namespaces[m.nsIndex]
-				m.allNS = false
-				m.cursor = 0
-				m.logLines = nil
-				return m, fetchTasks(m)
-			}
+			// Open namespace text input
+			m.nsInputMode = true
+			m.nsInput.SetValue(m.namespace)
+			m.nsInput.Focus()
+			return m, nil
 		case "N":
-			// Cycle to previous namespace
+			// Cycle to previous namespace (quick)
 			if len(m.namespaces) > 0 {
 				m.nsIndex = (m.nsIndex - 1 + len(m.namespaces)) % len(m.namespaces)
 				m.namespace = m.namespaces[m.nsIndex]
@@ -210,6 +228,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = 0
 			m.logLines = nil
 			return m, fetchTasks(m)
+		case "D":
+			// Toggle describe view (full spec + prompt + output)
+			m.showDescribe = !m.showDescribe
+		case "S":
+			// Toggle status summary panel
+			m.showSummary = !m.showSummary
 		}
 
 	case tea.WindowSizeMsg:
@@ -250,6 +274,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// updateNsInput handles input while namespace text input is active.
+func (m model) updateNsInput(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "enter":
+			// Accept the input
+			ns := strings.TrimSpace(m.nsInput.Value())
+			if ns != "" {
+				m.namespace = ns
+				m.allNS = false
+				m.cursor = 0
+				m.logLines = nil
+			}
+			m.nsInputMode = false
+			m.nsInput.Blur()
+			return m, fetchTasks(m)
+		case "esc":
+			// Cancel
+			m.nsInputMode = false
+			m.nsInput.Blur()
+			return m, nil
+		}
+	}
+
+	var cmd tea.Cmd
+	m.nsInput, cmd = m.nsInput.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
@@ -327,6 +381,32 @@ func (m model) View() string {
 		sections = append(sections, detailBox)
 	}
 
+	// --- Describe (full spec + output) ---
+	if m.showDescribe && m.cursor < len(m.tasks) {
+		describeContent := renderDescribe(m.tasks[m.cursor], contentWidth-4)
+		describeBox := styleBorder.Width(contentWidth).Render(describeContent)
+		describeBox = injectBorderTitle(describeBox, " Describe ", " D toggle ")
+		sections = append(sections, describeBox)
+	}
+
+	// --- Status Summary ---
+	if m.showSummary {
+		summaryContent := renderSummary(m.tasks, contentWidth-4)
+		summaryBox := styleBorder.Width(contentWidth).Render(summaryContent)
+		summaryBox = injectBorderTitle(summaryBox, " Summary ", " S toggle ")
+		sections = append(sections, summaryBox)
+	}
+
+	// --- Namespace Input ---
+	if m.nsInputMode {
+		inputContent := fmt.Sprintf("  Namespace: %s", m.nsInput.View())
+		inputBox := styleBorder.Width(contentWidth).
+			BorderForeground(lipgloss.Color("11")).
+			Render(inputContent)
+		inputBox = injectBorderTitle(inputBox, " Set Namespace ", " Enter confirm │ Esc cancel ")
+		sections = append(sections, inputBox)
+	}
+
 	// --- Logs ---
 	if m.showLogs {
 		var logContent string
@@ -345,7 +425,7 @@ func (m model) View() string {
 	}
 
 	// --- Footer ---
-	footer := styleFooter.Render(fmt.Sprintf("  q quit │ ↑↓ select │ Enter details │ l logs │ n/N namespace │ A all-ns │ r refresh ─── %s", m.refreshInt))
+	footer := styleFooter.Render(fmt.Sprintf("  q quit │ ↑↓ select │ Enter details │ D describe │ S summary │ l logs │ n namespace │ A all-ns │ r refresh ─── %s", m.refreshInt))
 	sections = append(sections, footer)
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...) + "\n"
@@ -531,6 +611,139 @@ func renderDetails(item taskItem, _ int) string {
 	if len(t.Spec.Capabilities) > 0 {
 		b.WriteString(fmt.Sprintf("  Capabilities: [%s]\n", strings.Join(t.Spec.Capabilities, ", ")))
 	}
+
+	return b.String()
+}
+
+func renderDescribe(item taskItem, maxWidth int) string {
+	t := item.task
+	var b strings.Builder
+
+	b.WriteString(fmt.Sprintf("  Name:      %s\n", t.Name))
+	b.WriteString(fmt.Sprintf("  Namespace: %s\n", t.Namespace))
+	b.WriteString(fmt.Sprintf("  Tier:      %s\n", capitalize(t.Spec.Tier)))
+	b.WriteString(fmt.Sprintf("  Role:      %s\n", t.Spec.Role))
+	b.WriteString(fmt.Sprintf("  Phase:     %s\n", string(t.Status.Phase)))
+
+	if len(t.Spec.Capabilities) > 0 {
+		b.WriteString(fmt.Sprintf("  Caps:      [%s]\n", strings.Join(t.Spec.Capabilities, ", ")))
+	}
+	if t.Spec.Model != nil && t.Spec.Model.Name != "" {
+		b.WriteString(fmt.Sprintf("  Model:     %s\n", t.Spec.Model.Name))
+	}
+	if t.Spec.Budget != nil {
+		budgetParts := []string{}
+		if t.Spec.Budget.MaxTokens != nil {
+			budgetParts = append(budgetParts, fmt.Sprintf("tokens=%d", *t.Spec.Budget.MaxTokens))
+		}
+		if t.Spec.Budget.MaxCostUsd != "" {
+			budgetParts = append(budgetParts, fmt.Sprintf("cost=$%s", t.Spec.Budget.MaxCostUsd))
+		}
+		if len(budgetParts) > 0 {
+			b.WriteString(fmt.Sprintf("  Budget:    %s\n", strings.Join(budgetParts, ", ")))
+		}
+	}
+	if t.Spec.ParentTaskID != "" {
+		b.WriteString(fmt.Sprintf("  Parent:    %s\n", t.Spec.ParentTaskID))
+	}
+
+	// Prompt
+	b.WriteString("\n")
+	prompt := t.Spec.Prompt
+	if len(prompt) > maxWidth*4 {
+		prompt = prompt[:maxWidth*4] + "..."
+	}
+	b.WriteString("  ── Prompt ──\n")
+	for _, line := range strings.Split(prompt, "\n") {
+		b.WriteString("  " + line + "\n")
+	}
+
+	// Output (for completed/failed tasks)
+	if t.Status.Output != "" {
+		b.WriteString("\n  ── Output ──\n")
+		output := t.Status.Output
+		if len(output) > maxWidth*6 {
+			output = output[:maxWidth*6] + "\n  ...(truncated)"
+		}
+		for _, line := range strings.Split(output, "\n") {
+			b.WriteString("  " + line + "\n")
+		}
+	}
+
+	// Message
+	if t.Status.Message != "" {
+		b.WriteString(fmt.Sprintf("\n  Message: %s\n", t.Status.Message))
+	}
+
+	return b.String()
+}
+
+func renderSummary(items []taskItem, _ int) string {
+	if len(items) == 0 {
+		return "  No tasks."
+	}
+
+	phaseCounts := make(map[corev1alpha1.AgentTaskPhase]int)
+	tierCounts := make(map[string]int)
+	totalCost := 0.0
+	totalTokensIn := int64(0)
+	totalTokensOut := int64(0)
+
+	for _, item := range items {
+		t := item.task
+		phaseCounts[t.Status.Phase]++
+		tierCounts[capitalize(t.Spec.Tier)]++
+
+		if t.Status.TokensUsed != nil {
+			totalTokensIn += t.Status.TokensUsed.Input
+			totalTokensOut += t.Status.TokensUsed.Output
+		}
+		if t.Status.EstimatedCostUsd != "" {
+			if c, err := strconv.ParseFloat(t.Status.EstimatedCostUsd, 64); err == nil {
+				totalCost += c
+			}
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("  Total Tasks: %d\n\n", len(items)))
+
+	// Phase breakdown
+	b.WriteString("  By Phase:\n")
+	phases := []corev1alpha1.AgentTaskPhase{
+		corev1alpha1.AgentTaskPhaseRunning,
+		corev1alpha1.AgentTaskPhaseWaiting,
+		corev1alpha1.AgentTaskPhasePending,
+		corev1alpha1.AgentTaskPhaseRetrying,
+		corev1alpha1.AgentTaskPhaseCompleted,
+		corev1alpha1.AgentTaskPhaseFailed,
+		corev1alpha1.AgentTaskPhaseBudgetExceeded,
+		corev1alpha1.AgentTaskPhaseTimedOut,
+		corev1alpha1.AgentTaskPhaseCancelled,
+	}
+	for _, phase := range phases {
+		if count := phaseCounts[phase]; count > 0 {
+			icon := phaseIcon(phase)
+			b.WriteString(fmt.Sprintf("    %s %-16s %d\n", icon, string(phase), count))
+		}
+	}
+	// Handle empty phase
+	if count := phaseCounts[""]; count > 0 {
+		b.WriteString(fmt.Sprintf("    ? %-16s %d\n", "(unknown)", count))
+	}
+
+	// Tier breakdown
+	b.WriteString("\n  By Tier:\n")
+	for _, tier := range []string{"Tribune", "Centurion", "Legionary"} {
+		if count := tierCounts[tier]; count > 0 {
+			b.WriteString(fmt.Sprintf("    %-12s %d\n", tier, count))
+		}
+	}
+
+	// Totals
+	b.WriteString(fmt.Sprintf("\n  Tokens: %s in / %s out\n",
+		formatInt(totalTokensIn), formatInt(totalTokensOut)))
+	b.WriteString(fmt.Sprintf("  Cost:   $%.4f\n", totalCost))
 
 	return b.String()
 }

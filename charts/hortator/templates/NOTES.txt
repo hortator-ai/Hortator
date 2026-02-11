@@ -28,5 +28,12 @@
 5. View task logs:
    hortator logs hello-world
 
+{{- if .Values.presidio.enabled }}
+NOTE: The Presidio PII analyzer runs as a centralized service. When agent pods
+terminate, the Presidio container may briefly show exit code 137 (SIGKILL) in
+events — this is expected behavior during pod lifecycle transitions and does
+not indicate a problem. A preStop hook is configured to minimize this.
+{{- end }}
+
 For more information, visit:
   https://github.com/michael-niemand/Hortator

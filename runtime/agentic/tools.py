@@ -20,6 +20,7 @@ def build_tools(capabilities: list[str], task_name: str, task_ns: str) -> list[d
         tools.append(_tool_check_status())
         tools.append(_tool_get_result())
         tools.append(_tool_cancel_task())
+        tools.append(_tool_checkpoint_and_wait())
 
     # shell capability gates command execution
     if "shell" in capabilities:
@@ -127,6 +128,36 @@ def _tool_cancel_task() -> dict:
                     },
                 },
                 "required": ["task_name"],
+            },
+        },
+    }
+
+
+def _tool_checkpoint_and_wait() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "checkpoint_and_wait",
+            "description": (
+                "Checkpoint your current state and exit. The operator will restart "
+                "you when all pending child tasks have completed, injecting their "
+                "results into your context. Use this after spawning async children "
+                "(wait=false) when you have no more work to do until they finish. "
+                "Do NOT call this if you have no pending children."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": (
+                            "A brief summary of your progress so far and what you "
+                            "expect from the children. This is saved in the checkpoint "
+                            "and shown to you when you resume."
+                        ),
+                    },
+                },
+                "required": ["summary"],
             },
         },
     }

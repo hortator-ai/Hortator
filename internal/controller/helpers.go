@@ -18,13 +18,49 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
+
+// updateStatusWithRetry wraps Status().Update() with retry.RetryOnConflict to handle
+// optimistic concurrency conflicts. On conflict, it re-fetches the latest version of
+// the AgentTask and re-applies the desired status before retrying.
+func (r *AgentTaskReconciler) updateStatusWithRetry(ctx context.Context, task *corev1alpha1.AgentTask) error {
+	// Capture the desired status before retrying
+	desiredStatus := task.Status.DeepCopy()
+
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Re-fetch the latest version (skip on first attempt since task is already fresh)
+		latest := &corev1alpha1.AgentTask{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Namespace: task.Namespace,
+			Name:      task.Name,
+		}, latest); err != nil {
+			if errors.IsNotFound(err) {
+				return nil // Task was deleted, nothing to update
+			}
+			return err
+		}
+
+		// Apply the desired status onto the latest version
+		latest.Status = *desiredStatus
+
+		// Update with the latest resource version
+		if err := r.Status().Update(ctx, latest); err != nil {
+			return err
+		}
+
+		// Sync the resource version back so the caller has a fresh copy
+		task.ResourceVersion = latest.ResourceVersion
+		return nil
+	})
+}
 
 // refreshDefaultsIfStale reloads cluster defaults only if the cache TTL has expired.
 func (r *AgentTaskReconciler) refreshDefaultsIfStale(ctx context.Context) {
@@ -427,7 +463,7 @@ func (r *AgentTaskReconciler) notifyParentTask(ctx context.Context, task *corev1
 			fmt.Sprintf("Child %s completed, all children done — restarting", task.Name))
 	}
 
-	if err := r.Status().Update(ctx, parent); err != nil {
+	if err := r.updateStatusWithRetry(ctx, parent); err != nil {
 		logger.V(1).Info("Failed to update parent status", "error", err)
 	}
 }

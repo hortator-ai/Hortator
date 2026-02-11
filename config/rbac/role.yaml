@@ -15,10 +15,24 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - namespaces
   - pods/log
   verbs:
   - get
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - create
 - apiGroups:
   - ""
   resources:
@@ -36,6 +50,15 @@ rules:
   - core.hortator.ai
   resources:
   - agentpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.hortator.ai
+  resources:
+  - agentroles
+  - clusteragentroles
   verbs:
   - get
   - list

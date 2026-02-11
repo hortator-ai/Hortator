@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
@@ -169,7 +170,7 @@ func (r *AgentTaskReconciler) executeStuckAction(ctx context.Context,
 		setCompletionStatus(task)
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
 		tasksActive.WithLabelValues(task.Namespace).Dec()
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return err
 		}
 		r.notifyParentTask(ctx, task)
@@ -191,7 +192,7 @@ func (r *AgentTaskReconciler) executeStuckAction(ctx context.Context,
 		setCompletionStatus(task)
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
 		tasksActive.WithLabelValues(task.Namespace).Dec()
-		if err := r.Status().Update(ctx, task); err != nil {
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return err
 		}
 		r.notifyParentTask(ctx, task)
@@ -200,16 +201,27 @@ func (r *AgentTaskReconciler) executeStuckAction(ctx context.Context,
 	return nil
 }
 
-// resolveStuckConfig merges the cluster-level stuck detection config with
-// per-task overrides from the AgentTask's health spec.
-func resolveStuckConfig(defaults StuckDetectionConfig, task *corev1alpha1.AgentTask) StuckDetectionConfig {
+// resolveStuckConfig merges stuck detection config in cascade order:
+// cluster defaults -> AgentRole -> AgentTask (most specific wins).
+// roleHealth may be nil if no role is configured or the role has no health spec.
+func resolveStuckConfig(defaults StuckDetectionConfig, roleHealth *corev1alpha1.HealthSpec, task *corev1alpha1.AgentTask) StuckDetectionConfig {
 	cfg := defaults
 
-	if task.Spec.Health == nil || task.Spec.Health.StuckDetection == nil {
-		return cfg
+	// Layer 2: per-role overrides
+	if roleHealth != nil && roleHealth.StuckDetection != nil {
+		applyStuckDetectionOverride(&cfg, roleHealth.StuckDetection)
 	}
 
-	override := task.Spec.Health.StuckDetection
+	// Layer 3: per-task overrides (most specific wins)
+	if task.Spec.Health != nil && task.Spec.Health.StuckDetection != nil {
+		applyStuckDetectionOverride(&cfg, task.Spec.Health.StuckDetection)
+	}
+
+	return cfg
+}
+
+// applyStuckDetectionOverride applies non-nil fields from a StuckDetectionSpec onto a config.
+func applyStuckDetectionOverride(cfg *StuckDetectionConfig, override *corev1alpha1.StuckDetectionSpec) {
 	if override.ToolDiversityMin != nil {
 		cfg.ToolDiversityMin = *override.ToolDiversityMin
 	}
@@ -222,6 +234,29 @@ func resolveStuckConfig(defaults StuckDetectionConfig, task *corev1alpha1.AgentT
 	if override.Action != "" {
 		cfg.Action = override.Action
 	}
+}
 
-	return cfg
+// fetchRoleHealth looks up the AgentRole (namespace-scoped then cluster-scoped)
+// for the given task and returns its HealthSpec, or nil if not found.
+func (r *AgentTaskReconciler) fetchRoleHealth(ctx context.Context, task *corev1alpha1.AgentTask) *corev1alpha1.HealthSpec {
+	if task.Spec.Role == "" {
+		return nil
+	}
+
+	// Try namespace-scoped AgentRole first
+	role := &corev1alpha1.AgentRole{}
+	if err := r.Get(ctx, types.NamespacedName{
+		Namespace: task.Namespace,
+		Name:      task.Spec.Role,
+	}, role); err == nil {
+		return role.Spec.Health
+	}
+
+	// Fall back to cluster-scoped ClusterAgentRole
+	clusterRole := &corev1alpha1.ClusterAgentRole{}
+	if err := r.Get(ctx, types.NamespacedName{Name: task.Spec.Role}, clusterRole); err == nil {
+		return clusterRole.Spec.Health
+	}
+
+	return nil
 }

@@ -31,7 +31,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P1** Test coverage — controller 44.3%, gateway 58.7%. Unit tests for all critical paths. Still room for integration tests (reconciler flow, CLI) but sufficient for launch. [L1] ✅ 2026-02-10
 - [x] **P2** Standardize license headers — LICENSE file is MIT but source files have bare `Copyright 2026.` from kubebuilder scaffold. [L2] ✅ 2026-02-10
 - [x] **P2** Single source of truth for CRDs — removed stale duplicates (`agenttask.yaml`, `agentpolicy.yaml`), added `make sync-crds` and `make verify-crds` targets, CI enforcement in PR checks. [L5] ✅ 2026-02-10
-- [ ] **P2** Clean up dead tier-to-model mapping in `entrypoint.sh` — OpenAI mapping is dead code when Anthropic keys present. [L6]
+- [x] **P2** Clean up dead tier-to-model mapping in `entrypoint.sh` — Removed misleading tier-to-model table from `runtime/README.md`. Fixed tier default from "fast" to "legionary". Clarified model selection is operator-driven via `HORTATOR_MODEL`. [L6] ✅ 2026-02-11
 - [x] **P2** Generate Go types for AgentRole/ClusterAgentRole — gateway currently uses `unstructured.Unstructured`, losing type safety and validation. [L7] ✅ 2026-02-11
 
 ## 📋 Post-MVP Priorities
@@ -40,16 +40,16 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P1** Native SDK wrappers (Python, TypeScript) — Python (`hortator` package, httpx+pydantic, LangChain+CrewAI) and TypeScript (`@hortator/sdk`, zero deps, LangChain.js). 30 tests total. ✅ 2026-02-10
 - [x] **P1** Result cache with dedup — Content-addressable SHA-256(prompt+role) cache. In-memory LRU with TTL. Operator checks before spawning. Opt-out via annotation. 8 tests. ✅ 2026-02-10
 - [x] **P2** `hortator watch` TUI — Terminal UI showing live task tree, per-agent status, logs, cumulative cost. No web dashboard needed (let 3rd party build if it takes off). Great for demos and debugging. ✅ 2026-02-11
-- [ ] **P2** `hortator watch` TUI improvements:
-  - [ ] `n` opens text input to type namespace name (bubbles textinput) — cycling is tedious on big clusters
-  - [ ] `D` describe selected task (show prompt, full spec)
-  - [ ] View task result/output when completed
-  - [ ] `S` status summary (needs design)
+- [x] **P2** `hortator watch` TUI improvements: ✅ 2026-02-11
+  - [x] `n` opens text input to type namespace name (bubbles textinput)
+  - [x] `D` describe selected task (shows prompt, full spec, output, budget)
+  - [x] View task result/output for completed tasks (in describe view)
+  - [x] `S` status summary panel (phase/tier breakdown, total tokens, total cost)
 - [x] **P0** Python agentic runtime — New runtime at `runtime/agentic/` for Tribune and Centurion tiers. Tool-calling loop (litellm), checkpoint/restore to `/memory/state.json`, budget-aware context management. Legionaries keep the bash single-shot runtime. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md) ✅ 2026-02-11
 - [x] **P0** Reincarnation model (event-driven Tribune lifecycle) — Tribune spawns children, checkpoints state, exits with new `Waiting` phase. Operator detects child completion → injects child results into parent PVC at `/inbox/child-results/` → restarts Tribune pod. No idle pods, resilient to node failure, solves context overflow. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md) ✅ 2026-02-11
 - [x] **P1** Child result injection — Extend `notifyParentTask()` to copy child `status.output` into the parent's PVC at `/inbox/child-results/<child-name>.json`. Required by reincarnation model. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md) ✅ 2026-02-11
 - [x] **P1** Artifact download endpoint — `GET /api/v1/tasks/{id}/artifacts` on the gateway serves files from completed task PVCs. CLI: `hortator result <task> --artifacts --output-dir ./out/`. SDK: `client.tasks.get_artifacts(task_id)`. Returns 410 Gone if PVC cleaned up. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md) ✅ 2026-02-11
-- [ ] **P3** Local quickstart script — Shell script that spins up Kind/k3d cluster + helm installs Hortator + runs demo task. One-liner eval path without existing cluster. Lowest priority.
+- [x] **P3** Local quickstart script — `hack/quickstart.sh` creates Kind cluster, builds + loads images, helm installs Hortator, runs demo task. `--teardown` flag for cleanup. ✅ 2026-02-11
 
 ---
 
