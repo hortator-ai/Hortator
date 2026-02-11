@@ -57,8 +57,9 @@ wait_for_presidio() {
         return 0
     fi
     echo "[hortator-runtime] Waiting for Presidio at ${PRESIDIO_ENDPOINT}..."
+    local max_attempts="${PRESIDIO_WAIT_SECONDS:-60}"
     local attempt=0
-    while [ $attempt -lt 30 ]; do
+    while [ $attempt -lt "$max_attempts" ]; do
         if curl -sf --max-time 2 "${PRESIDIO_ENDPOINT}/health" >/dev/null 2>&1; then
             echo "[hortator-runtime] Presidio ready after ${attempt}s"
             PRESIDIO_READY=1
@@ -67,7 +68,7 @@ wait_for_presidio() {
         attempt=$((attempt + 1))
         sleep 1
     done
-    echo "[hortator-runtime] WARN: Presidio not reachable after 30s, PII scanning disabled"
+    echo "[hortator-runtime] WARN: Presidio not reachable after ${max_attempts}s, PII scanning disabled"
     return 0
 }
 

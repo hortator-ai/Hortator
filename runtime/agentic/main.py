@@ -107,12 +107,13 @@ def report_to_crd(summary: str, tokens_in: int, tokens_out: int) -> bool:
 
 
 def wait_for_presidio() -> bool:
-    """Wait for Presidio service to become ready (up to 30s)."""
+    """Wait for Presidio service to become ready (up to 60s, configurable)."""
     endpoint = os.environ.get("PRESIDIO_ENDPOINT", "")
     if not endpoint:
         return False
-    print(f"[hortator-agentic] Waiting for Presidio at {endpoint}...")
-    for attempt in range(30):
+    max_wait = int(os.environ.get("PRESIDIO_WAIT_SECONDS", "60"))
+    print(f"[hortator-agentic] Waiting for Presidio at {endpoint} (timeout: {max_wait}s)...")
+    for attempt in range(max_wait):
         try:
             req = urllib.request.Request(f"{endpoint}/health", method="GET")
             with urllib.request.urlopen(req, timeout=2):
@@ -120,7 +121,7 @@ def wait_for_presidio() -> bool:
                 return True
         except (urllib.error.URLError, OSError):
             time.sleep(1)
-    print("[hortator-agentic] WARN: Presidio not reachable after 30s, PII scanning disabled")
+    print(f"[hortator-agentic] WARN: Presidio not reachable after {max_wait}s, PII scanning disabled")
     return False
 
 
@@ -168,10 +169,19 @@ def main():
     task_ns = os.environ.get("HORTATOR_TASK_NAMESPACE", "default")
     model = os.environ.get("HORTATOR_MODEL", "claude-sonnet-4-20250514")
 
-    # LLM endpoint — litellm uses env vars or we set explicitly
+    # LLM endpoint — litellm auto-detects Anthropic/OpenAI from API key env vars.
+    # Only set LITELLM_API_BASE for custom/self-hosted endpoints (Ollama, vLLM, etc.).
+    # Setting it for known providers breaks litellm's routing (it would try the
+    # OpenAI /chat/completions path against Anthropic's /v1/messages endpoint).
     llm_endpoint = task.get("model", {}).get("endpoint", "")
     if llm_endpoint:
-        os.environ["LITELLM_API_BASE"] = llm_endpoint
+        endpoint_lower = llm_endpoint.lower()
+        is_known_provider = (
+            "anthropic.com" in endpoint_lower
+            or "openai.com" in endpoint_lower
+        )
+        if not is_known_provider:
+            os.environ["LITELLM_API_BASE"] = llm_endpoint
 
     print(f"[hortator-agentic] Task={task_name} Role={role} Tier={tier} Model={model}")
 
