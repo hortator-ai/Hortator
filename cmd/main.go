@@ -140,6 +140,7 @@ func main() {
 		Namespace:   operatorNamespace,
 		RESTConfig:  mgr.GetConfig(),
 		ResultCache: resultCache,
+		Recorder:    mgr.GetEventRecorderFor("agenttask-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentTask")
 		os.Exit(1)

@@ -195,7 +195,7 @@ examples/
 - [x] **P1** As a platform engineer, I want workers to run with minimal RBAC (only create tasks in own namespace) ✅ 2026-02-08
 - [x] **P1** As a platform engineer, I want tasks to inherit parent capabilities (workers can't escalate beyond parent) ✅ 2026-02-08
 - [x] **P2** As a platform engineer, I want to restrict which namespaces can spawn tasks via label selectors ✅ 2026-02-08
-- [ ] **P2** As a cluster admin, I want audit logs of all task spawns, completions, and failures
+- [x] **P2** As a cluster admin, I want audit logs of all task spawns, completions, and failures ✅ 2026-02-11
 - [ ] **P2** (Enterprise) As a cluster admin, I want AgentPolicy CRD to define fine-grained capability restrictions per namespace
 - [ ] **P2** (Enterprise) As a cluster admin, I want egress allowlists to control which external APIs agents can call
 
