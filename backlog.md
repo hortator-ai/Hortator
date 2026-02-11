@@ -6,6 +6,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ## 🐛 Bug Fixes
 
+- [ ] **P1** AgentTask CR garbage collection — completed/failed CRs accumulate indefinitely. Operator should delete old CRs based on configurable TTL (separate from PVC cleanup which already exists). Helm config: `agent.cleanup.ttl.completed: 24h`, `agent.cleanup.ttl.failed: 48h`. Reconcile loop checks `status.completedAt` age. Respect `hortator.io/retain` annotation to skip GC.
 - [ ] **P0** Runtime lacks agentic loop — tribunes cannot actually spawn legionaries. `entrypoint.sh` makes a single LLM call and writes the response. For real multi-tier orchestration, the runtime needs: (1) tool-calling LLM integration, (2) parse tool calls from response, (3) execute `hortator spawn` + wait for results, (4) feed results back to LLM for consolidation. Without this, the entire tribune→centurion→legionary hierarchy is manual-only. (2026-02-11 E2E finding)
 - [x] **P0** Convert Presidio from sidecar to centralized Deployment+Service ✅ 2026-02-10 — Sidecar exit code 137 (SIGKILL on pod completion) shows "Init: Error" in pod status. Deploy Presidio as a shared service in hortator-system namespace, remove sidecar injection from operator, add Presidio Deployment/Service as Helm subchart. Toggle on/off via `presidio.enabled`. (2026-02-10)
 
@@ -39,6 +40,11 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P1** Native SDK wrappers (Python, TypeScript) — Python (`hortator` package, httpx+pydantic, LangChain+CrewAI) and TypeScript (`@hortator/sdk`, zero deps, LangChain.js). 30 tests total. ✅ 2026-02-10
 - [x] **P1** Result cache with dedup — Content-addressable SHA-256(prompt+role) cache. In-memory LRU with TTL. Operator checks before spawning. Opt-out via annotation. 8 tests. ✅ 2026-02-10
 - [x] **P2** `hortator watch` TUI — Terminal UI showing live task tree, per-agent status, logs, cumulative cost. No web dashboard needed (let 3rd party build if it takes off). Great for demos and debugging. ✅ 2026-02-11
+- [ ] **P2** `hortator watch` TUI improvements:
+  - [ ] `n` opens text input to type namespace name (bubbles textinput) — cycling is tedious on big clusters
+  - [ ] `D` describe selected task (show prompt, full spec)
+  - [ ] View task result/output when completed
+  - [ ] `S` status summary (needs design)
 - [ ] **P3** Local quickstart script — Shell script that spins up Kind/k3d cluster + helm installs Hortator + runs demo task. One-liner eval path without existing cluster. Lowest priority.
 
 ---
