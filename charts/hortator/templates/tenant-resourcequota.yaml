@@ -1,0 +1,17 @@
+{{- if .Values.tenant.resourceQuota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "hortator.fullname" . }}-quota
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+spec:
+  hard:
+    requests.cpu: {{ .Values.tenant.resourceQuota.cpu | quote }}
+    requests.memory: {{ .Values.tenant.resourceQuota.memory | quote }}
+    limits.cpu: {{ .Values.tenant.resourceQuota.limitsCpu | quote }}
+    limits.memory: {{ .Values.tenant.resourceQuota.limitsMemory | quote }}
+    persistentvolumeclaims: {{ .Values.tenant.resourceQuota.pvcs | quote }}
+    pods: {{ .Values.tenant.resourceQuota.pods | quote }}
+    count/agenttasks.core.hortator.ai: {{ .Values.tenant.resourceQuota.maxTasks | quote }}
+{{- end }}

@@ -1,0 +1,139 @@
+# =============================================================================
+# Multi-Tenant Example: Two teams sharing one Hortator cluster
+# =============================================================================
+#
+# Prerequisites:
+#   1. Hortator operator installed in hortator-system namespace
+#   2. helm install hortator hortator/hortator -n hortator-system --create-namespace
+#
+# This example shows two tenants with different resource budgets:
+#   - team-alpha: Large quota (ML/research workloads, many concurrent tasks)
+#   - team-beta:  Small quota (dev/testing, fewer tasks)
+
+---
+# =============================================================================
+# Tenant: team-alpha (large team, heavy workloads)
+# =============================================================================
+
+# Step 1: Create namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-alpha
+  labels:
+    hortator.ai/tenant: team-alpha
+
+---
+# Step 2: Install tenant resources
+# helm install hortator-tenant-alpha hortator/hortator -n team-alpha \
+#   --set tenant.enabled=true \
+#   --set tenant.resourceQuota.enabled=true \
+#   --set tenant.resourceQuota.cpu=16 \
+#   --set tenant.resourceQuota.memory=32Gi \
+#   --set tenant.resourceQuota.pods=50 \
+#   --set tenant.resourceQuota.maxTasks=200 \
+#   --set tenant.limitRange.enabled=true \
+#   --set tenant.limitRange.maxCpu=8 \
+#   --set tenant.limitRange.maxMemory=16Gi
+
+# Step 3: API key for gateway auth
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hortator-gateway-auth
+  namespace: team-alpha
+type: Opaque
+stringData:
+  alpha-key-1: "sk-alpha-CHANGE-ME"
+
+---
+# Step 4: AgentRole for team-alpha
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentRole
+metadata:
+  name: senior-developer
+  namespace: team-alpha
+spec:
+  tier: centurion
+  model:
+    endpoint: https://api.anthropic.com/v1
+    name: claude-sonnet-4-20250514
+    apiKeyRef:
+      secretName: anthropic-key
+      key: api-key
+  capabilities:
+    - shell
+    - spawn
+  budget:
+    maxCostUsd: "5.00"
+
+---
+# =============================================================================
+# Tenant: team-beta (small team, lighter workloads)
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-beta
+  labels:
+    hortator.ai/tenant: team-beta
+
+---
+# helm install hortator-tenant-beta hortator/hortator -n team-beta \
+#   --set tenant.enabled=true \
+#   --set tenant.resourceQuota.enabled=true \
+#   --set tenant.resourceQuota.cpu=4 \
+#   --set tenant.resourceQuota.memory=8Gi \
+#   --set tenant.resourceQuota.pods=10 \
+#   --set tenant.resourceQuota.maxTasks=25 \
+#   --set tenant.limitRange.enabled=true \
+#   --set tenant.limitRange.maxCpu=2 \
+#   --set tenant.limitRange.maxMemory=4Gi
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hortator-gateway-auth
+  namespace: team-beta
+type: Opaque
+stringData:
+  beta-key-1: "sk-beta-CHANGE-ME"
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentRole
+metadata:
+  name: developer
+  namespace: team-beta
+spec:
+  tier: legionary
+  model:
+    endpoint: https://api.anthropic.com/v1
+    name: claude-sonnet-4-20250514
+    apiKeyRef:
+      secretName: anthropic-key
+      key: api-key
+  capabilities:
+    - shell
+  budget:
+    maxCostUsd: "1.00"
+
+---
+# =============================================================================
+# Example: team-alpha submits a task
+# =============================================================================
+# Workers in team-alpha can only see/create AgentTasks in team-alpha.
+# They cannot access team-beta resources (enforced by RBAC + NetworkPolicy).
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: refactor-auth-module
+  namespace: team-alpha
+spec:
+  role: senior-developer
+  prompt: |
+    Refactor the authentication module to use JWT tokens.
+    Write tests for all new code paths.
+  timeout: 30m
