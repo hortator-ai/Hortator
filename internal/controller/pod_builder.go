@@ -12,11 +12,13 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
@@ -81,6 +83,112 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 	}
 
 	return r.Create(ctx, pvc)
+}
+
+const (
+	workerServiceAccountName = "hortator-worker"
+	workerRoleName           = "hortator-worker"
+	workerRoleBindingName    = "hortator-worker"
+)
+
+// ensureWorkerRBAC creates the hortator-worker ServiceAccount, Role, and
+// RoleBinding in the task's namespace if they don't already exist. Worker pods
+// reference this ServiceAccount so they can interact with the Kubernetes API
+// (e.g., creating child AgentTasks via the hortator CLI).
+func (r *AgentTaskReconciler) ensureWorkerRBAC(ctx context.Context, namespace string) error {
+	logger := log.FromContext(ctx)
+
+	// 1. ServiceAccount
+	sa := &corev1.ServiceAccount{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: workerServiceAccountName}, sa); err != nil {
+		if !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to check worker ServiceAccount: %w", err)
+		}
+		sa = &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      workerServiceAccountName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/managed-by": "hortator-operator",
+					"app.kubernetes.io/name":       "hortator-worker",
+				},
+			},
+		}
+		if err := r.Create(ctx, sa); err != nil && !errors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create worker ServiceAccount in %s: %w", namespace, err)
+		}
+		logger.Info("Created worker ServiceAccount", "namespace", namespace)
+	}
+
+	// 2. Role — allows worker pods to manage AgentTasks (spawn children, check status)
+	role := &rbacv1.Role{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: workerRoleName}, role); err != nil {
+		if !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to check worker Role: %w", err)
+		}
+		role = &rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      workerRoleName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/managed-by": "hortator-operator",
+					"app.kubernetes.io/name":       "hortator-worker",
+				},
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{"core.hortator.ai"},
+					Resources: []string{"agenttasks"},
+					Verbs:     []string{"get", "list", "create", "update"},
+				},
+				{
+					APIGroups: []string{"core.hortator.ai"},
+					Resources: []string{"agenttasks/status"},
+					Verbs:     []string{"get", "update", "patch"},
+				},
+			},
+		}
+		if err := r.Create(ctx, role); err != nil && !errors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create worker Role in %s: %w", namespace, err)
+		}
+		logger.Info("Created worker Role", "namespace", namespace)
+	}
+
+	// 3. RoleBinding
+	rb := &rbacv1.RoleBinding{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: workerRoleBindingName}, rb); err != nil {
+		if !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to check worker RoleBinding: %w", err)
+		}
+		rb = &rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      workerRoleBindingName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/managed-by": "hortator-operator",
+					"app.kubernetes.io/name":       "hortator-worker",
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "Role",
+				Name:     workerRoleName,
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      workerServiceAccountName,
+					Namespace: namespace,
+				},
+			},
+		}
+		if err := r.Create(ctx, rb); err != nil && !errors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create worker RoleBinding in %s: %w", namespace, err)
+		}
+		logger.Info("Created worker RoleBinding", "namespace", namespace)
+	}
+
+	return nil
 }
 
 // isAgenticTier returns true if the tier uses the Python agentic runtime.

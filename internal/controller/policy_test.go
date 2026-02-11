@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -21,6 +22,7 @@ func newTestScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	_ = corev1alpha1.AddToScheme(s)
 	_ = corev1.AddToScheme(s)
+	_ = rbacv1.AddToScheme(s)
 	return s
 }
 
