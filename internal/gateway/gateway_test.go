@@ -43,7 +43,7 @@ func TestSanitizeName(t *testing.T) {
 
 func TestBuildPrompt(t *testing.T) {
 	t.Run("user only", func(t *testing.T) {
-		msgs := []Message{{Role: "user", Content: "Hello"}}
+		msgs := []Message{{Role: "user", Content: MessageContent{Text: "Hello"}}}
 		got := buildPrompt(msgs)
 		if got != "Hello" {
 			t.Errorf("buildPrompt() = %q, want %q", got, "Hello")
@@ -52,8 +52,8 @@ func TestBuildPrompt(t *testing.T) {
 
 	t.Run("system + user", func(t *testing.T) {
 		msgs := []Message{
-			{Role: "system", Content: "You are a helpful assistant."},
-			{Role: "user", Content: "What is 2+2?"},
+			{Role: "system", Content: MessageContent{Text: "You are a helpful assistant."}},
+			{Role: "user", Content: MessageContent{Text: "What is 2+2?"}},
 		}
 		got := buildPrompt(msgs)
 		if got == "" {
@@ -70,9 +70,9 @@ func TestBuildPrompt(t *testing.T) {
 
 	t.Run("multi-turn with assistant", func(t *testing.T) {
 		msgs := []Message{
-			{Role: "user", Content: "Hi"},
-			{Role: "assistant", Content: "Hello!"},
-			{Role: "user", Content: "How are you?"},
+			{Role: "user", Content: MessageContent{Text: "Hi"}},
+			{Role: "assistant", Content: MessageContent{Text: "Hello!"}},
+			{Role: "user", Content: MessageContent{Text: "How are you?"}},
 		}
 		got := buildPrompt(msgs)
 		if !contains(got, "Previous assistant response") {
@@ -98,7 +98,7 @@ func TestBuildAgentTask(t *testing.T) {
 		req := &ChatCompletionRequest{Model: "hortator/tech-lead"}
 		cfg := &ModelConfig{Name: "claude-sonnet", Endpoint: "https://api.anthropic.com", SecretName: "anthropic-key", SecretKey: "api-key"}
 
-		task := buildAgentTask("test-task", "hortator-system", "tech-lead", "tribune", "Do something", req, cfg)
+		task := buildAgentTask("test-task", "hortator-system", "tech-lead", "tribune", "Do something", req, cfg, nil)
 
 		if task.GetName() != "test-task" {
 			t.Errorf("name = %q, want %q", task.GetName(), "test-task")
@@ -130,7 +130,7 @@ func TestBuildAgentTask(t *testing.T) {
 
 	t.Run("nil model config", func(t *testing.T) {
 		req := &ChatCompletionRequest{Model: "test"}
-		task := buildAgentTask("t", "ns", "role", "legionary", "prompt", req, nil)
+		task := buildAgentTask("t", "ns", "role", "legionary", "prompt", req, nil, nil)
 
 		spec, _, _ := unstructured.NestedMap(task.Object, "spec")
 		if _, ok := spec["model"]; ok {
@@ -145,7 +145,7 @@ func TestBuildAgentTask(t *testing.T) {
 			Capabilities: []string{"shell", "web-fetch"},
 			Budget:       &Budget{MaxCostUsd: "1.50", MaxTokens: &maxTokens},
 		}
-		task := buildAgentTask("t", "ns", "role", "centurion", "prompt", req, nil)
+		task := buildAgentTask("t", "ns", "role", "centurion", "prompt", req, nil, nil)
 
 		spec, _, _ := unstructured.NestedMap(task.Object, "spec")
 

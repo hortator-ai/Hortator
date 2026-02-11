@@ -40,12 +40,44 @@ var (
 			Buckets: prometheus.ExponentialBuckets(1, 2, 15), // 1s to ~16384s
 		},
 	)
+	taskCostUsd = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "hortator_task_cost_usd",
+			Help:    "Estimated cost in USD per completed AgentTask",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0},
+		},
+	)
+	budgetExceededTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "hortator_budget_exceeded_total",
+			Help: "Total number of AgentTasks that exceeded their budget",
+		},
+		[]string{"namespace"},
+	)
+	stuckDetectedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "hortator_stuck_detected_total",
+			Help: "Total number of stuck agent detections by action and namespace",
+		},
+		[]string{"action", "namespace"},
+	)
+	taskToolDiversity = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "hortator_task_tool_diversity",
+			Help: "Tool diversity score (unique/total) for running tasks",
+		},
+		[]string{"namespace", "task"},
+	)
 )
 
 var tracer = otel.Tracer("hortator.ai/operator")
 
 func init() {
-	metrics.Registry.MustRegister(tasksTotal, tasksActive, taskDuration)
+	metrics.Registry.MustRegister(
+		tasksTotal, tasksActive, taskDuration,
+		taskCostUsd, budgetExceededTotal,
+		stuckDetectedTotal, taskToolDiversity,
+	)
 }
 
 func taskEventAttrs(task *corev1alpha1.AgentTask) []attribute.KeyValue {

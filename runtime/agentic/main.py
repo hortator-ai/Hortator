@@ -13,6 +13,8 @@ import os
 import signal
 import sys
 import time
+import urllib.request
+import urllib.error
 
 from loop import agentic_loop
 from checkpoint import load_checkpoint, save_checkpoint
@@ -104,6 +106,24 @@ def report_to_crd(summary: str, tokens_in: int, tokens_out: int) -> bool:
         return False
 
 
+def wait_for_presidio() -> bool:
+    """Wait for Presidio service to become ready (up to 30s)."""
+    endpoint = os.environ.get("PRESIDIO_ENDPOINT", "")
+    if not endpoint:
+        return False
+    print(f"[hortator-agentic] Waiting for Presidio at {endpoint}...")
+    for attempt in range(30):
+        try:
+            req = urllib.request.Request(f"{endpoint}/health", method="GET")
+            with urllib.request.urlopen(req, timeout=2):
+                print(f"[hortator-agentic] Presidio ready after {attempt}s")
+                return True
+        except (urllib.error.URLError, OSError):
+            time.sleep(1)
+    print("[hortator-agentic] WARN: Presidio not reachable after 30s, PII scanning disabled")
+    return False
+
+
 def load_child_results() -> dict[str, dict]:
     """Load child results from /inbox/child-results/."""
     results = {}
@@ -154,6 +174,9 @@ def main():
         os.environ["LITELLM_API_BASE"] = llm_endpoint
 
     print(f"[hortator-agentic] Task={task_name} Role={role} Tier={tier} Model={model}")
+
+    # Wait for Presidio to become ready (if configured)
+    wait_for_presidio()
 
     # Check for checkpoint (reincarnation)
     checkpoint = load_checkpoint(STATE_FILE)

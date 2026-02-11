@@ -1,7 +1,7 @@
 # Design: File Delivery & RAG Integration
 
-**Status:** Proposal  
-**Date:** 2026-02-10  
+**Status:** Partially Implemented (File Delivery complete, RAG deferred)  
+**Date:** 2026-02-10 (updated 2026-02-11)  
 **Author:** Daemon + M
 
 ## Problem

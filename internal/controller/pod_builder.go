@@ -174,11 +174,17 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 
 	volumes, volumeMounts := r.buildVolumes(task)
 
+	// Discover and mount retained PVCs for knowledge discovery.
+	retainedPVCs := r.mountRetainedPVCs(task, &volumes, &volumeMounts)
+
 	// Init container writes task.json via env var to avoid shell interpolation.
 	taskSpecJSON, err := json.Marshal(task.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal task spec: %w", err)
 	}
+
+	// Build context.json with prior work references (from retained PVCs)
+	contextJSON := r.buildContextJSON(retainedPVCs)
 
 	// Select the correct volume for the init container's /inbox mount
 	inboxVolumeName := "inbox-ephemeral"
@@ -190,14 +196,32 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		inboxMount.SubPath = "inbox"
 	}
 
+	initScript := `mkdir -p /inbox && printf '%s' "$TASK_JSON" > /inbox/task.json`
+	if contextJSON != "" {
+		initScript += ` && printf '%s' "$CONTEXT_JSON" > /inbox/context.json`
+	}
+
+	initEnv := []corev1.EnvVar{
+		{Name: "TASK_JSON", Value: string(taskSpecJSON)},
+	}
+	if contextJSON != "" {
+		initEnv = append(initEnv, corev1.EnvVar{Name: "CONTEXT_JSON", Value: contextJSON})
+	}
+
+	// Deliver input files to /inbox (base64-decode each file)
+	for i, f := range task.Spec.InputFiles {
+		envName := fmt.Sprintf("INPUT_FILE_%d", i)
+		initEnv = append(initEnv, corev1.EnvVar{Name: envName, Value: f.Data})
+		// Use base64 -d to decode the file data
+		initScript += fmt.Sprintf(` && printf '%%s' "$%s" | base64 -d > /inbox/%s`, envName, f.Filename)
+	}
+
 	initContainers := []corev1.Container{
 		{
-			Name:    "write-task-json",
-			Image:   "busybox:1.37.0",
-			Command: []string{"sh", "-c", `mkdir -p /inbox && printf '%s' "$TASK_JSON" > /inbox/task.json`},
-			Env: []corev1.EnvVar{
-				{Name: "TASK_JSON", Value: string(taskSpecJSON)},
-			},
+			Name:         "write-task-json",
+			Image:        "busybox:1.37.0",
+			Command:      []string{"sh", "-c", initScript},
+			Env:          initEnv,
 			VolumeMounts: []corev1.VolumeMount{inboxMount},
 		},
 	}
@@ -275,6 +299,95 @@ func (r *AgentTaskReconciler) buildVolumes(task *corev1alpha1.AgentTask) ([]core
 	}
 
 	return volumes, mounts
+}
+
+// mountRetainedPVCs discovers retained PVCs and adds them as read-only volume
+// mounts at /prior/<task-name>/ for knowledge discovery.
+func (r *AgentTaskReconciler) mountRetainedPVCs(task *corev1alpha1.AgentTask,
+	volumes *[]corev1.Volume, mounts *[]corev1.VolumeMount) []RetainedPVC {
+
+	r.defaultsMu.RLock()
+	cfg := r.defaults.StorageRetained
+	r.defaultsMu.RUnlock()
+
+	if cfg.Discovery == "none" || !cfg.AutoMount {
+		return nil
+	}
+
+	retained, err := r.discoverRetainedPVCs(context.Background(), task, cfg)
+	if err != nil || len(retained) == 0 {
+		return nil
+	}
+
+	// Limit to 5 to avoid pod spec bloat
+	maxMounts := 5
+	if len(retained) > maxMounts {
+		retained = retained[:maxMounts]
+	}
+
+	for i, rpvc := range retained {
+		volName := fmt.Sprintf("prior-%d", i)
+		*volumes = append(*volumes, corev1.Volume{
+			Name: volName,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: rpvc.Name,
+					ReadOnly:  true,
+				},
+			},
+		})
+		mountName := rpvc.TaskName
+		if mountName == "" {
+			mountName = rpvc.Name
+		}
+		*mounts = append(*mounts, corev1.VolumeMount{
+			Name:      volName,
+			MountPath: fmt.Sprintf("/prior/%s", mountName),
+			ReadOnly:  true,
+		})
+	}
+
+	return retained
+}
+
+// buildContextJSON creates a JSON string for /inbox/context.json containing
+// references to mounted prior work PVCs.
+func (r *AgentTaskReconciler) buildContextJSON(retained []RetainedPVC) string {
+	if len(retained) == 0 {
+		return ""
+	}
+
+	type priorEntry struct {
+		TaskName    string   `json:"taskName"`
+		MountPath   string   `json:"mountPath"`
+		Tags        []string `json:"tags"`
+		CompletedAt string   `json:"completedAt,omitempty"`
+		Reason      string   `json:"reason,omitempty"`
+	}
+
+	entries := make([]priorEntry, 0, len(retained))
+	for _, rpvc := range retained {
+		name := rpvc.TaskName
+		if name == "" {
+			name = rpvc.Name
+		}
+		entries = append(entries, priorEntry{
+			TaskName:    name,
+			MountPath:   fmt.Sprintf("/prior/%s", name),
+			Tags:        rpvc.Tags,
+			CompletedAt: rpvc.CompletedAt,
+			Reason:      rpvc.Reason,
+		})
+	}
+
+	ctx := map[string]interface{}{
+		"prior_work": entries,
+	}
+	data, err := json.Marshal(ctx)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // parseQuantity parses a resource string, returning a clean error instead of panicking.

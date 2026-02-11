@@ -1,6 +1,22 @@
+/** A file attachment for message content. */
+export interface FileContent {
+  file_data: string; // base64-encoded
+  filename: string;
+}
+
+/** A typed content part (text or file). */
+export interface ContentPart {
+  type: "text" | "file";
+  text?: string;
+  file?: FileContent;
+}
+
+/** Message content can be a plain string or an array of content parts. */
+export type MessageContent = string | ContentPart[];
+
 export interface Message {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: MessageContent;
 }
 
 export interface Budget {
@@ -43,6 +59,8 @@ export interface RequestOptions {
   budget?: Budget;
   temperature?: number;
   max_tokens?: number;
+  /** File attachments as {filename, data} where data is a base64 string or Buffer. */
+  files?: Array<{ filename: string; data: string | Uint8Array }>;
 }
 
 export interface ClientOptions {

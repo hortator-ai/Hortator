@@ -50,14 +50,35 @@ write_result() {
 }
 
 # --- Presidio PII scanning ---
+PRESIDIO_READY=0
+
+wait_for_presidio() {
+    if [ -z "${PRESIDIO_ENDPOINT:-}" ]; then
+        return 0
+    fi
+    echo "[hortator-runtime] Waiting for Presidio at ${PRESIDIO_ENDPOINT}..."
+    local attempt=0
+    while [ $attempt -lt 30 ]; do
+        if curl -sf --max-time 2 "${PRESIDIO_ENDPOINT}/health" >/dev/null 2>&1; then
+            echo "[hortator-runtime] Presidio ready after ${attempt}s"
+            PRESIDIO_READY=1
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+    echo "[hortator-runtime] WARN: Presidio not reachable after 30s, PII scanning disabled"
+    return 0
+}
+
 presidio_scan() {
     local text="$1"
-    if [ -n "${PRESIDIO_ENDPOINT:-}" ]; then
+    if [ -n "${PRESIDIO_ENDPOINT:-}" ] && [ "$PRESIDIO_READY" -eq 1 ]; then
         local result
         result=$(curl -s --max-time 5 "$PRESIDIO_ENDPOINT/analyze" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg t "$text" '{text:$t, language:"en"}')" 2>/dev/null) || {
-            echo "[hortator-runtime] WARN: Presidio not reachable, skipping PII scan"
+            echo "[hortator-runtime] WARN: Presidio scan failed, skipping"
             return 0
         }
         # Log any PII found
@@ -92,6 +113,9 @@ MODEL="${HORTATOR_MODEL:-claude-sonnet-4-20250514}"
 [[ -z "$PROMPT" ]] && die "Empty prompt in task.json"
 
 echo "[hortator-runtime] Task=${TASK_ID} Role=${ROLE} Tier=${TIER} Model=${MODEL}"
+
+# Wait for Presidio to become ready before first scan
+wait_for_presidio
 
 # Scan prompt for PII before sending to LLM
 presidio_scan "$PROMPT"

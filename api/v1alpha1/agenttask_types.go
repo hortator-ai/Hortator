@@ -279,6 +279,24 @@ type AgentTaskSpec struct {
 	// Retry defines retry behavior for transient failures.
 	// +optional
 	Retry *RetrySpec `json:"retry,omitempty"`
+
+	// InputFiles are files delivered to /inbox when the task starts.
+	// Files are base64-encoded and written by the init container.
+	// Size limit: ~1MB total (etcd constraint).
+	// +optional
+	InputFiles []InputFile `json:"inputFiles,omitempty"`
+}
+
+// InputFile represents a file to deliver to the agent's /inbox directory.
+type InputFile struct {
+	// Filename is the name of the file (e.g. "data.csv").
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Filename string `json:"filename"`
+
+	// Data is the base64-encoded file content.
+	// +kubebuilder:validation:Required
+	Data string `json:"data"`
 }
 
 // AgentTaskStatus defines the observed state of AgentTask
