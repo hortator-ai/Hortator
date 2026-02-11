@@ -99,6 +99,23 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		}
 	}
 
+	// Build effective capabilities: auto-inject "spawn" for tribune/centurion tiers
+	// so they always have access to task delegation tools.
+	effectiveCaps := make([]string, len(task.Spec.Capabilities))
+	copy(effectiveCaps, task.Spec.Capabilities)
+	if isAgenticTier(task.Spec.Tier) {
+		hasSpawn := false
+		for _, c := range effectiveCaps {
+			if c == "spawn" {
+				hasSpawn = true
+				break
+			}
+		}
+		if !hasSpawn {
+			effectiveCaps = append(effectiveCaps, "spawn")
+		}
+	}
+
 	env := []corev1.EnvVar{
 		{Name: "HORTATOR_PROMPT", Value: task.Spec.Prompt},
 		{Name: "HORTATOR_TASK_NAME", Value: task.Name},
@@ -107,10 +124,10 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		{Name: "HORTATOR_ROLE", Value: task.Spec.Role},
 	}
 
-	if len(task.Spec.Capabilities) > 0 {
+	if len(effectiveCaps) > 0 {
 		env = append(env, corev1.EnvVar{
 			Name:  "HORTATOR_CAPABILITIES",
-			Value: strings.Join(task.Spec.Capabilities, ","),
+			Value: strings.Join(effectiveCaps, ","),
 		})
 	}
 
@@ -252,16 +269,24 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		})
 	}
 
+	// Build capability labels for NetworkPolicy matching
+	podLabels := map[string]string{
+		"app.kubernetes.io/name":       "hortator-agent",
+		"app.kubernetes.io/instance":   task.Name,
+		"app.kubernetes.io/managed-by": "hortator-operator",
+		"hortator.ai/task":             task.Name,
+		"hortator.ai/managed":          "true",
+		"hortator.ai/tier":             task.Spec.Tier,
+	}
+	for _, cap := range effectiveCaps {
+		podLabels[fmt.Sprintf("hortator.ai/cap-%s", cap)] = "true"
+	}
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-agent", task.Name),
 			Namespace: task.Namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/name":       "hortator-agent",
-				"app.kubernetes.io/instance":   task.Name,
-				"app.kubernetes.io/managed-by": "hortator-operator",
-				"hortator.ai/task":             task.Name,
-			},
+			Labels:    podLabels,
 		},
 		Spec: corev1.PodSpec{
 			RestartPolicy:      corev1.RestartPolicyNever,

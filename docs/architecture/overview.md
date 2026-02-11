@@ -217,6 +217,20 @@ stateDiagram-v2
     Archived --> Deleted: PVC freed, data in cold storage
 ```
 
+## Pod Labels & NetworkPolicy
+
+Agent pods are labeled for NetworkPolicy matching:
+
+| Label | Purpose |
+|-------|---------|
+| `hortator.ai/managed: "true"` | Identifies all Hortator-managed pods for default deny policies |
+| `hortator.ai/tier: <tier>` | Tribune, centurion, or legionary |
+| `hortator.ai/cap-spawn: "true"` | Enables K8s API egress (for `hortator spawn` CLI) |
+| `hortator.ai/cap-web-fetch: "true"` | Enables HTTP/HTTPS egress |
+| `hortator.ai/task: <name>` | Links pod to its AgentTask CR |
+
+Tribune and centurion tiers automatically receive the `spawn` capability (and its label) even if not specified in the AgentTask spec. This ensures they always have access to task delegation tools.
+
 ## Operator Components
 
 The operator is split into focused files under `internal/controller/`:

@@ -38,10 +38,21 @@ For the full prioritized backlog, see [backlog.md](https://github.com/michael-ni
 - **TUI improvements** — Namespace text input (`n` key), describe view (`D` key showing prompt + output), status summary panel (`S` key with phase/tier counts and cost totals).
 - **Local quickstart script** — `hack/quickstart.sh` creates a Kind cluster, builds images, installs via Helm, and runs a demo task.
 
+## Recently Completed (2026-02-11 evening)
+
+- **BUG-018 fix: Tribune multi-tier orchestration** — Five root causes identified and fixed:
+  - CI now builds and pushes `agent-agentic` image in release, build, and E2E jobs.
+  - Pod builder sets `hortator.ai/managed: "true"` and per-capability labels (`hortator.ai/cap-spawn`, etc.) on all agent pods for correct NetworkPolicy matching.
+  - Agentic runtime no longer sets `LITELLM_API_BASE` for known providers (Anthropic, OpenAI) — fixes broken litellm routing.
+  - Tribune/centurion tiers auto-inject `spawn` into effective capabilities even if omitted from the AgentTask spec.
+  - Quickstart script builds all three images and uses correct Helm values paths.
+- **BUG-015 fix: Presidio reachability** — Increased default Presidio wait timeout from 30s to 60s in both runtimes. Made configurable via `PRESIDIO_WAIT_SECONDS` env var.
+
 ## Next Up
 
 - CRD regeneration (run `controller-gen` to pick up AgentRole health field)
 - Full end-to-end validation of Tribune orchestration flow (agentic image build, multi-agent delegation, reincarnation with `checkpoint_and_wait`)
+- Address remaining code review medium issues (see `REMAINING-WORK.md`)
 
 ## Future
 
@@ -51,3 +62,7 @@ For the full prioritized backlog, see [backlog.md](https://github.com/michael-ni
 - OIDC/SSO (Enterprise)
 - Web dashboard
 - Go SDK
+- Gateway Level 1: session continuity with PVC reuse
+- RAG integration (vector store access capability)
+- Validation webhook for CRDs
+- Gateway rate limiting
