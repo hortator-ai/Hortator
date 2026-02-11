@@ -7,7 +7,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 ## 🐛 Bug Fixes
 
 - [ ] **P1** AgentTask CR garbage collection — completed/failed CRs accumulate indefinitely. Operator should delete old CRs based on configurable TTL (separate from PVC cleanup which already exists). Helm config: `agent.cleanup.ttl.completed: 24h`, `agent.cleanup.ttl.failed: 48h`. Reconcile loop checks `status.completedAt` age. Respect `hortator.io/retain` annotation to skip GC.
-- [ ] **P0** Runtime lacks agentic loop — tribunes cannot actually spawn legionaries. `entrypoint.sh` makes a single LLM call and writes the response. For real multi-tier orchestration, the runtime needs: (1) tool-calling LLM integration, (2) parse tool calls from response, (3) execute `hortator spawn` + wait for results, (4) feed results back to LLM for consolidation. Without this, the entire tribune→centurion→legionary hierarchy is manual-only. (2026-02-11 E2E finding)
+- [ ] **P0** Runtime lacks agentic loop — tribunes cannot actually spawn legionaries. `entrypoint.sh` makes a single LLM call and writes the response. For real multi-tier orchestration, the runtime needs: (1) tool-calling LLM integration, (2) parse tool calls from response, (3) execute `hortator spawn` + wait for results, (4) feed results back to LLM for consolidation. Without this, the entire tribune→centurion→legionary hierarchy is manual-only. (2026-02-11 E2E finding). **Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md)**
 - [x] **P0** Convert Presidio from sidecar to centralized Deployment+Service ✅ 2026-02-10 — Sidecar exit code 137 (SIGKILL on pod completion) shows "Init: Error" in pod status. Deploy Presidio as a shared service in hortator-system namespace, remove sidecar injection from operator, add Presidio Deployment/Service as Helm subchart. Toggle on/off via `presidio.enabled`. (2026-02-10)
 
 ---
@@ -45,6 +45,10 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
   - [ ] `D` describe selected task (show prompt, full spec)
   - [ ] View task result/output when completed
   - [ ] `S` status summary (needs design)
+- [ ] **P0** Python agentic runtime — New runtime at `runtime/agentic/` for Tribune and Centurion tiers. Tool-calling loop (litellm), checkpoint/restore to `/memory/state.json`, budget-aware context management. Legionaries keep the bash single-shot runtime. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md)
+- [ ] **P0** Reincarnation model (event-driven Tribune lifecycle) — Tribune spawns children, checkpoints state, exits with new `Waiting` phase. Operator detects child completion → injects child results into parent PVC at `/inbox/child-results/` → restarts Tribune pod. No idle pods, resilient to node failure, solves context overflow. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md)
+- [ ] **P1** Child result injection — Extend `notifyParentTask()` to copy child `status.output` into the parent's PVC at `/inbox/child-results/<child-name>.json`. Required by reincarnation model. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md)
+- [ ] **P1** Artifact download endpoint — `GET /api/v1/tasks/{id}/artifacts` on the gateway serves files from completed task PVCs. CLI: `hortator result <task> --artifacts --output-dir ./out/`. SDK: `client.tasks.get_artifacts(task_id)`. Returns 410 Gone if PVC cleaned up. Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md)
 - [ ] **P3** Local quickstart script — Shell script that spins up Kind/k3d cluster + helm installs Hortator + runs demo task. One-liner eval path without existing cluster. Lowest priority.
 
 ---
