@@ -99,11 +99,11 @@ func TestTerminalEventAttrsIncludesTokens(t *testing.T) {
 	attrs := terminalEventAttrs(task)
 
 	want := map[string]interface{}{
-		"hortator.task.duration":       "2m10s",
-		"hortator.task.attempts":       int64(1),
-		"hortator.task.tokens.input":   int64(5000),
-		"hortator.task.tokens.output":  int64(1200),
-		"hortator.task.cost_usd":       "0.03",
+		"hortator.task.duration":      "2m10s",
+		"hortator.task.attempts":      int64(1),
+		"hortator.task.tokens.input":  int64(5000),
+		"hortator.task.tokens.output": int64(1200),
+		"hortator.task.cost_usd":      "0.03",
 	}
 
 	found := make(map[string]bool)
