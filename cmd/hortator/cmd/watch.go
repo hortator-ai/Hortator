@@ -107,10 +107,22 @@ type taskItem struct {
 	prefix string
 }
 
+// --- Roman Helmet ASCII Art ---
+
+const romanHelmet = `    ┌═══════┐
+   ╱ ▄▄▄▄▄▄▄ ╲
+  ║ ██░░░░░██ ║
+  ║ ██░░░░░██ ║
+   ╲ ▀▀▀▀▀▀▀ ╱
+    └───▄───┘
+      ║███║
+      ╚═══╝`
+
 // --- Styles ---
 
 var (
-	styleHeader = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+	styleTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).MarginLeft(1)
+	styleSubtle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	styleFooter = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
 	styleRunning   = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))  // yellow
@@ -123,10 +135,16 @@ var (
 	styleCenturion = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))   // blue
 	styleLegionary = lipgloss.NewStyle().Faint(true)
 
-	styleSelected = lipgloss.NewStyle().Reverse(true)
+	styleSelected = lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("15"))
 	styleLabel    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	styleCostOk   = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
 	styleCostHigh = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+
+	styleBorder = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("99"))
+
+	styleHelmet = lipgloss.NewStyle().Foreground(lipgloss.Color("208")).MarginRight(2)
 )
 
 // --- Tea interface ---
@@ -196,71 +214,144 @@ func (m model) View() string {
 		return "Loading..."
 	}
 
-	var b strings.Builder
+	contentWidth := m.width - 2
+	if contentWidth < 40 {
+		contentWidth = 40
+	}
 
-	// Header
+	var sections []string
+
+	// --- Header ---
 	nsLabel := m.namespace
 	if m.allNS {
 		nsLabel = "all"
 	}
-	header := styleHeader.Render(fmt.Sprintf("╭─ Hortator Watch ─── namespace: %s ─╮", nsLabel))
-	b.WriteString(header + "\n\n")
+	helmet := styleHelmet.Render(romanHelmet)
+	titleBlock := lipgloss.JoinVertical(lipgloss.Left,
+		"",
+		styleTitle.Render("HORTATOR WATCH"),
+		"",
+		styleSubtle.Render(fmt.Sprintf("  namespace: %s", nsLabel)),
+		"",
+	)
+	headerContent := lipgloss.JoinHorizontal(lipgloss.Center, helmet, titleBlock)
+	headerBox := styleBorder.Copy().Width(contentWidth).Render(headerContent)
+	sections = append(sections, headerBox)
 
-	// Error
+	// --- Error ---
 	if m.lastErr != nil {
-		b.WriteString(fmt.Sprintf("  Error: %v\n\n", m.lastErr))
+		errBox := styleBorder.Copy().
+			Width(contentWidth).
+			BorderForeground(lipgloss.Color("9")).
+			Render(fmt.Sprintf("  Error: %v", m.lastErr))
+		sections = append(sections, errBox)
 	}
 
-	// Tasks
-	if len(m.tasks) == 0 {
-		b.WriteString("  No tasks found.\n")
-	}
-	maxVisible := m.height - 10
+	// --- Tasks ---
+	maxVisible := m.height - 16
 	if m.showDetail {
-		maxVisible -= 7
+		maxVisible -= 8
 	}
 	if m.showLogs {
-		maxVisible -= 6
+		maxVisible -= 8
 	}
 	if maxVisible < 3 {
 		maxVisible = 3
 	}
 
-	for i, item := range m.tasks {
-		if i >= maxVisible {
-			b.WriteString(fmt.Sprintf("  ... and %d more\n", len(m.tasks)-i))
-			break
+	var taskLines []string
+	if len(m.tasks) == 0 {
+		taskLines = append(taskLines, "  No tasks found.")
+	} else {
+		for i, item := range m.tasks {
+			if i >= maxVisible {
+				taskLines = append(taskLines, fmt.Sprintf("  ... and %d more", len(m.tasks)-i))
+				break
+			}
+			line := renderTaskLine(item, contentWidth-4)
+			if i == m.cursor {
+				line = styleSelected.Render(line)
+			}
+			taskLines = append(taskLines, line)
 		}
-		line := renderTaskLine(item)
-		if i == m.cursor {
-			line = styleSelected.Render(line)
-		}
-		b.WriteString(line + "\n")
 	}
 
-	// Details
+	taskContent := strings.Join(taskLines, "\n")
+	taskBox := styleBorder.Copy().Width(contentWidth).Render(taskContent)
+	// Inject "Tasks" and hint into top border
+	taskBox = injectBorderTitle(taskBox, " Tasks ", " ↑↓ navigate ")
+	sections = append(sections, taskBox)
+
+	// --- Details ---
 	if m.showDetail && m.cursor < len(m.tasks) {
-		b.WriteString("\n")
-		b.WriteString(renderDetails(m.tasks[m.cursor]))
+		detailContent := renderDetails(m.tasks[m.cursor], contentWidth-4)
+		detailBox := styleBorder.Copy().Width(contentWidth).Render(detailContent)
+		detailBox = injectBorderTitle(detailBox, " Details ", "")
+		sections = append(sections, detailBox)
 	}
 
-	// Logs
+	// --- Logs ---
 	if m.showLogs {
-		b.WriteString("\n  " + styleLabel.Render("── Logs (tail) ──") + "\n")
+		var logContent string
 		if len(m.logLines) == 0 {
-			b.WriteString("  (no logs)\n")
+			logContent = "  (no logs)"
+		} else {
+			var lines []string
+			for _, l := range m.logLines {
+				lines = append(lines, "  "+l)
+			}
+			logContent = strings.Join(lines, "\n")
 		}
-		for _, l := range m.logLines {
-			b.WriteString("  " + l + "\n")
-		}
+		logBox := styleBorder.Copy().Width(contentWidth).Render(logContent)
+		logBox = injectBorderTitle(logBox, " Logs (tail) ", "")
+		sections = append(sections, logBox)
 	}
 
-	// Footer
-	b.WriteString("\n")
-	b.WriteString(styleFooter.Render("  q quit │ ↑↓ select │ Enter details │ l logs │ r refresh"))
-	b.WriteString("\n")
+	// --- Footer ---
+	footer := styleFooter.Render(fmt.Sprintf("  q quit │ ↑↓ select │ Enter details │ l logs │ r refresh ─── %s", m.refreshInt))
+	sections = append(sections, footer)
 
-	return b.String()
+	return lipgloss.JoinVertical(lipgloss.Left, sections...) + "\n"
+}
+
+// injectBorderTitle replaces part of the top border line with a title and optional right-side hint.
+func injectBorderTitle(box string, title string, hint string) string {
+	lines := strings.Split(box, "\n")
+	if len(lines) == 0 {
+		return box
+	}
+	top := []rune(lines[0])
+	titleRunes := []rune(styleTitle.Render(title))
+
+	// Insert title after first 2 border chars
+	if len(top) > 3 {
+		result := string(top[:2]) + string(titleRunes)
+		remaining := len(top) - 2 - lipgloss.Width(string(titleRunes))
+		if hint != "" && remaining > len(hint)+2 {
+			hintRendered := styleSubtle.Render(hint)
+			hintWidth := lipgloss.Width(hintRendered)
+			padding := remaining - hintWidth
+			if padding > 0 {
+				for i := 0; i < padding; i++ {
+					result += "─"
+				}
+				result += hintRendered
+			} else {
+				for i := 0; i < remaining; i++ {
+					result += "─"
+				}
+			}
+		} else {
+			if remaining > 0 {
+				for i := 0; i < remaining; i++ {
+					result += "─"
+				}
+			}
+		}
+		result += string(top[len(top)-1:])
+		lines[0] = result
+	}
+	return strings.Join(lines, "\n")
 }
 
 // --- Rendering helpers ---
@@ -314,12 +405,12 @@ func phaseStyle(phase corev1alpha1.AgentTaskPhase) lipgloss.Style {
 	}
 }
 
-func renderTaskLine(item taskItem) string {
+func renderTaskLine(item taskItem, _ int) string {
 	t := item.task
 	icon := phaseIcon(t.Status.Phase)
-	name := t.Name
-	tier := tierStyle(t.Spec.Tier).Render(capitalize(t.Spec.Tier))
-	phase := phaseStyle(t.Status.Phase).Render(string(t.Status.Phase))
+	name := truncate(t.Name, 24)
+	tier := tierStyle(t.Spec.Tier).Render(fmt.Sprintf("%-10s", capitalize(t.Spec.Tier)))
+	phase := phaseStyle(t.Status.Phase).Render(fmt.Sprintf("%-12s", string(t.Status.Phase)))
 	dur := t.Status.Duration
 	if dur == "" {
 		dur = elapsed(t)
@@ -334,7 +425,7 @@ func renderTaskLine(item taskItem) string {
 	indent := strings.Repeat("  ", item.depth)
 	prefix := item.prefix
 
-	return fmt.Sprintf("  %s%s%s %-20s %-10s %-12s %-7s %s", indent, prefix, icon, name, tier, phase, dur, cost)
+	return fmt.Sprintf("  %s%s%s %-24s %s %s %-8s %6s", indent, prefix, icon, name, tier, phase, dur, cost)
 }
 
 func elapsed(t corev1alpha1.AgentTask) string {
@@ -351,10 +442,9 @@ func elapsed(t corev1alpha1.AgentTask) string {
 	return fmt.Sprintf("%dm%02ds", m, s)
 }
 
-func renderDetails(item taskItem) string {
+func renderDetails(item taskItem, _ int) string {
 	t := item.task
 	var b strings.Builder
-	b.WriteString("  " + styleLabel.Render("── Details ──") + "\n")
 	b.WriteString(fmt.Sprintf("  Name: %s\n", t.Name))
 
 	maxAttempts := 1
