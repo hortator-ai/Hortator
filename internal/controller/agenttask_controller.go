@@ -141,6 +141,8 @@ type AgentTaskReconciler struct {
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create
 
 // Reconcile is the main reconciliation loop for AgentTask resources
 func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -465,6 +467,12 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 		}
+	}
+
+	// Ensure worker ServiceAccount + RBAC exist in the task's namespace
+	if err := r.ensureWorkerRBAC(ctx, task.Namespace); err != nil {
+		logger.Error(err, "Failed to ensure worker RBAC")
+		return ctrl.Result{}, err
 	}
 
 	// Create PVC

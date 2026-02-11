@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -503,6 +504,77 @@ func TestBuildResourcesPartialSpec(t *testing.T) {
 	if res.Limits != nil {
 		t.Errorf("Limits should be nil for partial spec, got %v", res.Limits)
 	}
+}
+
+func TestEnsureWorkerRBAC(t *testing.T) {
+	ctx := context.Background()
+	scheme := newTestScheme()
+
+	t.Run("creates SA, Role, and RoleBinding in namespace", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		if err := r.ensureWorkerRBAC(ctx, "test-ns"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Verify ServiceAccount
+		sa := &corev1.ServiceAccount{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "hortator-worker"}, sa); err != nil {
+			t.Fatalf("ServiceAccount not found: %v", err)
+		}
+		if sa.Labels["app.kubernetes.io/managed-by"] != "hortator-operator" {
+			t.Errorf("SA label = %q, want hortator-operator", sa.Labels["app.kubernetes.io/managed-by"])
+		}
+
+		// Verify Role
+		role := &rbacv1.Role{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "hortator-worker"}, role); err != nil {
+			t.Fatalf("Role not found: %v", err)
+		}
+		if len(role.Rules) != 2 {
+			t.Errorf("expected 2 rules, got %d", len(role.Rules))
+		}
+
+		// Verify RoleBinding
+		rb := &rbacv1.RoleBinding{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "hortator-worker"}, rb); err != nil {
+			t.Fatalf("RoleBinding not found: %v", err)
+		}
+		if rb.RoleRef.Name != "hortator-worker" {
+			t.Errorf("RoleRef.Name = %q, want hortator-worker", rb.RoleRef.Name)
+		}
+		if len(rb.Subjects) != 1 || rb.Subjects[0].Name != "hortator-worker" {
+			t.Errorf("unexpected subjects: %v", rb.Subjects)
+		}
+	})
+
+	t.Run("idempotent — no error on second call", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		if err := r.ensureWorkerRBAC(ctx, "idempotent-ns"); err != nil {
+			t.Fatalf("first call: %v", err)
+		}
+		if err := r.ensureWorkerRBAC(ctx, "idempotent-ns"); err != nil {
+			t.Fatalf("second call: %v", err)
+		}
+	})
+
+	t.Run("skips creation when resources already exist", func(t *testing.T) {
+		existingSA := &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{Name: "hortator-worker", Namespace: "existing-ns"},
+		}
+		existingRole := &rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{Name: "hortator-worker", Namespace: "existing-ns"},
+			Rules:      []rbacv1.PolicyRule{{APIGroups: []string{"core.hortator.ai"}, Resources: []string{"agenttasks"}, Verbs: []string{"get"}}},
+		}
+		existingRB := &rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{Name: "hortator-worker", Namespace: "existing-ns"},
+			RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "Role", Name: "hortator-worker"},
+			Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "hortator-worker", Namespace: "existing-ns"}},
+		}
+		r := defaultReconciler(scheme, existingSA, existingRole, existingRB)
+		if err := r.ensureWorkerRBAC(ctx, "existing-ns"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 // helpers
