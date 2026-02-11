@@ -89,11 +89,11 @@ type StuckDetectionConfig struct {
 
 // StorageRetainedConfig holds retained PVC discovery settings.
 type StorageRetainedConfig struct {
-	Discovery             string // none | tags | semantic
-	AutoMount             bool
-	MountMode             string // readOnly
-	StaleAfterDays        int
-	MaxRetainedPerNS      int
+	Discovery        string // none | tags | semantic
+	AutoMount        bool
+	MountMode        string // readOnly
+	StaleAfterDays   int
+	MaxRetainedPerNS int
 }
 
 // CleanupTTLConfig holds CR garbage-collection TTLs.

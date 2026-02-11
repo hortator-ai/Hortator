@@ -19,12 +19,12 @@ import (
 
 // RetainedPVC represents a retained PVC that may be relevant to a new task.
 type RetainedPVC struct {
-	Name         string
-	TaskName     string   // original task name (from annotation)
-	Tags         []string // from hortator.ai/retain-tags
-	Reason       string   // from hortator.ai/retain-reason
-	CompletedAt  string   // from hortator.ai/completed-at
-	TagOverlap   int      // number of matching tags
+	Name        string
+	TaskName    string   // original task name (from annotation)
+	Tags        []string // from hortator.ai/retain-tags
+	Reason      string   // from hortator.ai/retain-reason
+	CompletedAt string   // from hortator.ai/completed-at
+	TagOverlap  int      // number of matching tags
 }
 
 // discoverRetainedPVCs finds retained PVCs in the namespace that match the

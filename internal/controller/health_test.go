@@ -323,13 +323,13 @@ func TestStuckScore_PromptRepetition(t *testing.T) {
 
 func TestStuckScore_Aggregate(t *testing.T) {
 	tests := []struct {
-		name           string
-		diversity      float64
-		repeats        int
-		staleMins      float64
-		cfg            StuckDetectionConfig
-		wantStuck      bool
-		wantMinScore   float64
+		name         string
+		diversity    float64
+		repeats      int
+		staleMins    float64
+		cfg          StuckDetectionConfig
+		wantStuck    bool
+		wantMinScore float64
 	}{
 		{
 			name:      "healthy agent",
