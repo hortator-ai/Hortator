@@ -214,8 +214,8 @@ examples/
 
 ## 🏢 EPIC: Multi-tenancy
 
-- [ ] **P2** Define namespace isolation model (ResourceQuotas, NetworkPolicies, RBAC per tenant)
-- [ ] **P2** Support one cluster = many AI companies, or dedicated clusters
+- [x] **P2** Define namespace isolation model (ResourceQuotas, NetworkPolicies, RBAC per tenant) ✅ 2026-02-11
+- [x] **P2** Support one cluster = many AI companies, or dedicated clusters ✅ 2026-02-11 (both patterns documented in docs/architecture/multi-tenancy.md)
 - [ ] **P2** (Enterprise) Cross-namespace task spawning with policy controls
 
 ---

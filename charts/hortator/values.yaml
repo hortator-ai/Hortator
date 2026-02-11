@@ -393,3 +393,29 @@ gateway:
 enterprise:
   enabled: false
   image: ghcr.io/hortator-ai/operator:enterprise
+
+# ── Tenant / Multi-tenancy ──────────────────────────────────────────────────
+# Per-namespace resource controls. Apply per tenant namespace.
+# Usage: helm install hortator-tenant-acme hortator/hortator -n acme-ai --set tenant.enabled=true
+
+tenant:
+  enabled: false  # Set to true when installing into a tenant namespace
+
+  resourceQuota:
+    enabled: false
+    cpu: "8"
+    memory: "16Gi"
+    limitsCpu: "16"
+    limitsMemory: "32Gi"
+    pvcs: "50"
+    pods: "20"
+    maxTasks: "100"
+
+  limitRange:
+    enabled: false
+    defaultCpu: "500m"
+    defaultMemory: "512Mi"
+    defaultRequestCpu: "100m"
+    defaultRequestMemory: "128Mi"
+    maxCpu: "4"
+    maxMemory: "8Gi"
