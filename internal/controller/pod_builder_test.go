@@ -283,8 +283,8 @@ func TestBuildPod(t *testing.T) {
 		for _, v := range pod.Spec.Volumes {
 			volNames[v.Name] = true
 		}
-		if !volNames["inbox"] {
-			t.Error("missing inbox volume")
+		if !volNames["inbox-ephemeral"] {
+			t.Error("missing inbox-ephemeral volume")
 		}
 		if !volNames["storage"] {
 			t.Error("missing storage volume")

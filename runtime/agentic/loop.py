@@ -6,6 +6,7 @@ Repeats until the LLM returns a final answer (end_turn) or the agent
 decides to checkpoint and wait for children.
 """
 
+import hashlib
 import json
 import time
 from dataclasses import dataclass, field
@@ -87,6 +88,16 @@ def agentic_loop(
                 tokens_in=total_in,
                 tokens_out=total_out,
             )
+
+        # Log prompt hash for stuck detection (operator parses this)
+        last_user = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+                last_user = msg["content"]
+                break
+        if last_user:
+            prompt_hash = hashlib.sha256(last_user.encode()).hexdigest()[:16]
+            print(f"[hortator-agentic] Prompt hash: {prompt_hash}")
 
         # Call LLM
         try:

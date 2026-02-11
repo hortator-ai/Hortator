@@ -6,7 +6,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 
 ## 🐛 Bug Fixes
 
-- [ ] **P1** AgentTask CR garbage collection — completed/failed CRs accumulate indefinitely. Operator should delete old CRs based on configurable TTL (separate from PVC cleanup which already exists). Helm config: `agent.cleanup.ttl.completed: 24h`, `agent.cleanup.ttl.failed: 48h`. Reconcile loop checks `status.completedAt` age. Respect `hortator.io/retain` annotation to skip GC.
+- [x] **P1** AgentTask CR garbage collection — completed/failed CRs accumulate indefinitely. Operator now deletes old CRs and PVCs based on configurable TTL per-phase (completed/failed/cancelled). Respects `hortator.ai/retain` annotation. ✅ 2026-02-11
 - [x] **P0** Runtime lacks agentic loop — tribunes cannot actually spawn legionaries. `entrypoint.sh` makes a single LLM call and writes the response. For real multi-tier orchestration, the runtime needs: (1) tool-calling LLM integration, (2) parse tool calls from response, (3) execute `hortator spawn` + wait for results, (4) feed results back to LLM for consolidation. Without this, the entire tribune→centurion→legionary hierarchy is manual-only. (2026-02-11 E2E finding). **Design doc: [docs/design-agentic-loop.md](docs/design-agentic-loop.md)** ✅ 2026-02-11
 - [x] **P0** Convert Presidio from sidecar to centralized Deployment+Service ✅ 2026-02-10 — Sidecar exit code 137 (SIGKILL on pod completion) shows "Init: Error" in pod status. Deploy Presidio as a shared service in hortator-system namespace, remove sidecar injection from operator, add Presidio Deployment/Service as Helm subchart. Toggle on/off via `presidio.enabled`. (2026-02-10)
 

@@ -216,3 +216,20 @@ stateDiagram-v2
     VectorDB --> Deleted: PVC freed, knowledge searchable
     Archived --> Deleted: PVC freed, data in cold storage
 ```
+
+## Operator Components
+
+The operator is split into focused files under `internal/controller/`:
+
+| File | Purpose |
+|------|---------|
+| `agenttask_controller.go` | Main reconciliation loop, phase machine, struct definitions |
+| `pod_builder.go` | Pod spec construction, PVC creation, volume mounts, knowledge discovery integration |
+| `helpers.go` | Config loading, PVC reader, token extraction, parent notification, child result injection |
+| `metrics.go` | Prometheus metrics (tasks, duration, cost, stuck detection) and OTel event emission |
+| `budget.go` | LiteLLM price map loader, cost calculation, budget enforcement |
+| `health.go` | Stuck detection signal analysis (tool diversity, prompt repetition, staleness), action execution |
+| `knowledge.go` | Retained PVC discovery, tag matching, context.json generation |
+| `policy.go` | AgentPolicy enforcement |
+| `warm_pool.go` | Warm Pod pool management |
+| `result_cache.go` | Content-addressable result cache |

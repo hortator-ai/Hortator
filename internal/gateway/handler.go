@@ -175,9 +175,12 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	// Resolve model config from AgentRole (if it exists)
 	modelCfg := h.resolveModelConfig(r.Context(), role)
 
+	// Extract files from content part arrays
+	files := extractFiles(req.Messages)
+
 	// Create AgentTask
 	taskName := fmt.Sprintf("gw-%s-%d", sanitizeName(role), time.Now().UnixMilli())
-	task := buildAgentTask(taskName, h.Namespace, role, tier, prompt, &req, modelCfg)
+	task := buildAgentTask(taskName, h.Namespace, role, tier, prompt, &req, modelCfg, files)
 
 	log.Info("audit: chat.completions", "role", role, "tier", tier, "stream", req.Stream, "task", taskName)
 
@@ -233,7 +236,7 @@ func (h *Handler) blockingResponse(ctx context.Context, w http.ResponseWriter, t
 		Model:   model,
 		Choices: []Choice{{
 			Index:        0,
-			Message:      &Message{Role: "assistant", Content: state.Output},
+			Message:      &Message{Role: "assistant", Content: MessageContent{Text: state.Output}},
 			FinishReason: &finishReason,
 		}},
 		Usage: &Usage{
@@ -398,7 +401,7 @@ func (h *Handler) sendStreamChunk(w http.ResponseWriter, flusher http.Flusher, i
 		Model:   model,
 		Choices: []StreamChoice{{
 			Index: 0,
-			Delta: Message{Role: "assistant", Content: content},
+			Delta: Message{Role: "assistant", Content: MessageContent{Text: content}},
 		}},
 	}
 	data, _ := json.Marshal(chunk)
