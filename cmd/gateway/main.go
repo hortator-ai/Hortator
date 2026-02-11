@@ -116,6 +116,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/chat/completions", gw.ChatCompletions)
 	mux.HandleFunc("/v1/models", gw.ListModels)
+	mux.HandleFunc("/api/v1/tasks/", gw.TaskArtifacts)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, "ok")

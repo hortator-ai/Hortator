@@ -228,7 +228,7 @@ spec:
 - `image` — custom container image (defaults to Hortator runtime from Helm values)
 - `parentTaskId` — establishes hierarchy; children inherit and cannot escalate beyond parent capabilities
 
-**Status phases:** `Pending` → `Running` → `Completed` | `Failed` | `BudgetExceeded` | `TimedOut` | `Cancelled`
+**Status phases:** `Pending` → `Running` → `Waiting` → `Completed` | `Failed` | `BudgetExceeded` | `TimedOut` | `Cancelled`
 
 ### AgentRole / ClusterAgentRole
 
@@ -372,6 +372,10 @@ See [full FAQ](docs/faq.md) for more.
 - TypeScript SDK (`@hortator/sdk` — zero deps, streaming, LangChain.js integration)
 
 ### Next
+- Python agentic runtime for tribune/centurion tiers (tool-calling loop, checkpoint/restore)
+- Reincarnation model (event-driven Tribune lifecycle with `Waiting` phase)
+- Artifact download endpoint (`GET /api/v1/tasks/{id}/artifacts`)
+- Async task submission (`X-Hortator-Async` header)
 - Budget enforcement with LiteLLM integration
 - Stuck detection + auto-escalation
 - Retained PVC knowledge discovery (tag matching → vector graduation)

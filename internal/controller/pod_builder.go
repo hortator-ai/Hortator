@@ -83,17 +83,28 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 	return r.Create(ctx, pvc)
 }
 
+// isAgenticTier returns true if the tier uses the Python agentic runtime.
+func isAgenticTier(tier string) bool {
+	return tier == "tribune" || tier == "centurion"
+}
+
 // buildPod creates a pod spec for the agent task.
 func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Pod, error) {
 	image := task.Spec.Image
 	if image == "" {
-		image = r.defaults.DefaultImage
+		if isAgenticTier(task.Spec.Tier) {
+			image = r.defaults.AgenticImage
+		} else {
+			image = r.defaults.DefaultImage
+		}
 	}
 
 	env := []corev1.EnvVar{
 		{Name: "HORTATOR_PROMPT", Value: task.Spec.Prompt},
 		{Name: "HORTATOR_TASK_NAME", Value: task.Name},
 		{Name: "HORTATOR_TASK_NAMESPACE", Value: task.Namespace},
+		{Name: "HORTATOR_TIER", Value: task.Spec.Tier},
+		{Name: "HORTATOR_ROLE", Value: task.Spec.Role},
 	}
 
 	if len(task.Spec.Capabilities) > 0 {
@@ -169,17 +180,25 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		return nil, fmt.Errorf("failed to marshal task spec: %w", err)
 	}
 
+	// Select the correct volume for the init container's /inbox mount
+	inboxVolumeName := "inbox-ephemeral"
+	if isAgenticTier(task.Spec.Tier) {
+		inboxVolumeName = "storage"
+	}
+	inboxMount := corev1.VolumeMount{Name: inboxVolumeName, MountPath: "/inbox"}
+	if isAgenticTier(task.Spec.Tier) {
+		inboxMount.SubPath = "inbox"
+	}
+
 	initContainers := []corev1.Container{
 		{
 			Name:    "write-task-json",
 			Image:   "busybox:1.37.0",
-			Command: []string{"sh", "-c", `printf '%s' "$TASK_JSON" > /inbox/task.json`},
+			Command: []string{"sh", "-c", `mkdir -p /inbox && printf '%s' "$TASK_JSON" > /inbox/task.json`},
 			Env: []corev1.EnvVar{
 				{Name: "TASK_JSON", Value: string(taskSpecJSON)},
 			},
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: "inbox", MountPath: "/inbox"},
-			},
+			VolumeMounts: []corev1.VolumeMount{inboxMount},
 		},
 	}
 
@@ -224,20 +243,35 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 }
 
 // buildVolumes returns volumes and volume mounts for the agent pod.
+// Agentic tiers (tribune/centurion) mount /inbox from PVC so child results
+// persist across reincarnations. Legionaries use EmptyDir for /inbox.
 func (r *AgentTaskReconciler) buildVolumes(task *corev1alpha1.AgentTask) ([]corev1.Volume, []corev1.VolumeMount) {
 	pvcName := fmt.Sprintf("%s-storage", task.Name)
 
 	volumes := []corev1.Volume{
-		{Name: "inbox", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		{Name: "inbox-ephemeral", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		{Name: "storage", VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
 		}},
 	}
+
 	mounts := []corev1.VolumeMount{
-		{Name: "inbox", MountPath: "/inbox"},
 		{Name: "storage", MountPath: "/outbox", SubPath: "outbox"},
 		{Name: "storage", MountPath: "/workspace", SubPath: "workspace"},
 		{Name: "storage", MountPath: "/memory", SubPath: "memory"},
+	}
+
+	if isAgenticTier(task.Spec.Tier) {
+		// Agentic tiers: /inbox on PVC so child-results/ survives reincarnation.
+		// The init container writes task.json here too (via PVC subpath).
+		mounts = append(mounts, corev1.VolumeMount{
+			Name: "storage", MountPath: "/inbox", SubPath: "inbox",
+		})
+	} else {
+		// Legionaries: ephemeral /inbox is fine — single run, no reincarnation.
+		mounts = append(mounts, corev1.VolumeMount{
+			Name: "inbox-ephemeral", MountPath: "/inbox",
+		})
 	}
 
 	return volumes, mounts
