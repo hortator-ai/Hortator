@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
-
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
+
+	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 )
 
 func TestRecorderCalledOnTaskCompletion(t *testing.T) {
