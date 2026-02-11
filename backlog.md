@@ -37,7 +37,7 @@ Personas: **Platform Engineer** (sets up Hortator), **AI Developer** (builds age
 - [x] **P1** Warm Pod pool — One-shot consumption, exec-based task injection, generic pool with background replenishment. Design doc: docs/architecture/warm-pool.md ✅ 2026-02-10
 - [x] **P1** Native SDK wrappers (Python, TypeScript) — Python (`hortator` package, httpx+pydantic, LangChain+CrewAI) and TypeScript (`@hortator/sdk`, zero deps, LangChain.js). 30 tests total. ✅ 2026-02-10
 - [x] **P1** Result cache with dedup — Content-addressable SHA-256(prompt+role) cache. In-memory LRU with TTL. Operator checks before spawning. Opt-out via annotation. 8 tests. ✅ 2026-02-10
-- [ ] **P2** `hortator watch` TUI — Terminal UI showing live task tree, per-agent status, logs, cumulative cost. No web dashboard needed (let 3rd party build if it takes off). Great for demos and debugging.
+- [x] **P2** `hortator watch` TUI — Terminal UI showing live task tree, per-agent status, logs, cumulative cost. No web dashboard needed (let 3rd party build if it takes off). Great for demos and debugging. ✅ 2026-02-11
 - [ ] **P3** Local quickstart script — Shell script that spins up Kind/k3d cluster + helm installs Hortator + runs demo task. One-liner eval path without existing cluster. Lowest priority.
 
 ---
