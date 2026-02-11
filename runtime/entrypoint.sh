@@ -85,16 +85,9 @@ export HORTATOR_TIER="$TIER"
 export HORTATOR_BUDGET="$BUDGET"
 export HORTATOR_TASK_NAME="${HORTATOR_TASK_NAME:-$TASK_ID}"
 
-# Pick model based on tier
-MODEL="${HORTATOR_MODEL:-}"
-if [[ -z "$MODEL" ]]; then
-  case "$TIER" in
-    fast)   MODEL="gpt-4o-mini" ;;
-    think)  MODEL="gpt-4o" ;;
-    deep)   MODEL="gpt-4o" ;;
-    *)      MODEL="gpt-4o-mini" ;;
-  esac
-fi
+# Model is injected by the operator from AgentRole config (HORTATOR_MODEL env var).
+# Only fall back to a generic default if unset (e.g. local dev without operator).
+MODEL="${HORTATOR_MODEL:-claude-sonnet-4-20250514}"
 
 [[ -z "$PROMPT" ]] && die "Empty prompt in task.json"
 
@@ -110,20 +103,12 @@ SYSTEM="You are an AI agent working as a ${ROLE}. Complete the task given to you
 # --- Call LLM ---
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
   echo "[hortator-runtime] Using Anthropic API..."
-  # Map model name for Anthropic
-  ANTHROPIC_MODEL="${MODEL}"
-  case "$TIER" in
-    fast)  ANTHROPIC_MODEL="claude-sonnet-4-20250514" ;;
-    think) ANTHROPIC_MODEL="claude-sonnet-4-20250514" ;;
-    deep)  ANTHROPIC_MODEL="claude-opus-4-20250514" ;;
-  esac
-
   RESPONSE=$(curl -sS https://api.anthropic.com/v1/messages \
     -H "x-api-key: ${ANTHROPIC_API_KEY}" \
     -H "anthropic-version: 2023-06-01" \
     -H "content-type: application/json" \
     -d "$(jq -n \
-      --arg model "$ANTHROPIC_MODEL" \
+      --arg model "$MODEL" \
       --arg system "$SYSTEM" \
       --arg prompt "$PROMPT" \
       '{model:$model, max_tokens:4096, system:$system, messages:[{role:"user",content:$prompt}]}')" \
