@@ -71,7 +71,13 @@ operator:
 # AgentTask.spec.image / .spec.resources override these.
 
 agent:
+  # Bash single-shot runtime (legionary tier)
   image: ghcr.io/hortator-ai/agent:latest
+
+  # Python agentic runtime (tribune/centurion tiers)
+  # Tool-calling loop with litellm, checkpoint/restore, multi-step orchestration
+  agenticImage: ghcr.io/hortator-ai/agent-agentic:latest
+
   timeout: 30m
   defaultTimeoutSeconds: 600
 

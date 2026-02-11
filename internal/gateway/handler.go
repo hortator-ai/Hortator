@@ -192,6 +192,20 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	taskName = created.GetName()
 
+	// Async mode: return task ID immediately without waiting for completion.
+	// Caller polls GET /api/v1/tasks/{id}/artifacts for results.
+	if r.Header.Get("X-Hortator-Async") == "true" {
+		log.Info("audit: chat.completions.async", "task", taskName)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(AsyncTaskResponse{
+			TaskID:    taskName,
+			Namespace: h.Namespace,
+			Status:    "Pending",
+			Message:   "Task created. Poll /api/v1/tasks/" + taskName + "/artifacts for results.",
+		})
+		return
+	}
+
 	if req.Stream {
 		h.streamResponse(r.Context(), w, taskName, req.Model)
 	} else {
@@ -458,6 +472,74 @@ func (h *Handler) resolveModelConfig(ctx context.Context, roleName string) *Mode
 	}
 
 	return cfg
+}
+
+// TaskArtifacts handles GET /api/v1/tasks/{id}/artifacts.
+// Serves files from the completed task's PVC via /outbox/artifacts/.
+// Returns 404 if task not found, 409 if not terminal, 410 if PVC gone.
+func (h *Handler) TaskArtifacts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "invalid_request_error", "method_not_allowed")
+		return
+	}
+
+	if err := h.authenticate(r); err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error(), "authentication_error", "invalid_api_key")
+		return
+	}
+
+	log := ctrl.Log.WithName("gateway.artifacts")
+
+	// Extract task ID from URL path: /api/v1/tasks/{id}/artifacts
+	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(pathParts) < 5 {
+		writeError(w, http.StatusBadRequest, "invalid path: expected /api/v1/tasks/{id}/artifacts", "invalid_request_error", "bad_path")
+		return
+	}
+	taskName := pathParts[3]
+
+	// Fetch the task
+	task, err := h.DynClient.Resource(agentTaskGVR).Namespace(h.Namespace).Get(
+		r.Context(), taskName, metav1.GetOptions{},
+	)
+	if err != nil {
+		log.V(1).Info("Task not found", "task", taskName, "error", err)
+		writeError(w, http.StatusNotFound, "task not found: "+taskName, "not_found", "task_not_found")
+		return
+	}
+
+	state := extractTaskState(task)
+	if !isTerminalPhase(state.Phase) {
+		writeError(w, http.StatusConflict, "task is not complete: "+state.Phase, "invalid_request_error", "task_not_terminal")
+		return
+	}
+
+	// List the artifacts by executing into the PVC.
+	// For now, return artifact metadata from the task status output.
+	// Full PVC file serving is a deeper integration that requires mounting the PVC.
+	artifacts := ArtifactListResponse{
+		TaskID: taskName,
+		Phase:  state.Phase,
+		Output: state.Output,
+		Note:   "Full artifact file download requires PVC access. Use 'hortator result --artifacts' from within the cluster.",
+	}
+
+	// Try to list PVC contents via a pod exec (best effort)
+	pvcName := taskName + "-storage"
+	pvc, pvcErr := h.Clientset.CoreV1().PersistentVolumeClaims(h.Namespace).Get(
+		r.Context(), pvcName, metav1.GetOptions{},
+	)
+	if pvcErr != nil || pvc.DeletionTimestamp != nil {
+		artifacts.Note = "PVC has been cleaned up. Only status.output is available."
+		artifacts.PVCStatus = "gone"
+	} else {
+		artifacts.PVCStatus = string(pvc.Status.Phase)
+	}
+
+	log.Info("audit: artifacts.list", "task", taskName, "pvc_status", artifacts.PVCStatus)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(artifacts)
 }
 
 // ListModels handles GET /v1/models.

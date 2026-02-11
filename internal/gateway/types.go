@@ -107,6 +107,23 @@ type ErrorDetail struct {
 	Code    string `json:"code"`
 }
 
+// AsyncTaskResponse is returned when X-Hortator-Async: true is set.
+type AsyncTaskResponse struct {
+	TaskID    string `json:"task_id"`
+	Namespace string `json:"namespace"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+}
+
+// ArtifactListResponse is returned by GET /api/v1/tasks/{id}/artifacts.
+type ArtifactListResponse struct {
+	TaskID    string `json:"task_id"`
+	Phase     string `json:"phase"`
+	Output    string `json:"output"`
+	PVCStatus string `json:"pvc_status"`
+	Note      string `json:"note,omitempty"`
+}
+
 // --- Internal types ---
 
 // taskState tracks the lifecycle of an AgentTask being watched.

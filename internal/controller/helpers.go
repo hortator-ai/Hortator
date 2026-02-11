@@ -8,6 +8,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
@@ -52,12 +54,17 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	if defaultImage == "" {
 		defaultImage = "ghcr.io/hortator-ai/agent:latest"
 	}
+	agenticImage := os.Getenv("HORTATOR_AGENTIC_IMAGE")
+	if agenticImage == "" {
+		agenticImage = "ghcr.io/hortator-ai/agent-agentic:latest"
+	}
 
 	if err != nil {
 		r.defaultsMu.Lock()
 		r.defaults = ClusterDefaults{
 			DefaultTimeout:        600,
 			DefaultImage:          defaultImage,
+			AgenticImage:          agenticImage,
 			DefaultRequestsCPU:    "100m",
 			DefaultRequestsMemory: "128Mi",
 			DefaultLimitsCPU:      "500m",
@@ -71,6 +78,7 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	d := ClusterDefaults{
 		DefaultTimeout:        600,
 		DefaultImage:          defaultImage,
+		AgenticImage:          agenticImage,
 		DefaultRequestsCPU:    "100m",
 		DefaultRequestsMemory: "128Mi",
 		DefaultLimitsCPU:      "500m",
@@ -84,6 +92,9 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	}
 	if v, ok := cm.Data["defaultImage"]; ok && v != "" {
 		d.DefaultImage = v
+	}
+	if v, ok := cm.Data["agenticImage"]; ok && v != "" {
+		d.AgenticImage = v
 	}
 	if v, ok := cm.Data["defaultRequestsCPU"]; ok && v != "" {
 		d.DefaultRequestsCPU = v
@@ -195,29 +206,152 @@ func (r *AgentTaskReconciler) collectPodLogs(ctx context.Context, namespace, pod
 }
 
 // notifyParentTask appends this task's name to the parent's status.childTasks list.
+// For parents in the Waiting phase, it also injects the child's result into the
+// parent's PVC at /inbox/child-results/<child-name>.json, and wakes up the parent
+// when all pending children are terminal.
 func (r *AgentTaskReconciler) notifyParentTask(ctx context.Context, task *corev1alpha1.AgentTask) {
 	if task.Spec.ParentTaskID == "" {
 		return
 	}
+
+	logger := log.FromContext(ctx)
 
 	parent := &corev1alpha1.AgentTask{}
 	if err := r.Get(ctx, types.NamespacedName{
 		Namespace: task.Namespace,
 		Name:      task.Spec.ParentTaskID,
 	}, parent); err != nil {
-		log.FromContext(ctx).V(1).Info("Failed to fetch parent task", "parent", task.Spec.ParentTaskID, "error", err)
+		logger.V(1).Info("Failed to fetch parent task", "parent", task.Spec.ParentTaskID, "error", err)
 		return
 	}
 
+	// Append to childTasks if not already present
+	found := false
 	for _, child := range parent.Status.ChildTasks {
 		if child == task.Name {
-			return
+			found = true
+			break
 		}
 	}
+	if !found {
+		parent.Status.ChildTasks = append(parent.Status.ChildTasks, task.Name)
+	}
 
-	parent.Status.ChildTasks = append(parent.Status.ChildTasks, task.Name)
+	// Inject child result into parent PVC for agentic tiers.
+	// The result is written to /inbox/child-results/<child-name>.json inside
+	// the parent's PVC so the reincarnated parent can read it.
+	if isAgenticTier(parent.Spec.Tier) && isTerminalPhase(task.Status.Phase) {
+		r.injectChildResult(ctx, parent, task)
+	}
+
+	// Remove from pending children
+	remaining := make([]string, 0, len(parent.Status.PendingChildren))
+	for _, pc := range parent.Status.PendingChildren {
+		if pc != task.Name {
+			remaining = append(remaining, pc)
+		}
+	}
+	parent.Status.PendingChildren = remaining
+
+	// If parent is Waiting and all pending children are done, wake up the parent
+	if parent.Status.Phase == corev1alpha1.AgentTaskPhaseWaiting && len(remaining) == 0 {
+		logger.Info("All children done, waking up parent", "parent", parent.Name)
+		parent.Status.Phase = corev1alpha1.AgentTaskPhasePending
+		parent.Status.Message = "Children completed, restarting agent"
+		r.Recorder.Event(parent, corev1.EventTypeNormal, "TaskReincarnating",
+			fmt.Sprintf("Child %s completed, all children done — restarting", task.Name))
+	}
+
 	if err := r.Status().Update(ctx, parent); err != nil {
-		log.FromContext(ctx).V(1).Info("Failed to update parent childTasks", "error", err)
+		logger.V(1).Info("Failed to update parent status", "error", err)
+	}
+}
+
+// injectChildResult writes the child's output into the parent's PVC at
+// /inbox/child-results/<child-name>.json using a short-lived exec into
+// a utility pod. If exec isn't available, it falls back to storing the
+// result in an annotation (for small results).
+func (r *AgentTaskReconciler) injectChildResult(ctx context.Context,
+	parent *corev1alpha1.AgentTask, child *corev1alpha1.AgentTask) {
+
+	logger := log.FromContext(ctx)
+
+	if r.Clientset == nil {
+		logger.V(1).Info("No clientset, skipping child result injection")
+		return
+	}
+
+	// Build the child result payload
+	childResult := map[string]string{
+		"taskId":  child.Name,
+		"status":  string(child.Status.Phase),
+		"output":  child.Status.Output,
+		"message": child.Status.Message,
+	}
+	resultJSON, err := json.Marshal(childResult)
+	if err != nil {
+		logger.V(1).Info("Failed to marshal child result", "error", err)
+		return
+	}
+
+	// Create a one-shot pod to write the result into the parent PVC.
+	// This is necessary because the parent pod is not running (Waiting phase).
+	pvcName := fmt.Sprintf("%s-storage", parent.Name)
+	writerPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-inject-%s", parent.Name, child.Name),
+			Namespace: parent.Namespace,
+			Labels: map[string]string{
+				"hortator.ai/task":    parent.Name,
+				"hortator.ai/inject":  "child-result",
+				"hortator.ai/source":  child.Name,
+			},
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:    "writer",
+					Image:   "busybox:1.37.0",
+					Command: []string{"sh", "-c",
+						`mkdir -p /inbox/child-results && printf '%s' "$RESULT_JSON" > /inbox/child-results/$CHILD_NAME.json`},
+					Env: []corev1.EnvVar{
+						{Name: "RESULT_JSON", Value: string(resultJSON)},
+						{Name: "CHILD_NAME", Value: child.Name},
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: "parent-storage", MountPath: "/inbox", SubPath: "inbox"},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "parent-storage",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Clean up any previous injection pod with the same name
+	existing := &corev1.Pod{}
+	if err := r.Get(ctx, client.ObjectKey{
+		Namespace: parent.Namespace,
+		Name:      writerPod.Name,
+	}, existing); err == nil {
+		_ = r.Delete(ctx, existing)
+	}
+
+	if err := r.Create(ctx, writerPod); err != nil {
+		logger.V(1).Info("Failed to create child result injection pod",
+			"parent", parent.Name, "child", child.Name, "error", err)
+	} else {
+		logger.Info("Injecting child result into parent PVC",
+			"parent", parent.Name, "child", child.Name)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ const (
 type ClusterDefaults struct {
 	DefaultTimeout         int
 	DefaultImage           string
+	AgenticImage           string // Python agentic runtime for tribune/centurion tiers
 	DefaultRequestsCPU     string
 	DefaultRequestsMemory  string
 	DefaultLimitsCPU       string
@@ -131,6 +133,8 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.handlePending(ctx, task)
 	case corev1alpha1.AgentTaskPhaseRunning:
 		return r.handleRunning(ctx, task)
+	case corev1alpha1.AgentTaskPhaseWaiting:
+		return r.handleWaiting(ctx, task)
 	case corev1alpha1.AgentTaskPhaseRetrying:
 		return r.handleRetrying(ctx, task)
 	case corev1alpha1.AgentTaskPhaseCompleted, corev1alpha1.AgentTaskPhaseFailed,
@@ -470,6 +474,28 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			r.extractTokenUsage(task)
 			r.extractResult(task)
 		}
+
+		// Agentic tiers: check if the runtime exited in "waiting" status
+		// (checkpoint saved, pending children). Transition to Waiting phase
+		// instead of Completed — the pod will be re-created when children finish.
+		if isAgenticTier(task.Spec.Tier) && r.isWaitingResult(task) {
+			logger.Info("Agentic task entering Waiting phase", "task", task.Name)
+			r.recordAttempt(task, nil, "waiting for children")
+
+			task.Status.Phase = corev1alpha1.AgentTaskPhaseWaiting
+			task.Status.PodName = "" // Pod terminated, PVC persists
+			task.Status.Message = "Waiting for child tasks to complete"
+			// PendingChildren populated from child task names in status
+			emitTaskEvent(ctx, "hortator.task.waiting", task)
+			r.Recorder.Event(task, corev1.EventTypeNormal, "TaskWaiting", "Agent checkpointed, waiting for children")
+
+			tasksActive.WithLabelValues(task.Namespace).Dec()
+			if err := r.Status().Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+
 		r.recordAttempt(task, nil, "completed")
 
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
@@ -701,6 +727,69 @@ func (r *AgentTaskReconciler) recordAttempt(task *corev1alpha1.AgentTask, exitCo
 		record.ExitCode = exitCode
 	}
 	task.Status.History = append(task.Status.History, record)
+}
+
+// handleWaiting monitors a task in the Waiting phase.
+// The task is idle (no pod running). It re-checks on a timer in case child
+// completion events were missed. The primary wake-up path is notifyParentTask.
+func (r *AgentTaskReconciler) handleWaiting(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	// Check if all pending children have reached a terminal phase
+	allDone := true
+	for _, childName := range task.Status.PendingChildren {
+		child := &corev1alpha1.AgentTask{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: task.Namespace,
+			Name:      childName,
+		}, child); err != nil {
+			logger.V(1).Info("Failed to fetch pending child", "child", childName, "error", err)
+			allDone = false
+			continue
+		}
+		if !isTerminalPhase(child.Status.Phase) {
+			allDone = false
+		}
+	}
+
+	if allDone && len(task.Status.PendingChildren) > 0 {
+		logger.Info("All children complete, reincarnating parent", "task", task.Name)
+		task.Status.Phase = corev1alpha1.AgentTaskPhasePending
+		task.Status.PendingChildren = nil // Clear for the next run
+		task.Status.Message = "Children completed, restarting agent"
+		r.Recorder.Event(task, corev1.EventTypeNormal, "TaskReincarnating", "All children done, restarting agent pod")
+		if err := r.Status().Update(ctx, task); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// Poll periodically in case we missed a child completion event
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+// isWaitingResult returns true if the agentic runtime wrote a "waiting" status
+// to result.json, meaning it checkpointed and is waiting for children.
+func (r *AgentTaskReconciler) isWaitingResult(task *corev1alpha1.AgentTask) bool {
+	// The runtime reports "waiting" status via the hortator report CLI or
+	// we detect it from the output which contains the status.
+	return strings.Contains(task.Status.Output, `"status": "waiting"`) ||
+		strings.Contains(task.Status.Output, `"status":"waiting"`) ||
+		strings.Contains(task.Status.Message, "Waiting") ||
+		len(task.Status.PendingChildren) > 0
+}
+
+// isTerminalPhase returns true if the phase is a terminal (done) state.
+func isTerminalPhase(phase corev1alpha1.AgentTaskPhase) bool {
+	switch phase {
+	case corev1alpha1.AgentTaskPhaseCompleted,
+		corev1alpha1.AgentTaskPhaseFailed,
+		corev1alpha1.AgentTaskPhaseTimedOut,
+		corev1alpha1.AgentTaskPhaseBudgetExceeded,
+		corev1alpha1.AgentTaskPhaseCancelled:
+		return true
+	}
+	return false
 }
 
 // SetupWithManager sets up the controller with the Manager.
