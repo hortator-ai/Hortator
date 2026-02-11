@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -81,6 +82,10 @@ type logsMsg struct {
 	lines []string
 	err   error
 }
+type namespacesMsg struct {
+	items []string
+	err   error
+}
 
 // --- Model ---
 
@@ -90,6 +95,8 @@ type model struct {
 	width      int
 	height     int
 	namespace  string
+	namespaces []string // discovered namespaces for cycling
+	nsIndex    int      // current index in namespaces slice
 	allNS      bool
 	focusTask  string
 	refreshInt time.Duration
@@ -130,8 +137,8 @@ var (
 	stylePending   = lipgloss.NewStyle().Foreground(lipgloss.Color("245")) // gray
 	styleRetrying  = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))  // cyan
 
-	styleTribune   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5"))   // magenta
-	styleCenturion = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))   // blue
+	styleTribune   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5")) // magenta
+	styleCenturion = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4")) // blue
 	styleLegionary = lipgloss.NewStyle().Faint(true)
 
 	styleSelected = lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("15"))
@@ -149,7 +156,7 @@ var (
 // --- Tea interface ---
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(fetchTasks(m), tick(m.refreshInt))
+	return tea.Batch(fetchTasks(m), fetchNamespaces(m), tick(m.refreshInt))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -178,6 +185,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logLines = nil
 		case "r":
 			return m, fetchTasks(m)
+		case "n":
+			// Cycle to next namespace
+			if len(m.namespaces) > 0 {
+				m.nsIndex = (m.nsIndex + 1) % len(m.namespaces)
+				m.namespace = m.namespaces[m.nsIndex]
+				m.allNS = false
+				m.cursor = 0
+				m.logLines = nil
+				return m, fetchTasks(m)
+			}
+		case "N":
+			// Cycle to previous namespace
+			if len(m.namespaces) > 0 {
+				m.nsIndex = (m.nsIndex - 1 + len(m.namespaces)) % len(m.namespaces)
+				m.namespace = m.namespaces[m.nsIndex]
+				m.allNS = false
+				m.cursor = 0
+				m.logLines = nil
+				return m, fetchTasks(m)
+			}
+		case "A":
+			// Toggle all-namespaces
+			m.allNS = !m.allNS
+			m.cursor = 0
+			m.logLines = nil
+			return m, fetchTasks(m)
 		}
 
 	case tea.WindowSizeMsg:
@@ -202,6 +235,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logsMsg:
 		if msg.err == nil {
 			m.logLines = msg.lines
+		}
+
+	case namespacesMsg:
+		if msg.err == nil {
+			m.namespaces = msg.items
+			// Set nsIndex to current namespace
+			for i, ns := range m.namespaces {
+				if ns == m.namespace {
+					m.nsIndex = i
+					break
+				}
+			}
 		}
 	}
 
@@ -301,7 +346,7 @@ func (m model) View() string {
 	}
 
 	// --- Footer ---
-	footer := styleFooter.Render(fmt.Sprintf("  q quit │ ↑↓ select │ Enter details │ l logs │ r refresh ─── %s", m.refreshInt))
+	footer := styleFooter.Render(fmt.Sprintf("  q quit │ ↑↓ select │ Enter details │ l logs │ n/N namespace │ A all-ns │ r refresh ─── %s", m.refreshInt))
 	sections = append(sections, footer)
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...) + "\n"
@@ -593,6 +638,24 @@ func flattenTree(task *corev1alpha1.AgentTask, byName map[string]*corev1alpha1.A
 		}
 		flattenTree(child, byName, childMap, depth+1, connector, out)
 		_ = nextPrefix // prefix propagation simplified for v1
+	}
+}
+
+func fetchNamespaces(m model) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		nsList, err := m.clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return namespacesMsg{err: err}
+		}
+
+		var names []string
+		for _, ns := range nsList.Items {
+			names = append(names, ns.Name)
+		}
+		return namespacesMsg{items: names}
 	}
 }
 
