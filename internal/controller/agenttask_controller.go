@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +51,56 @@ type ClusterDefaults struct {
 	ResultCacheEnabled     bool
 	ResultCacheTTL         time.Duration
 	ResultCacheMaxEntries  int
+	Budget                 BudgetConfig
+	Health                 HealthConfig
+	StorageRetained        StorageRetainedConfig
+	CleanupTTL             CleanupTTLConfig
+}
+
+// BudgetConfig holds budget enforcement settings from the ConfigMap.
+type BudgetConfig struct {
+	Enabled           bool
+	DefaultMaxCostUsd string
+	WarningPercent    int
+	SoftCeilingAction string // winddown | warn-only | hard-kill
+	GraceMaxLLMCalls  int
+	GraceMaxSeconds   int
+	PriceSource       string // litellm | custom
+	RefreshIntervalH  int
+	FallbackBehavior  string // track-tokens | block | warn
+}
+
+// HealthConfig holds health/stuck-detection settings from the ConfigMap.
+type HealthConfig struct {
+	Enabled              bool
+	CheckIntervalSeconds int
+	StuckDetection       StuckDetectionConfig
+}
+
+// StuckDetectionConfig holds stuck detection thresholds.
+type StuckDetectionConfig struct {
+	Enabled            bool
+	ToolDiversityMin   float64
+	MaxRepeatedPrompts int
+	StatusStaleMinutes int
+	CheckWindowMinutes int
+	Action             string // warn | kill | escalate
+}
+
+// StorageRetainedConfig holds retained PVC discovery settings.
+type StorageRetainedConfig struct {
+	Discovery             string // none | tags | semantic
+	AutoMount             bool
+	MountMode             string // readOnly
+	StaleAfterDays        int
+	MaxRetainedPerNS      int
+}
+
+// CleanupTTLConfig holds CR garbage-collection TTLs.
+type CleanupTTLConfig struct {
+	Completed string // e.g. "7d", "24h"
+	Failed    string // e.g. "2d", "48h"
+	Cancelled string // e.g. "1d"
 }
 
 // AgentTaskReconciler reconciles a AgentTask object
@@ -76,6 +127,9 @@ type AgentTaskReconciler struct {
 
 	// Result cache for deduplication of identical prompt+role tasks.
 	ResultCache *ResultCache
+
+	// PriceMap caches LiteLLM model pricing for budget enforcement.
+	PriceMap *PriceMap
 }
 
 // +kubebuilder:rbac:groups=core.hortator.ai,resources=agentpolicies,verbs=get;list;watch
@@ -94,6 +148,18 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Refresh cluster defaults from ConfigMap (best-effort, cached with TTL)
 	r.refreshDefaultsIfStale(ctx)
+
+	// Lazy-init and refresh price map for budget enforcement
+	r.defaultsMu.RLock()
+	budgetEnabled := r.defaults.Budget.Enabled
+	refreshH := r.defaults.Budget.RefreshIntervalH
+	r.defaultsMu.RUnlock()
+	if budgetEnabled {
+		if r.PriceMap == nil {
+			r.PriceMap = NewPriceMap(refreshH)
+		}
+		r.PriceMap.RefreshIfStale()
+	}
 
 	// Fetch the AgentTask instance
 	task := &corev1alpha1.AgentTask{}
@@ -149,9 +215,15 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 // +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 
-// handleTTLCleanup deletes terminal tasks after their retention period expires.
+// handleTTLCleanup deletes terminal tasks (and their PVCs) after their retention
+// period expires. Respects the hortator.ai/retain annotation and per-phase TTL
+// configuration from the ConfigMap (CleanupTTL).
 func (r *AgentTaskReconciler) handleTTLCleanup(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
+	// Skip if explicitly retained
 	if task.Spec.Storage != nil && task.Spec.Storage.Retain {
+		return ctrl.Result{}, nil
+	}
+	if ann, ok := task.Annotations["hortator.ai/retain"]; ok && ann == "true" {
 		return ctrl.Result{}, nil
 	}
 
@@ -159,13 +231,26 @@ func (r *AgentTaskReconciler) handleTTLCleanup(ctx context.Context, task *corev1
 		return ctrl.Result{}, nil
 	}
 
-	defaultRetention := "7d"
-	if task.Status.Phase == corev1alpha1.AgentTaskPhaseFailed {
-		defaultRetention = "2d"
+	// Use configurable TTL from CleanupTTL config, falling back to sensible defaults.
+	r.defaultsMu.RLock()
+	ttlCfg := r.defaults.CleanupTTL
+	r.defaultsMu.RUnlock()
+
+	var defaultRetention string
+	switch task.Status.Phase {
+	case corev1alpha1.AgentTaskPhaseFailed:
+		defaultRetention = ttlCfg.Failed
+	case corev1alpha1.AgentTaskPhaseCancelled:
+		defaultRetention = ttlCfg.Cancelled
+	default:
+		defaultRetention = ttlCfg.Completed
+	}
+	if defaultRetention == "" {
+		defaultRetention = "7d"
 	}
 
 	retention := defaultRetention
-	if ann, ok := task.Annotations["hortator.ai/retention"]; ok && ann != "" {
+	if ann, ok := task.Annotations["hortator.ai/retention"]; ok && ann != "" && ann != "true" {
 		retention = ann
 	}
 
@@ -181,7 +266,23 @@ func (r *AgentTaskReconciler) handleTTLCleanup(ctx context.Context, task *corev1
 		return ctrl.Result{RequeueAfter: remaining}, nil
 	}
 
-	log.FromContext(ctx).Info("TTL expired, deleting task", "task", task.Name, "retention", retention)
+	logger := log.FromContext(ctx)
+	logger.Info("TTL expired, cleaning up task and PVC", "task", task.Name, "retention", retention)
+
+	// Delete the associated PVC if it exists
+	pvcName := fmt.Sprintf("%s-storage", task.Name)
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: task.Namespace, Name: pvcName}, pvc); err == nil {
+		if delErr := r.Delete(ctx, pvc); delErr != nil && !errors.IsNotFound(delErr) {
+			logger.Error(delErr, "Failed to delete PVC during GC", "pvc", pvcName)
+		} else {
+			logger.V(1).Info("Deleted PVC during GC", "pvc", pvcName)
+		}
+	}
+
+	emitTaskEvent(ctx, "hortator.task.garbage_collected", task)
+
+	// Delete the AgentTask CR itself
 	if err := r.Delete(ctx, task); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	}
@@ -475,6 +576,32 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			r.extractResult(task)
 		}
 
+		// Calculate estimated cost if price map is available
+		if r.PriceMap != nil {
+			if costStr := r.PriceMap.CalculateTaskCost(task); costStr != "" {
+				task.Status.EstimatedCostUsd = costStr
+			}
+		}
+
+		// Detect "budget_exceeded" status from runtime result
+		if r.isBudgetExceededResult(task) {
+			logger.Info("Task exceeded budget", "task", task.Name)
+			r.recordAttempt(task, nil, "budget exceeded")
+			task.Status.Phase = corev1alpha1.AgentTaskPhaseBudgetExceeded
+			task.Status.Message = "Task exceeded token or cost budget"
+			setCompletionStatus(task)
+			emitTaskEvent(ctx, "hortator.task.budget_exceeded", task, terminalEventAttrs(task)...)
+			r.Recorder.Event(task, corev1.EventTypeWarning, "BudgetExceeded", "Task exceeded budget")
+			tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseBudgetExceeded), task.Namespace).Inc()
+			budgetExceededTotal.WithLabelValues(task.Namespace).Inc()
+			tasksActive.WithLabelValues(task.Namespace).Dec()
+			if err := r.Status().Update(ctx, task); err != nil {
+				return ctrl.Result{}, err
+			}
+			r.notifyParentTask(ctx, task)
+			return ctrl.Result{}, nil
+		}
+
 		// Agentic tiers: check if the runtime exited in "waiting" status
 		// (checkpoint saved, pending children). Transition to Waiting phase
 		// instead of Completed — the pod will be re-created when children finish.
@@ -524,6 +651,9 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		if task.Status.StartedAt != nil && task.Status.CompletedAt != nil {
 			taskDuration.Observe(task.Status.CompletedAt.Time.Sub(task.Status.StartedAt.Time).Seconds())
 		}
+
+		// Record cost metric
+		r.recordCostMetric(task)
 
 		if err := r.Status().Update(ctx, task); err != nil {
 			return ctrl.Result{}, err
@@ -629,6 +759,32 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 				return ctrl.Result{}, nil
 			}
 		}
+
+		// ── Stuck detection (only for running pods) ───────────────────
+		if pod.Status.Phase == corev1.PodRunning {
+			r.defaultsMu.RLock()
+			healthCfg := r.defaults.Health
+			r.defaultsMu.RUnlock()
+
+			if healthCfg.Enabled && healthCfg.StuckDetection.Enabled {
+				cfg := resolveStuckConfig(healthCfg.StuckDetection, task)
+				score := r.checkStuckSignals(ctx, task, pod, cfg)
+
+				// Update tool diversity metric
+				taskToolDiversity.WithLabelValues(task.Namespace, task.Name).Set(score.ToolDiversity)
+
+				if score.IsStuck {
+					if err := r.executeStuckAction(ctx, task, pod, score, cfg.Action); err != nil {
+						return ctrl.Result{}, err
+					}
+					// If action was kill or escalate, the task is now terminal
+					if cfg.Action == "kill" || cfg.Action == "escalate" {
+						return ctrl.Result{}, nil
+					}
+				}
+			}
+		}
+
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 
 	default:
@@ -766,6 +922,33 @@ func (r *AgentTaskReconciler) handleWaiting(ctx context.Context, task *corev1alp
 
 	// Poll periodically in case we missed a child completion event
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+// isBudgetExceededResult returns true if the runtime reported a budget_exceeded status.
+func (r *AgentTaskReconciler) isBudgetExceededResult(task *corev1alpha1.AgentTask) bool {
+	if strings.Contains(task.Status.Output, `"status": "budget_exceeded"`) ||
+		strings.Contains(task.Status.Output, `"status":"budget_exceeded"`) {
+		return true
+	}
+	// Also check if the operator-side budget calculation exceeds the task limit
+	if r.PriceMap != nil && task.Status.EstimatedCostUsd != "" {
+		cost, err := strconv.ParseFloat(task.Status.EstimatedCostUsd, 64)
+		if err == nil && IsBudgetExceeded(task, cost) {
+			return true
+		}
+	}
+	return false
+}
+
+// recordCostMetric records the task cost as a Prometheus metric.
+func (r *AgentTaskReconciler) recordCostMetric(task *corev1alpha1.AgentTask) {
+	if task.Status.EstimatedCostUsd == "" {
+		return
+	}
+	cost, err := strconv.ParseFloat(task.Status.EstimatedCostUsd, 64)
+	if err == nil && cost > 0 {
+		taskCostUsd.Observe(cost)
+	}
 }
 
 // isWaitingResult returns true if the agentic runtime wrote a "waiting" status

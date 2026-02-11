@@ -33,14 +33,15 @@ func buildPrompt(messages []Message) string {
 	var userParts []string
 
 	for _, m := range messages {
+		text := m.Content.String()
 		switch m.Role {
 		case "system":
-			systemParts = append(systemParts, m.Content)
+			systemParts = append(systemParts, text)
 		case "user":
-			userParts = append(userParts, m.Content)
+			userParts = append(userParts, text)
 		case "assistant":
 			// Include assistant messages as conversation context
-			userParts = append(userParts, fmt.Sprintf("[Previous assistant response:]\n%s", m.Content))
+			userParts = append(userParts, fmt.Sprintf("[Previous assistant response:]\n%s", text))
 		}
 	}
 
@@ -51,6 +52,15 @@ func buildPrompt(messages []Message) string {
 	parts = append(parts, userParts...)
 
 	return strings.Join(parts, "\n\n")
+}
+
+// extractFiles collects all file parts from the request messages.
+func extractFiles(messages []Message) []FileContent {
+	var files []FileContent
+	for _, m := range messages {
+		files = append(files, m.Content.Files()...)
+	}
+	return files
 }
 
 // buildAgentTask creates an unstructured AgentTask from the request.
@@ -71,7 +81,7 @@ type ModelConfig struct {
 	SecretKey  string
 }
 
-func buildAgentTask(name, namespace, role, tier, prompt string, req *ChatCompletionRequest, modelCfg *ModelConfig) *unstructured.Unstructured {
+func buildAgentTask(name, namespace, role, tier, prompt string, req *ChatCompletionRequest, modelCfg *ModelConfig, files []FileContent) *unstructured.Unstructured {
 	spec := map[string]interface{}{
 		"prompt": prompt,
 		"role":   role,
@@ -112,6 +122,18 @@ func buildAgentTask(name, namespace, role, tier, prompt string, req *ChatComplet
 			budget["maxTokens"] = *req.Budget.MaxTokens
 		}
 		spec["budget"] = budget
+	}
+
+	// Include input files if any were provided via content part arrays
+	if len(files) > 0 {
+		inputFiles := make([]interface{}, 0, len(files))
+		for _, f := range files {
+			inputFiles = append(inputFiles, map[string]interface{}{
+				"filename": f.Filename,
+				"data":     f.FileData,
+			})
+		}
+		spec["inputFiles"] = inputFiles
 	}
 
 	task := &unstructured.Unstructured{

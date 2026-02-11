@@ -4,7 +4,9 @@ import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ClientOptions,
+  ContentPart,
   Message,
+  MessageContent,
   ModelInfo,
   ModelsResponse,
   RequestOptions,
@@ -13,6 +15,32 @@ import type {
 } from "./types.js";
 
 const DEFAULT_ROLE = "legionary";
+
+/**
+ * Build messages with optional file attachments.
+ * If files are provided, the content becomes an array of ContentParts.
+ */
+function buildMessagesWithFiles(
+  prompt: string,
+  files?: RequestOptions["files"],
+): Message[] {
+  if (!files || files.length === 0) {
+    return [{ role: "user", content: prompt }];
+  }
+
+  const parts: ContentPart[] = [{ type: "text", text: prompt }];
+  for (const f of files) {
+    const b64 =
+      typeof f.data === "string"
+        ? f.data
+        : Buffer.from(f.data).toString("base64");
+    parts.push({
+      type: "file",
+      file: { filename: f.filename, file_data: b64 },
+    });
+  }
+  return [{ role: "user", content: parts }];
+}
 
 export class HortatorClient {
   private readonly baseUrl: string;
@@ -25,8 +53,12 @@ export class HortatorClient {
     this.timeout = opts.timeout ?? 30_000;
   }
 
+  /**
+   * Run a task with an optional list of file attachments.
+   */
   async run(prompt: string, opts?: RequestOptions): Promise<RunResult> {
-    return this.chat([{ role: "user", content: prompt }], opts);
+    const messages = buildMessagesWithFiles(prompt, opts?.files);
+    return this.chat(messages, opts);
   }
 
   async chat(messages: Message[], opts?: RequestOptions): Promise<RunResult> {
@@ -34,17 +66,27 @@ export class HortatorClient {
     const res = await this.fetch("/v1/chat/completions", body);
     const data: ChatCompletionResponse = await res.json();
     const choice = data.choices[0];
+    // Extract text from content (handles both string and ContentPart array)
+    const content = typeof choice.message.content === "string"
+      ? choice.message.content
+      : (choice.message.content as ContentPart[])
+          .filter((p) => p.type === "text")
+          .map((p) => p.text ?? "")
+          .join("\n");
     return {
       id: data.id,
-      content: choice.message.content,
+      content,
       finish_reason: choice.finish_reason,
       model: data.model,
       usage: data.usage,
     };
   }
 
+  /**
+   * Stream a task with an optional list of file attachments.
+   */
   async *stream(prompt: string, opts?: RequestOptions): AsyncIterable<StreamChunk> {
-    const messages: Message[] = [{ role: "user", content: prompt }];
+    const messages = buildMessagesWithFiles(prompt, opts?.files);
     const body = this.buildRequest(messages, opts, true);
     const res = await this.fetch("/v1/chat/completions", body);
     if (!res.body) throw new Error("Response body is null");

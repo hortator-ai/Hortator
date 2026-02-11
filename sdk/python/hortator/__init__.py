@@ -3,7 +3,10 @@
 __version__ = "0.1.0"
 
 from .client import HortatorClient, AsyncHortatorClient
-from .models import Budget, Message, Usage, RunResult, StreamChunk, ModelInfo
+from .models import (
+    Budget, Message, Usage, RunResult, StreamChunk, ModelInfo,
+    ContentPart, FileContent,
+)
 from .exceptions import HortatorError, AuthenticationError, TaskError, RateLimitError
 
 __all__ = [
@@ -11,6 +14,8 @@ __all__ = [
     "AsyncHortatorClient",
     "Budget",
     "Message",
+    "ContentPart",
+    "FileContent",
     "Usage",
     "RunResult",
     "StreamChunk",

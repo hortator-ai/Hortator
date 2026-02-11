@@ -14,7 +14,10 @@ SPDX-License-Identifier: MIT
 //	- A session cleanup controller (or cron) to GC expired session PVCs
 package gateway
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // --- OpenAI API request/response types ---
 
@@ -34,9 +37,83 @@ type ChatCompletionRequest struct {
 	NoCache      bool     `json:"x_no_cache,omitempty"`
 }
 
+// Message represents a chat message with OpenAI-compatible content.
+// Content can be a plain string or an array of ContentPart objects.
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string         `json:"role"`
+	Content MessageContent `json:"content"`
+}
+
+// MessageContent wraps string or []ContentPart for OpenAI-compatible content.
+type MessageContent struct {
+	Text  string        // plain string content
+	Parts []ContentPart // array of typed parts
+}
+
+// ContentPart represents a typed content element (text or file).
+type ContentPart struct {
+	Type string       `json:"type"` // "text" or "file"
+	Text string       `json:"text,omitempty"`
+	File *FileContent `json:"file,omitempty"`
+}
+
+// FileContent holds base64-encoded file data.
+type FileContent struct {
+	FileData string `json:"file_data"` // base64-encoded content
+	Filename string `json:"filename"`
+}
+
+// UnmarshalJSON implements custom unmarshalling for MessageContent.
+// Accepts either a plain string or an array of ContentPart objects.
+func (mc *MessageContent) UnmarshalJSON(data []byte) error {
+	// Try plain string first
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		mc.Text = s
+		return nil
+	}
+
+	// Try array of content parts
+	var parts []ContentPart
+	if err := json.Unmarshal(data, &parts); err == nil {
+		mc.Parts = parts
+		// Also extract concatenated text for backward compatibility
+		for _, p := range parts {
+			if p.Type == "text" {
+				if mc.Text != "" {
+					mc.Text += "\n"
+				}
+				mc.Text += p.Text
+			}
+		}
+		return nil
+	}
+
+	return json.Unmarshal(data, &s) // return original error
+}
+
+// MarshalJSON implements custom marshalling for MessageContent.
+func (mc MessageContent) MarshalJSON() ([]byte, error) {
+	if len(mc.Parts) > 0 {
+		return json.Marshal(mc.Parts)
+	}
+	return json.Marshal(mc.Text)
+}
+
+// String returns the text content of the message.
+func (mc MessageContent) String() string {
+	return mc.Text
+}
+
+// Files returns all file parts from the content.
+func (mc MessageContent) Files() []FileContent {
+	var files []FileContent
+	for _, p := range mc.Parts {
+		if p.Type == "file" && p.File != nil {
+			files = append(files, *p.File)
+		}
+	}
+	return files
 }
 
 type Budget struct {

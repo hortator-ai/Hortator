@@ -7,7 +7,7 @@ from typing import Any, Generator, AsyncGenerator, Optional
 import httpx
 
 from . import __version__
-from .models import Budget, RunResult, StreamChunk, ModelInfo, Usage
+from .models import Budget, RunResult, StreamChunk, ModelInfo, Usage, ContentPart
 from .exceptions import HortatorError, AuthenticationError, RateLimitError
 from ._streaming import iter_sse_events, aiter_sse_events
 
@@ -24,7 +24,7 @@ def _check_response(resp: httpx.Response) -> None:
 
 
 def _build_body(
-    messages: list[dict[str, str]],
+    messages: list[dict[str, Any]],
     model: str,
     stream: bool,
     capabilities: list[str] | None,
@@ -43,6 +43,39 @@ def _build_body(
     if budget:
         body["x_budget"] = budget
     return body
+
+
+def _build_messages_with_files(
+    prompt: str,
+    files: list[str | tuple[str, bytes]] | None = None,
+) -> list[dict[str, Any]]:
+    """Build messages list, optionally with file attachments.
+
+    Args:
+        prompt: The text prompt.
+        files: Optional list of file paths (str) or (filename, bytes) tuples.
+
+    Returns:
+        Messages list with content parts if files are provided.
+    """
+    if not files:
+        return [{"role": "user", "content": prompt}]
+
+    import base64
+    from pathlib import Path
+
+    parts: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+    for f in files:
+        if isinstance(f, str):
+            p = Path(f)
+            data = base64.b64encode(p.read_bytes()).decode()
+            parts.append({"type": "file", "file": {"filename": p.name, "file_data": data}})
+        else:
+            filename, content = f
+            data = base64.b64encode(content).decode()
+            parts.append({"type": "file", "file": {"filename": filename, "file_data": data}})
+
+    return [{"role": "user", "content": parts}]
 
 
 def _parse_run_result(data: dict[str, Any]) -> RunResult:
@@ -91,13 +124,24 @@ class HortatorClient:
         capabilities: list[str] | None = None,
         tier: str | None = None,
         budget: dict[str, Any] | None = None,
+        files: list[str | tuple[str, bytes]] | None = None,
     ) -> RunResult:
-        messages = [{"role": "user", "content": prompt}]
+        """Run a task with an optional list of file attachments.
+
+        Args:
+            prompt: The task prompt.
+            role: Agent role name.
+            capabilities: Optional capabilities list.
+            tier: Optional tier override.
+            budget: Optional budget dict.
+            files: Optional list of file paths (str) or (filename, bytes) tuples.
+        """
+        messages = _build_messages_with_files(prompt, files)
         return self.chat(messages, role=role, capabilities=capabilities, tier=tier, budget=budget)
 
     def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         role: str = "legionary",
         capabilities: list[str] | None = None,
         tier: str | None = None,
@@ -115,8 +159,10 @@ class HortatorClient:
         capabilities: list[str] | None = None,
         tier: str | None = None,
         budget: dict[str, Any] | None = None,
+        files: list[str | tuple[str, bytes]] | None = None,
     ) -> Generator[StreamChunk, None, None]:
-        messages = [{"role": "user", "content": prompt}]
+        """Stream a task with an optional list of file attachments."""
+        messages = _build_messages_with_files(prompt, files)
         body = _build_body(messages, f"hortator/{role}", True, capabilities, tier, budget)
         with self._client.stream("POST", "/v1/chat/completions", json=body) as resp:
             _check_response(resp)
@@ -162,13 +208,15 @@ class AsyncHortatorClient:
         capabilities: list[str] | None = None,
         tier: str | None = None,
         budget: dict[str, Any] | None = None,
+        files: list[str | tuple[str, bytes]] | None = None,
     ) -> RunResult:
-        messages = [{"role": "user", "content": prompt}]
+        """Run a task with an optional list of file attachments."""
+        messages = _build_messages_with_files(prompt, files)
         return await self.chat(messages, role=role, capabilities=capabilities, tier=tier, budget=budget)
 
     async def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         role: str = "legionary",
         capabilities: list[str] | None = None,
         tier: str | None = None,
@@ -186,8 +234,10 @@ class AsyncHortatorClient:
         capabilities: list[str] | None = None,
         tier: str | None = None,
         budget: dict[str, Any] | None = None,
+        files: list[str | tuple[str, bytes]] | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
-        messages = [{"role": "user", "content": prompt}]
+        """Stream a task with an optional list of file attachments."""
+        messages = _build_messages_with_files(prompt, files)
         body = _build_body(messages, f"hortator/{role}", True, capabilities, tier, budget)
         async with self._client.stream("POST", "/v1/chat/completions", json=body) as resp:
             _check_response(resp)

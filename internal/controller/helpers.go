@@ -142,6 +142,171 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 		}
 	}
 
+	// ── Budget config ──────────────────────────────────────────────────────
+	if v, ok := cm.Data["budgetEnabled"]; ok {
+		d.Budget.Enabled = v == "true"
+	}
+	if v, ok := cm.Data["budgetDefaultMaxCostUsd"]; ok && v != "" {
+		d.Budget.DefaultMaxCostUsd = v
+	}
+	if v, ok := cm.Data["budgetWarningPercent"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Budget.WarningPercent = n
+		}
+	}
+	if d.Budget.WarningPercent == 0 {
+		d.Budget.WarningPercent = 80
+	}
+	if v, ok := cm.Data["budgetSoftCeilingAction"]; ok && v != "" {
+		d.Budget.SoftCeilingAction = v
+	}
+	if d.Budget.SoftCeilingAction == "" {
+		d.Budget.SoftCeilingAction = "winddown"
+	}
+	if v, ok := cm.Data["budgetGraceMaxLLMCalls"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Budget.GraceMaxLLMCalls = n
+		}
+	}
+	if d.Budget.GraceMaxLLMCalls == 0 {
+		d.Budget.GraceMaxLLMCalls = 3
+	}
+	if v, ok := cm.Data["budgetGraceMaxSeconds"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Budget.GraceMaxSeconds = n
+		}
+	}
+	if d.Budget.GraceMaxSeconds == 0 {
+		d.Budget.GraceMaxSeconds = 60
+	}
+	if v, ok := cm.Data["budgetPriceSource"]; ok && v != "" {
+		d.Budget.PriceSource = v
+	}
+	if d.Budget.PriceSource == "" {
+		d.Budget.PriceSource = "litellm"
+	}
+	if v, ok := cm.Data["budgetRefreshIntervalHours"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Budget.RefreshIntervalH = n
+		}
+	}
+	if d.Budget.RefreshIntervalH == 0 {
+		d.Budget.RefreshIntervalH = 24
+	}
+	if v, ok := cm.Data["budgetFallbackBehavior"]; ok && v != "" {
+		d.Budget.FallbackBehavior = v
+	}
+	if d.Budget.FallbackBehavior == "" {
+		d.Budget.FallbackBehavior = "track-tokens"
+	}
+
+	// ── Health / stuck detection config ────────────────────────────────────
+	if v, ok := cm.Data["healthEnabled"]; ok {
+		d.Health.Enabled = v == "true"
+	}
+	if v, ok := cm.Data["healthCheckIntervalSeconds"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Health.CheckIntervalSeconds = n
+		}
+	}
+	if d.Health.CheckIntervalSeconds == 0 {
+		d.Health.CheckIntervalSeconds = 30
+	}
+	if v, ok := cm.Data["stuckDetectionEnabled"]; ok {
+		d.Health.StuckDetection.Enabled = v == "true"
+	}
+	if v, ok := cm.Data["stuckDetectionToolDiversityMin"]; ok {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			d.Health.StuckDetection.ToolDiversityMin = f
+		}
+	}
+	if d.Health.StuckDetection.ToolDiversityMin == 0 {
+		d.Health.StuckDetection.ToolDiversityMin = 0.3
+	}
+	if v, ok := cm.Data["stuckDetectionMaxRepeatedPrompts"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Health.StuckDetection.MaxRepeatedPrompts = n
+		}
+	}
+	if d.Health.StuckDetection.MaxRepeatedPrompts == 0 {
+		d.Health.StuckDetection.MaxRepeatedPrompts = 3
+	}
+	if v, ok := cm.Data["stuckDetectionStatusStaleMinutes"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Health.StuckDetection.StatusStaleMinutes = n
+		}
+	}
+	if d.Health.StuckDetection.StatusStaleMinutes == 0 {
+		d.Health.StuckDetection.StatusStaleMinutes = 5
+	}
+	if v, ok := cm.Data["stuckDetectionCheckWindowMinutes"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.Health.StuckDetection.CheckWindowMinutes = n
+		}
+	}
+	if d.Health.StuckDetection.CheckWindowMinutes == 0 {
+		d.Health.StuckDetection.CheckWindowMinutes = 5
+	}
+	if v, ok := cm.Data["stuckDetectionAction"]; ok && v != "" {
+		d.Health.StuckDetection.Action = v
+	}
+	if d.Health.StuckDetection.Action == "" {
+		d.Health.StuckDetection.Action = "warn"
+	}
+
+	// ── Storage retained / knowledge discovery ────────────────────────────
+	if v, ok := cm.Data["storageRetainedDiscovery"]; ok && v != "" {
+		d.StorageRetained.Discovery = v
+	}
+	if d.StorageRetained.Discovery == "" {
+		d.StorageRetained.Discovery = "tags"
+	}
+	if v, ok := cm.Data["storageRetainedAutoMount"]; ok {
+		d.StorageRetained.AutoMount = v == "true"
+	}
+	if v, ok := cm.Data["storageRetainedMountMode"]; ok && v != "" {
+		d.StorageRetained.MountMode = v
+	}
+	if d.StorageRetained.MountMode == "" {
+		d.StorageRetained.MountMode = "readOnly"
+	}
+	if v, ok := cm.Data["storageRetainedStaleAfterDays"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.StorageRetained.StaleAfterDays = n
+		}
+	}
+	if d.StorageRetained.StaleAfterDays == 0 {
+		d.StorageRetained.StaleAfterDays = 90
+	}
+	if v, ok := cm.Data["storageRetainedMaxPerNamespace"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			d.StorageRetained.MaxRetainedPerNS = n
+		}
+	}
+	if d.StorageRetained.MaxRetainedPerNS == 0 {
+		d.StorageRetained.MaxRetainedPerNS = 20
+	}
+
+	// ── Cleanup TTL config ────────────────────────────────────────────────
+	if v, ok := cm.Data["cleanupTTLCompleted"]; ok && v != "" {
+		d.CleanupTTL.Completed = v
+	}
+	if d.CleanupTTL.Completed == "" {
+		d.CleanupTTL.Completed = "7d"
+	}
+	if v, ok := cm.Data["cleanupTTLFailed"]; ok && v != "" {
+		d.CleanupTTL.Failed = v
+	}
+	if d.CleanupTTL.Failed == "" {
+		d.CleanupTTL.Failed = "2d"
+	}
+	if v, ok := cm.Data["cleanupTTLCancelled"]; ok && v != "" {
+		d.CleanupTTL.Cancelled = v
+	}
+	if d.CleanupTTL.Cancelled == "" {
+		d.CleanupTTL.Cancelled = "1d"
+	}
+
 	r.defaultsMu.Lock()
 	r.defaults = d
 	r.defaultsAt = time.Now()
@@ -353,6 +518,104 @@ func (r *AgentTaskReconciler) injectChildResult(ctx context.Context,
 		logger.Info("Injecting child result into parent PVC",
 			"parent", parent.Name, "child", child.Name)
 	}
+}
+
+// readFileFromPVC reads a file from a PVC by creating a short-lived utility pod
+// that mounts the PVC and cats the file content. This is used for reading
+// result.json, usage.json, and state.json from agent PVCs after task completion.
+// Returns the file contents or an error if the file cannot be read.
+func (r *AgentTaskReconciler) readFileFromPVC(ctx context.Context, pvcName, namespace, filePath, subPath string) ([]byte, error) {
+	if r.Clientset == nil {
+		return nil, fmt.Errorf("no clientset available for PVC file read")
+	}
+
+	logger := log.FromContext(ctx)
+
+	// Create a one-shot pod to read the file
+	podName := fmt.Sprintf("hortator-read-%s-%d", pvcName[:min(20, len(pvcName))], time.Now().UnixNano()%10000)
+	readerPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"hortator.ai/purpose": "pvc-reader",
+				"hortator.ai/pvc":     pvcName,
+			},
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:    "reader",
+					Image:   "busybox:1.37.0",
+					Command: []string{"cat", filePath},
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: "storage", MountPath: "/outbox", SubPath: "outbox"},
+						{Name: "storage", MountPath: "/memory", SubPath: "memory"},
+						{Name: "storage", MountPath: "/inbox", SubPath: "inbox"},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "storage",
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Clean up any previous reader pod with the same name
+	existing := &corev1.Pod{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: podName}, existing); err == nil {
+		_ = r.Delete(ctx, existing)
+		// Brief wait for deletion
+		time.Sleep(1 * time.Second)
+	}
+
+	if err := r.Create(ctx, readerPod); err != nil {
+		return nil, fmt.Errorf("failed to create reader pod: %w", err)
+	}
+
+	// Wait for the pod to complete (up to 30s)
+	defer func() {
+		_ = r.Delete(ctx, readerPod)
+	}()
+
+	for i := 0; i < 30; i++ {
+		time.Sleep(1 * time.Second)
+		pod := &corev1.Pod{}
+		if err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: podName}, pod); err != nil {
+			logger.V(1).Info("Reader pod disappeared", "pod", podName, "error", err)
+			return nil, fmt.Errorf("reader pod disappeared: %w", err)
+		}
+		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			break
+		}
+	}
+
+	// Collect logs from the reader pod
+	tailLines := int64(500)
+	req := r.Clientset.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{
+		Container: "reader",
+		TailLines: &tailLines,
+	})
+	stream, err := req.Stream(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get reader pod logs: %w", err)
+	}
+	defer func() { _ = stream.Close() }()
+
+	buf := new(bytes.Buffer)
+	if _, err := io.Copy(buf, stream); err != nil {
+		return nil, fmt.Errorf("failed to read reader pod output: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // extractTokenUsage parses agent logs to extract token usage from the runtime output.

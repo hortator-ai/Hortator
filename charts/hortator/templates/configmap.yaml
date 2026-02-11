@@ -15,6 +15,31 @@ data:
   resultCacheTTLSeconds: {{ .Values.resultCache.ttlSeconds | quote }}
   resultCacheMaxEntries: {{ .Values.resultCache.maxEntries | quote }}
   agenticImage: {{ .Values.agent.agenticImage | quote }}
+  # Budget enforcement
+  budgetEnabled: {{ .Values.budget.enabled | quote }}
+  budgetDefaultMaxCostUsd: {{ .Values.budget.defaultLimit.maxCostUsd | quote }}
+  budgetPriceSource: {{ .Values.budget.priceSource | quote }}
+  budgetRefreshIntervalHours: {{ .Values.budget.refreshIntervalHours | quote }}
+  budgetFallbackBehavior: {{ .Values.budget.fallbackBehavior | quote }}
+  # Health / stuck detection
+  healthEnabled: {{ .Values.health.enabled | quote }}
+  healthCheckIntervalSeconds: {{ .Values.health.checkIntervalSeconds | quote }}
+  stuckDetectionEnabled: {{ .Values.health.stuckDetection.enabled | quote }}
+  stuckDetectionToolDiversityMin: {{ .Values.health.stuckDetection.defaults.toolDiversityMin | quote }}
+  stuckDetectionMaxRepeatedPrompts: {{ .Values.health.stuckDetection.defaults.maxRepeatedPrompts | quote }}
+  stuckDetectionStatusStaleMinutes: {{ .Values.health.stuckDetection.defaults.statusStaleMinutes | quote }}
+  stuckDetectionCheckWindowMinutes: {{ .Values.health.stuckDetection.defaults.checkWindowMinutes | quote }}
+  stuckDetectionAction: {{ .Values.health.stuckDetection.defaults.action | quote }}
+  # Storage retained / knowledge discovery
+  storageRetainedDiscovery: {{ .Values.storage.retained.discovery | quote }}
+  storageRetainedAutoMount: {{ .Values.storage.retained.autoMount | quote }}
+  storageRetainedMountMode: {{ .Values.storage.retained.mountMode | quote }}
+  storageRetainedStaleAfterDays: {{ .Values.storage.retained.staleAfterDays | quote }}
+  storageRetainedMaxPerNamespace: {{ .Values.storage.retained.maxRetainedPerNamespace | quote }}
+  # Cleanup TTLs
+  cleanupTTLCompleted: {{ .Values.storage.cleanup.ttl.completed | quote }}
+  cleanupTTLFailed: {{ .Values.storage.cleanup.ttl.failed | quote }}
+  cleanupTTLCancelled: {{ .Values.storage.cleanup.ttl.cancelled | quote }}
   # Agent defaults — the operator reads this at startup to configure
   # reconciliation behavior and default values for AgentTask Pods.
   config.yaml: |
