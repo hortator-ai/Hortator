@@ -1,0 +1,654 @@
+# ============================================================================
+# Hortator Stress Test — "Build a SaaS Company"
+# ============================================================================
+# 1 Tribune → 9 Centurions → 12 Legionaries = 22 tasks
+#
+# Apply:  kubectl apply -f examples/e2e/stress-test.yaml
+# Watch:  hortator watch -n hortator-system --task stress-tribune
+# Clean:  kubectl delete agenttasks -n hortator-system -l stress-test=true
+# ============================================================================
+
+# ── TRIBUNE: Project Lead ───────────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-tribune
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the project lead synthesizing outputs from 9 workstreams that designed
+    and planned an entire SaaS product from scratch. Your sub-agents covered:
+
+    1. Market Research & Opportunity Discovery
+    2. Product Definition (PRD, vision, pricing)
+    3. System Architecture (backend, frontend, infra, security)
+    4. UX & Design System
+    5. Engineering Implementation
+    6. Reliability & Hardening
+    7. Go-To-Market & Business
+    8. Legal & Compliance
+    9. Self-Critique & Iteration
+
+    Produce a cohesive executive summary that:
+    - States the selected opportunity and why
+    - Summarizes the product vision and MVP scope
+    - Highlights key architecture decisions and tradeoffs
+    - Calls out the top 5 risks and mitigations
+    - Provides a realistic timeline and cost estimate
+    - Includes the self-critique findings and how they were addressed
+
+    Be specific, opinionated, and brutally honest. No fluff.
+  role: tech-lead
+  tier: tribune
+
+---
+# ── CENTURION 1: Market Research ────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c1-market
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are a market research centurion. Your legionaries are analyzing the SaaS
+    landscape and identifying opportunities. Synthesize their findings into:
+
+    - A market research report covering how modern SaaS apps are built (Linear, Notion,
+      Figma, Vercel, Stripe, Raycast — their patterns, stacks, growth loops)
+    - The top 5 underserved industries with poor existing software
+    - A competitive analysis matrix for the selected opportunity
+    - SWOT analysis
+    - Clear product positioning statement
+
+    The selected opportunity should be based on: market size, urgency of pain,
+    competitive weakness, MVP feasibility, and defensibility.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l1a-saas
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Research how modern high-quality SaaS applications are built today. Study these
+    products in depth: Linear, Notion, Figma, Vercel, Stripe, Raycast.
+
+    For each, analyze:
+    - Architecture patterns (monolith vs micro, real-time, offline-first, CRDT)
+    - Tech stacks (languages, frameworks, databases, infra)
+    - Design systems (component libraries, design tokens, accessibility)
+    - Performance optimization (lazy loading, edge caching, WASM, optimistic UI)
+    - Monetization models (freemium, usage-based, seat-based, hybrid)
+    - Growth loops (viral, content, community, PLG, ecosystem/marketplace)
+    - API strategies (REST, GraphQL, SDK-first, webhook ecosystems)
+    - Extensibility (plugins, integrations, developer platforms)
+
+    Provide specific technical details and numbers where possible.
+    Include a comparison table across all 6 products.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c1-market
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l1b-industries
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Identify 5 industries or domains that meet ALL of these criteria:
+    - High demand for software solutions
+    - Poor existing software (legacy, fragmented, spreadsheet-based)
+    - High willingness to pay (enterprise budgets, compliance drivers)
+    - Growing regulatory or operational complexity
+    - Feasible to build an MVP in 3-6 months
+
+    For each industry:
+    - Describe the current pain (specific workflows, tools, frustrations)
+    - Estimate TAM/SAM/SOM with sources
+    - List existing competitors and their weaknesses
+    - Rate defensibility potential (network effects, data moats, switching costs)
+    - Identify the "wedge" — the smallest useful product that opens the door
+
+    Then SELECT ONE opportunity and write a 500-word opportunity thesis explaining
+    why this is the best bet. Be specific and opinionated.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c1-market
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l1c-competitive
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Once an industry/opportunity is selected by a sibling agent, perform a deep
+    competitive analysis. Since you don't have their output yet, analyze the
+    construction/building compliance management space (a commonly underserved industry).
+
+    Create:
+    1. Competitive analysis matrix — compare top 5 existing solutions on:
+       features, pricing, UX quality, mobile support, integrations, market share,
+       funding, reviews/NPS
+    2. SWOT analysis for a new entrant
+    3. Positioning statement using the format:
+       "For [target] who [need], [product] is a [category] that [key benefit].
+       Unlike [alternatives], we [key differentiator]."
+    4. Blue ocean strategy canvas — what to eliminate, reduce, raise, create
+
+    Be specific with product names, pricing tiers, and feature gaps.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c1-market
+
+---
+# ── CENTURION 2: Product Definition ────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c2-product
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the product centurion. Define the complete product for a SaaS targeting
+    an underserved industry (assume construction compliance management if no other
+    context is available).
+
+    Produce:
+    1. Target persona(s) — name, role, company size, daily workflow, pain points,
+       emotional drivers, switching barriers, budget authority
+    2. Jobs to be done (JTBD) framework — functional, emotional, social jobs
+    3. Product vision — aspirational 10-year north star
+    4. MVP scope — the smallest thing that delivers the core JTBD (max 8 features)
+    5. V2 scope — what comes after product-market fit
+    6. Anti-features — what you explicitly will NOT build and why
+    7. Pricing model — free tier?, usage-based?, per-seat?, enterprise?
+       Include rationale, competitor pricing comparison, and projected ARPU
+
+    Write this as a proper Product Requirements Document (PRD).
+    Be specific enough that an engineer could start building from this.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+# ── CENTURION 3: Architecture ──────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c3-arch
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the architecture centurion. Your legionaries designed backend, frontend,
+    infrastructure, and security. Synthesize into a cohesive architecture that:
+
+    - Supports 100K+ users within 18 months
+    - Handles enterprise requirements (SSO, audit logs, multi-tenancy)
+    - Can be built by a small team (2-4 engineers)
+    - Is cost-effective at low scale but can grow
+
+    Produce Architecture Decision Records (ADRs) for the top 5 decisions.
+    Include a text-based system diagram showing all components and data flows.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l3a-backend
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Design the backend architecture for a SaaS product serving 100K+ users.
+
+    Cover:
+    1. Language choice — compare Go, TypeScript/Node, Rust, Python. Justify selection
+       based on: hiring, ecosystem, performance, team size tradeoffs
+    2. Framework — compare top 3 frameworks for the chosen language
+    3. Monolith vs microservices — analyze for a 2-4 person team. Include the
+       "modular monolith" option. Decision matrix with scoring.
+    4. Data model — design the core entities, relationships, and constraints.
+       Provide actual CREATE TABLE statements (PostgreSQL).
+    5. API design — REST vs GraphQL vs tRPC. Design the core endpoints with
+       request/response schemas.
+    6. Event-driven components — what needs async processing? Message broker choice.
+    7. Migration strategy — how to evolve the schema safely over time
+
+    All decisions must include rationale and tradeoffs.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c3-arch
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l3b-frontend
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Design the frontend architecture for a modern SaaS product.
+
+    Cover:
+    1. SPA vs SSR vs hybrid (Next.js, Remix, Vite SPA) — decision matrix
+    2. Framework choice — React, Vue, Svelte, Solid. Justify with hiring,
+       ecosystem, performance, DX considerations
+    3. State management — local vs global, server state (TanStack Query vs SWR),
+       client state (Zustand vs Jotai vs Redux). Decision matrix.
+    4. Component system — design tokens, variant system, compound components.
+       Provide example component API for Button, Input, Modal, DataTable.
+    5. Accessibility — WCAG 2.1 AA compliance plan. Keyboard navigation,
+       screen reader support, focus management, ARIA patterns.
+    6. Offline capabilities — service workers, IndexedDB, optimistic UI patterns.
+       What works offline? What requires connectivity?
+    7. Performance budget — target metrics (FCP, LCP, CLS, TTI), lazy loading
+       strategy, code splitting approach, bundle size targets
+
+    Include concrete code examples where helpful.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c3-arch
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l3c-infra
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Design the infrastructure and DevOps architecture for a SaaS product.
+
+    Cover:
+    1. Cloud provider — AWS vs GCP vs Azure vs Hetzner/fly.io. Cost comparison
+       at 1K, 10K, 100K users. Decision matrix.
+    2. Deployment — Kubernetes vs ECS/Fargate vs serverless vs VMs. For a small team.
+    3. CI/CD pipeline — GitHub Actions workflow design. Build, test, lint, security
+       scan, deploy stages. Include actual workflow YAML.
+    4. Environments — dev/staging/prod topology. Database seeding, feature flags,
+       preview environments for PRs.
+    5. Observability stack — logging (structured JSON), metrics (Prometheus/Grafana
+       vs Datadog vs managed), tracing (OpenTelemetry), error tracking (Sentry).
+    6. Alerting — what to alert on, escalation policy, on-call rotation for a
+       small team. PagerDuty vs OpsGenie vs simpler alternatives.
+    7. Cost optimization — reserved instances, spot/preemptible, auto-scaling
+       policies, CDN strategy. Monthly cost estimate at each scale tier.
+
+    Provide specific service names, pricing, and configuration.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c3-arch
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l3d-security
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Design the security architecture for a SaaS product handling enterprise data.
+
+    Cover:
+    1. Authentication — email/password, OAuth2/OIDC (Google, Microsoft, GitHub),
+       magic links, MFA. Compare auth providers: Auth0, Clerk, Supabase Auth,
+       custom. Decision matrix.
+    2. Authorization — RBAC vs ABAC. Design the role/permission model. Include
+       actual permission definitions and enforcement patterns.
+    3. Multi-tenancy — shared DB with RLS vs schema-per-tenant vs DB-per-tenant.
+       Decision matrix for each approach at different scale points.
+    4. Data isolation — how to prevent tenant data leakage. Query-level enforcement,
+       middleware patterns, testing strategies.
+    5. Encryption — at rest (DB, file storage, backups), in transit (TLS config,
+       certificate management), application-level encryption for sensitive fields.
+    6. Threat model — STRIDE analysis for the top 5 attack surfaces. OWASP Top 10
+       mitigation for each item with specific code patterns.
+    7. Compliance roadmap — SOC2 Type I → Type II timeline, GDPR checklist,
+       data residency approach, audit logging schema.
+
+    Be specific about implementation, not just principles.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c3-arch
+
+---
+# ── CENTURION 4: UX & Design ──────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c4-ux
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the UX centurion. Design a complete design system and UX framework.
+
+    1. Design principles — 5 core principles that guide every decision
+    2. Color system — primary, secondary, semantic (success/warning/error/info),
+       neutral scale. Include hex values, contrast ratios, dark mode variants.
+    3. Typography — font stack, scale (fluid type), line heights, font weights
+    4. Spacing system — 4px grid, named tokens (xs through 3xl)
+    5. Component library spec — for each component (Button, Input, Select, Modal,
+       Toast, DataTable, Sidebar, Command Palette), define: variants, sizes,
+       states (default/hover/active/disabled/loading/error), accessibility requirements
+    6. User journey maps — for the 3 most critical flows: onboarding, core workflow,
+       billing/upgrade. Include happy path + 3 error paths each.
+    7. Edge case catalog — empty states, error states, loading states, offline states,
+       permission denied states. How each should look and what copy to show.
+    8. Microcopy guidelines — tone (professional but human), error message format,
+       success message format, empty state format, CTA patterns
+    9. Dark mode strategy — not just inverted colors. Elevation model, shadow
+       adjustments, image treatment, user preference persistence.
+
+    Be opinionated. Reference Linear and Raycast as north stars for quality.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+# ── CENTURION 5: Engineering ───────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c5-eng
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the engineering centurion. Your legionaries are implementing the core
+    system. Produce a complete project structure and implementation plan.
+
+    1. Folder structure — monorepo layout with packages for: api, web, shared,
+       database, config. Include every directory with a one-line description.
+    2. Backend implementation plan — list every file to create with:
+       purpose, key functions/classes, dependencies, estimated lines of code
+    3. Frontend implementation plan — same format. Component tree, page structure,
+       route definitions, API client layer.
+    4. Database — complete migration files, seed data for development, index strategy
+    5. Testing strategy — what to unit test, what to integration test, what to E2E
+       test. Test file naming, mocking approach, CI test pipeline.
+    6. DevOps artifacts — Dockerfiles (multi-stage), docker-compose.yml for local dev,
+       Kubernetes manifests or Helm chart, CI/CD pipeline config.
+    7. Developer experience — README, CONTRIBUTING.md, Makefile with common tasks,
+       pre-commit hooks, linting config, editor settings.
+
+    Provide actual code snippets for: auth middleware, database connection,
+    API route handler, React component, test example, Dockerfile.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l5a-backend-impl
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Implement the core backend for a SaaS application. Produce actual code.
+
+    Assume: TypeScript, Fastify, PostgreSQL, Drizzle ORM (or justify alternatives).
+
+    Implement these files with complete, production-quality code:
+    1. src/server.ts — Fastify server setup with plugins, error handling, graceful shutdown
+    2. src/db/schema.ts — Drizzle schema for: users, organizations, memberships, audit_logs
+    3. src/db/migrate.ts — Migration runner
+    4. src/middleware/auth.ts — JWT verification + session middleware
+    5. src/middleware/rbac.ts — Role-based access control middleware
+    6. src/routes/auth.ts — POST /register, POST /login, POST /logout, GET /me
+    7. src/routes/organizations.ts — CRUD for organizations with membership management
+    8. src/lib/errors.ts — Custom error classes, error handler plugin
+    9. src/lib/logger.ts — Structured logging setup (pino)
+    10. tests/auth.test.ts — Integration tests for auth flow
+
+    Code must include: input validation (zod), proper error handling, TypeScript
+    strict mode, JSDoc comments, rate limiting on auth routes.
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c5-eng
+
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-l5b-frontend-impl
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    Implement the core frontend for a SaaS application. Produce actual code.
+
+    Assume: React 19, TypeScript, Vite, TailwindCSS v4, TanStack Router + Query.
+
+    Implement these files with complete, production-quality code:
+    1. src/main.tsx — App entry with providers (auth, query, router, theme)
+    2. src/components/ui/Button.tsx — Polymorphic button with variants, sizes, loading state
+    3. src/components/ui/Input.tsx — Form input with label, error, description, icons
+    4. src/components/ui/Modal.tsx — Accessible modal with focus trap, ESC close, portal
+    5. src/components/ui/DataTable.tsx — Sortable, filterable table with pagination
+    6. src/components/layout/Sidebar.tsx — Collapsible sidebar with navigation
+    7. src/features/auth/LoginPage.tsx — Login form with validation, loading, errors
+    8. src/features/auth/useAuth.ts — Auth hook with login, logout, refresh, user state
+    9. src/lib/api.ts — Type-safe API client with interceptors, error handling, retry
+    10. src/lib/theme.ts — Dark/light mode with system preference detection
+
+    Code must include: proper TypeScript types, accessibility (aria, keyboard nav),
+    responsive design, loading/error/empty states, proper React patterns (no prop drilling).
+  role: researcher
+  tier: legionary
+  parentTaskId: stress-c5-eng
+
+---
+# ── CENTURION 6: Reliability ──────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c6-reliability
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the reliability centurion. Harden the system for production.
+
+    1. Failure mode analysis — enumerate every way the system can fail:
+       database down, cache miss storm, auth provider outage, CDN failure,
+       DNS issues, certificate expiry, disk full, memory leak, connection pool
+       exhaustion, cascading failures. For each: likelihood, impact, detection, mitigation.
+
+    2. Circuit breakers — design the circuit breaker pattern for external dependencies.
+       Include state machine (closed/open/half-open), thresholds, timeouts.
+       Provide implementation code (TypeScript).
+
+    3. Retry strategies — exponential backoff with jitter for: API calls, database
+       queries, message queue publishing, webhook delivery. Include dead letter queue design.
+
+    4. Rate limiting — per-user, per-org, per-endpoint. Token bucket vs sliding window.
+       Include Redis-based implementation. Define limits for each endpoint category.
+
+    5. Graceful degradation — what happens when each dependency is down?
+       Define degraded modes (read-only, cached, queued, disabled feature).
+
+    6. Backup & disaster recovery — database backup schedule (WAL archiving, pg_dump),
+       point-in-time recovery, cross-region replication, RTO/RPO targets.
+       Include actual backup cron job and restore runbook.
+
+    7. Operational runbook — for each failure scenario: symptoms, diagnosis steps,
+       resolution steps, escalation criteria. Written for an on-call engineer at 3am.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+# ── CENTURION 7: Go-To-Market ─────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c7-gtm
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the go-to-market centurion. Build the complete GTM strategy.
+
+    1. Brand identity — name options (5), tagline, voice/tone, visual direction
+    2. Landing page copy — hero section, problem statement, solution, features
+       (with benefit-driven descriptions), social proof section, CTA, FAQ (10 questions)
+    3. Pricing page — 3 tiers with feature matrix, annual discount, enterprise CTA
+    4. Comparison page — vs top 3 competitors, honest feature comparison
+    5. Growth strategy:
+       - Early adopters: who are the first 100 users and how to reach them?
+       - Distribution: SEO keywords (50), content marketing topics (20),
+         community channels, partnership targets
+       - Product-led growth: what makes users invite others? Viral coefficient targets.
+       - Developer relations (if B2D): docs, API playground, SDK, changelog
+    6. Financial model:
+       - Customer acquisition cost (CAC) by channel
+       - Lifetime value (LTV) by tier
+       - Payback period
+       - Monthly burn rate at different team sizes
+       - Revenue projections: months 1-6, 6-12, 12-36
+       - Break-even analysis
+
+    All numbers should be realistic, not aspirational. Show your assumptions.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+# ── CENTURION 8: Legal & Compliance ───────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c8-legal
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the legal and compliance centurion.
+
+    1. Privacy Policy — draft a GDPR-compliant privacy policy covering:
+       data collection, processing purposes, legal bases, retention periods,
+       third-party processors, user rights, cookie policy, international transfers.
+       Include specific data categories for a SaaS product.
+
+    2. Terms of Service — draft covering: acceptable use, intellectual property,
+       liability limitations, data ownership, SLA commitments, termination,
+       dispute resolution, governing law.
+
+    3. Data Processing Agreement (DPA) — standard clauses, sub-processor list,
+       security measures, breach notification process, audit rights.
+
+    4. GDPR analysis — data mapping exercise, lawful bases for each processing
+       activity, DPIA for high-risk processing, DPO requirements assessment.
+
+    5. SOC2 readiness — gap analysis against Trust Service Criteria (security,
+       availability, confidentiality). Prioritized action items to achieve Type I.
+       Timeline and cost estimate.
+
+    6. Industry-specific compliance — identify any industry-specific regulations
+       for the chosen domain (e.g., construction: building codes databases,
+       worker safety records, environmental compliance).
+
+    All documents should be production-quality drafts, not outlines.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
+
+---
+# ── CENTURION 9: Self-Critique ────────────────────────────────────────────
+
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: stress-c9-critique
+  namespace: hortator-system
+  labels:
+    stress-test: "true"
+spec:
+  prompt: |
+    You are the red team / critique centurion. Your job is to be brutally honest.
+
+    Assume a SaaS product has been designed by other agents covering market research,
+    product definition, architecture, UX, engineering, reliability, GTM, and legal.
+
+    Perform a merciless critique:
+
+    1. Architecture weaknesses — what will break first at scale? What's over-engineered
+       for an MVP? What technical debt is being taken on knowingly vs accidentally?
+
+    2. Product risks — is the MVP too big? Too small? Is the pricing going to kill
+       adoption? Are we solving a real problem or a hypothetical one?
+
+    3. Market risks — what if a well-funded competitor enters? What if the market
+       doesn't materialize? What's the biggest assumption that could be wrong?
+
+    4. Team risks — can 2-4 engineers actually build this? What skills are missing?
+       What's the bus factor on critical components?
+
+    5. Security blind spots — what attack surface was underestimated? What compliance
+       requirement will bite us in 6 months?
+
+    6. Financial risks — what if CAC is 3x higher? What if churn is 2x higher?
+       How long is the actual runway?
+
+    For each weakness:
+    - Severity (critical/high/medium/low)
+    - Likelihood
+    - Impact if realized
+    - Proposed mitigation
+    - Whether it should block launch or be accepted as known risk
+
+    End with a "would you invest?" decision and why/why not.
+  role: tech-lead
+  tier: centurion
+  parentTaskId: stress-tribune
