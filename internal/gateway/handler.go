@@ -15,7 +15,9 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
@@ -395,6 +397,13 @@ func (h *Handler) sendStreamDone(w http.ResponseWriter, flusher http.Flusher) {
 	flusher.Flush()
 }
 
+// convertToAgentRole converts an unstructured object to a typed AgentRole.
+func convertToAgentRole(obj *unstructured.Unstructured) (*v1alpha1.AgentRole, error) {
+	role := &v1alpha1.AgentRole{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, role)
+	return role, err
+}
+
 // resolveModelConfig looks up the AgentRole and returns model configuration.
 // Falls back to a default config if the role doesn't exist.
 func (h *Handler) resolveModelConfig(ctx context.Context, roleName string) *ModelConfig {
@@ -416,20 +425,18 @@ func (h *Handler) resolveModelConfig(ctx context.Context, roleName string) *Mode
 		return nil
 	}
 
-	cfg := &ModelConfig{}
+	typedRole, err := convertToAgentRole(role)
+	if err != nil {
+		log.Error(err, "failed to convert AgentRole to typed object", "role", roleName)
+		return nil
+	}
 
-	// Read defaultModel from AgentRole spec
-	if model, ok, _ := unstructured.NestedString(role.Object, "spec", "defaultModel"); ok {
-		cfg.Name = model
-	}
-	if endpoint, ok, _ := unstructured.NestedString(role.Object, "spec", "defaultEndpoint"); ok {
-		cfg.Endpoint = endpoint
-	}
-	if secretName, ok, _ := unstructured.NestedString(role.Object, "spec", "apiKeyRef", "secretName"); ok {
-		cfg.SecretName = secretName
-		if key, ok, _ := unstructured.NestedString(role.Object, "spec", "apiKeyRef", "key"); ok {
-			cfg.SecretKey = key
-		}
+	cfg := &ModelConfig{}
+	cfg.Name = typedRole.Spec.DefaultModel
+	cfg.Endpoint = typedRole.Spec.DefaultEndpoint
+	if typedRole.Spec.ApiKeyRef != nil {
+		cfg.SecretName = typedRole.Spec.ApiKeyRef.SecretName
+		cfg.SecretKey = typedRole.Spec.ApiKeyRef.Key
 	}
 
 	// If role has a model name but no explicit endpoint/secret, infer from model name
