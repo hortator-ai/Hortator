@@ -107,16 +107,15 @@ type taskItem struct {
 	prefix string
 }
 
-// --- Roman Helmet ASCII Art ---
+// --- Logo ---
 
-const romanHelmet = `    ┌═══════┐
-   ╱ ▄▄▄▄▄▄▄ ╲
-  ║ ██░░░░░██ ║
-  ║ ██░░░░░██ ║
-   ╲ ▀▀▀▀▀▀▀ ╱
-    └───▄───┘
-      ║███║
-      ╚═══╝`
+const hortatorLogo = `  ██╗  ██╗ ██████╗ ██████╗ ████████╗ █████╗ ████████╗ ██████╗ ██████╗
+  ██║  ██║██╔═══██╗██╔══██╗╚══██╔══╝██╔══██╗╚══██╔══╝██╔═══██╗██╔══██╗
+  ███████║██║   ██║██████╔╝   ██║   ███████║   ██║   ██║   ██║██████╔╝
+  ██╔══██║██║   ██║██╔══██╗   ██║   ██╔══██║   ██║   ██║   ██║██╔══██╗
+  ██║  ██║╚██████╔╝██║  ██║   ██║   ██║  ██║   ██║   ╚██████╔╝██║  ██║
+  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝
+                        Remigate, vermēs!`
 
 // --- Styles ---
 
@@ -144,7 +143,7 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("99"))
 
-	styleHelmet = lipgloss.NewStyle().Foreground(lipgloss.Color("208")).MarginRight(2)
+	styleLogo = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
 )
 
 // --- Tea interface ---
@@ -226,15 +225,9 @@ func (m model) View() string {
 	if m.allNS {
 		nsLabel = "all"
 	}
-	helmet := styleHelmet.Render(romanHelmet)
-	titleBlock := lipgloss.JoinVertical(lipgloss.Left,
-		"",
-		styleTitle.Render("HORTATOR WATCH"),
-		"",
-		styleSubtle.Render(fmt.Sprintf("  namespace: %s", nsLabel)),
-		"",
-	)
-	headerContent := lipgloss.JoinHorizontal(lipgloss.Center, helmet, titleBlock)
+	logo := styleLogo.Render(hortatorLogo)
+	nsLine := styleSubtle.Render(fmt.Sprintf("                        namespace: %s", nsLabel))
+	headerContent := lipgloss.JoinVertical(lipgloss.Left, logo, nsLine)
 	headerBox := styleBorder.Copy().Width(contentWidth).Render(headerContent)
 	sections = append(sections, headerBox)
 
