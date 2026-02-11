@@ -1,0 +1,20 @@
+{{- if .Values.tenant.limitRange.enabled }}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "hortator.fullname" . }}-limits
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .Values.tenant.limitRange.defaultCpu | quote }}
+        memory: {{ .Values.tenant.limitRange.defaultMemory | quote }}
+      defaultRequest:
+        cpu: {{ .Values.tenant.limitRange.defaultRequestCpu | quote }}
+        memory: {{ .Values.tenant.limitRange.defaultRequestMemory | quote }}
+      max:
+        cpu: {{ .Values.tenant.limitRange.maxCpu | quote }}
+        memory: {{ .Values.tenant.limitRange.maxMemory | quote }}
+{{- end }}
