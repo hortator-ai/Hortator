@@ -91,6 +91,7 @@ jobs:
           go test ./test/e2e/ -tags=e2e -v -timeout 15m
         env:
           USE_EXISTING_CLUSTER: "true"
+          KIND_CLUSTER: hortator-e2e
 
   build:
     runs-on: ubuntu-latest
