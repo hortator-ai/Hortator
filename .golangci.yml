@@ -20,4 +20,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/michael-niemand/Hortator
+        - github.com/hortator-ai/Hortator

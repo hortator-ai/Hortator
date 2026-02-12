@@ -50,7 +50,7 @@ It provides the **infrastructure layer** — isolation, lifecycle management, bu
 
 ```bash
 # Install the operator
-helm install hortator oci://ghcr.io/michael-niemand/hortator/charts/hortator \
+helm install hortator oci://ghcr.io/hortator-ai/hortator/charts/hortator \
   --namespace hortator-system --create-namespace \
   --set models.default.endpoint=https://api.anthropic.com/v1 \
   --set models.default.name=claude-sonnet-4-20250514

@@ -8,7 +8,7 @@ package controller
 import (
 	"testing"
 
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 func TestIsBudgetExceeded_NoBudget(t *testing.T) {

@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 // ensurePVC creates a PVC for the task if it doesn't already exist.

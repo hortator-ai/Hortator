@@ -2,7 +2,7 @@
 
 AgentRoles define behavioral archetypes for agents. They are referenced by name in `AgentTask.spec.role`.
 
-**CRD YAML:** [`crds/agentrole.yaml`](https://github.com/michael-niemand/Hortator/blob/main/crds/agentrole.yaml)
+**CRD YAML:** [`crds/agentrole.yaml`](https://github.com/hortator-ai/Hortator/blob/main/crds/agentrole.yaml)
 
 ## Scoping
 

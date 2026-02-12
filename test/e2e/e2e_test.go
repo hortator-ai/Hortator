@@ -17,7 +17,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/michael-niemand/Hortator/test/utils"
+	"github.com/hortator-ai/Hortator/test/utils"
 )
 
 const namespace = "hortator-system"

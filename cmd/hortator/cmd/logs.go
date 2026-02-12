@@ -17,7 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 var (

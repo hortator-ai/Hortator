@@ -1,8 +1,8 @@
 site_name: Hortator
 site_description: Kubernetes-native orchestration for autonomous AI agents
 site_url: https://docs.hortator.io
-repo_url: https://github.com/michael-niemand/Hortator
-repo_name: michael-niemand/Hortator
+repo_url: https://github.com/hortator-ai/Hortator
+repo_name: hortator-ai/Hortator
 
 theme:
   name: material
@@ -91,4 +91,4 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/michael-niemand/Hortator
+      link: https://github.com/hortator-ai/Hortator

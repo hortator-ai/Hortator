@@ -20,8 +20,8 @@ Run `make sync-crds` to regenerate and sync across all locations. Run `make veri
 
 The core workload resource. Defines a task for an agent to execute.
 
-**Go types:** [`api/v1alpha1/agenttask_types.go`](https://github.com/michael-niemand/Hortator/blob/main/api/v1alpha1/agenttask_types.go)
-**CRD YAML:** [`crds/core.hortator.ai_agenttasks.yaml`](https://github.com/michael-niemand/Hortator/blob/main/crds/core.hortator.ai_agenttasks.yaml) (generated — do not edit directly)
+**Go types:** [`api/v1alpha1/agenttask_types.go`](https://github.com/hortator-ai/Hortator/blob/main/api/v1alpha1/agenttask_types.go)
+**CRD YAML:** [`crds/core.hortator.ai_agenttasks.yaml`](https://github.com/hortator-ai/Hortator/blob/main/crds/core.hortator.ai_agenttasks.yaml) (generated — do not edit directly)
 
 ### Key Spec Fields
 
@@ -55,7 +55,7 @@ With retry enabled: `Failed` → `Retrying` → `Pending` (up to `maxAttempts`)
 
 Behavioral archetypes for agents. `AgentRole` is namespace-scoped, `ClusterAgentRole` is cluster-wide. Namespace-local takes precedence over cluster-wide for the same name.
 
-**CRD YAML:** [`crds/agentrole.yaml`](https://github.com/michael-niemand/Hortator/blob/main/crds/agentrole.yaml) (hand-maintained — edit directly in `crds/`, then run `make sync-crds`)
+**CRD YAML:** [`crds/agentrole.yaml`](https://github.com/hortator-ai/Hortator/blob/main/crds/agentrole.yaml) (hand-maintained — edit directly in `crds/`, then run `make sync-crds`)
 
 > **Note:** Go types for AgentRole/ClusterAgentRole are not yet generated — the gateway uses `unstructured.Unstructured`. See backlog item L7.
 
@@ -74,8 +74,8 @@ Behavioral archetypes for agents. `AgentRole` is namespace-scoped, `ClusterAgent
 
 Namespace-scoped governance constraints. Tasks must comply with all matching policies.
 
-**Go types:** [`api/v1alpha1/agentpolicy_types.go`](https://github.com/michael-niemand/Hortator/blob/main/api/v1alpha1/agentpolicy_types.go)
-**CRD YAML:** [`crds/core.hortator.ai_agentpolicies.yaml`](https://github.com/michael-niemand/Hortator/blob/main/crds/core.hortator.ai_agentpolicies.yaml) (generated — do not edit directly)
+**Go types:** [`api/v1alpha1/agentpolicy_types.go`](https://github.com/hortator-ai/Hortator/blob/main/api/v1alpha1/agentpolicy_types.go)
+**CRD YAML:** [`crds/core.hortator.ai_agentpolicies.yaml`](https://github.com/hortator-ai/Hortator/blob/main/crds/core.hortator.ai_agentpolicies.yaml) (generated — do not edit directly)
 
 ### Key Spec Fields
 

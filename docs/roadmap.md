@@ -1,6 +1,6 @@
 # Roadmap
 
-For the full prioritized backlog, see [backlog.md](https://github.com/michael-niemand/Hortator/blob/main/backlog.md).
+For the full prioritized backlog, see [backlog.md](https://github.com/hortator-ai/Hortator/blob/main/backlog.md).
 
 ## Recently Completed
 

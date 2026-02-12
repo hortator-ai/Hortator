@@ -65,4 +65,4 @@ storage:
 
 ## Configuration
 
-Full storage configuration is in [`charts/hortator/values.yaml`](https://github.com/michael-niemand/Hortator/blob/main/charts/hortator/values.yaml) under the `storage` section.
+Full storage configuration is in [`charts/hortator/values.yaml`](https://github.com/hortator-ai/Hortator/blob/main/charts/hortator/values.yaml) under the `storage` section.

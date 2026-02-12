@@ -46,7 +46,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/michael-niemand/Hortator/internal/gateway"
+	"github.com/hortator-ai/Hortator/internal/gateway"
 )
 
 func main() {
