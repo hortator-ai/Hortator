@@ -49,7 +49,7 @@ This document proposes a comprehensive external API strategy for Hortator, the K
 
 ### Python SDK *(Implemented)*
 
-> **Note:** The Python SDK has been implemented — see [`sdk/python/`](https://github.com/michael-niemand/Hortator/tree/main/sdk/python) and `pip install hortator`. The actual API follows OpenAI conventions with Hortator extensions (capabilities, tiers, budgets). The conceptual design below was the original proposal; the shipped API is simpler.
+> **Note:** The Python SDK has been implemented — see [`sdk/python/`](https://github.com/hortator-ai/Hortator/tree/main/sdk/python) and `pip install hortator`. The actual API follows OpenAI conventions with Hortator extensions (capabilities, tiers, budgets). The conceptual design below was the original proposal; the shipped API is simpler.
 
 ```python
 from hortator import HortatorClient, TaskConfig
@@ -843,7 +843,7 @@ CREATE TABLE usage_events (
 
 ### Phase 3: Advanced Features (Months 5-6)
 
-> **Note:** Python and TypeScript SDKs have been implemented ahead of schedule. See [`sdk/python/`](https://github.com/michael-niemand/Hortator/tree/main/sdk/python) and [`sdk/typescript/`](https://github.com/michael-niemand/Hortator/tree/main/sdk/typescript).
+> **Note:** Python and TypeScript SDKs have been implemented ahead of schedule. See [`sdk/python/`](https://github.com/hortator-ai/Hortator/tree/main/sdk/python) and [`sdk/typescript/`](https://github.com/hortator-ai/Hortator/tree/main/sdk/typescript).
 
 **Scope:**
 - Domain-specific models (legal, research, etc.)

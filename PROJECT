@@ -6,7 +6,7 @@ domain: hortator.ai
 layout:
 - go.kubebuilder.io/v4
 projectName: hortator
-repo: github.com/michael-niemand/Hortator
+repo: github.com/hortator-ai/Hortator
 resources:
 - api:
     crdVersion: v1
@@ -15,6 +15,6 @@ resources:
   domain: hortator.ai
   group: core
   kind: AgentTask
-  path: github.com/michael-niemand/Hortator/api/v1alpha1
+  path: github.com/hortator-ai/Hortator/api/v1alpha1
   version: v1alpha1
 version: "3"

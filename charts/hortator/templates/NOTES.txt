@@ -4,7 +4,7 @@
    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "hortator.name" . }}
 
 2. Install the CLI:
-   go install github.com/michael-niemand/Hortator/cmd/hortator@latest
+   go install github.com/hortator-ai/Hortator/cmd/hortator@latest
 
 3. Create your first agent task:
    hortator spawn --prompt "Hello, world!"
@@ -36,4 +36,4 @@ not indicate a problem. A preStop hook is configured to minimize this.
 {{- end }}
 
 For more information, visit:
-  https://github.com/michael-niemand/Hortator
+  https://github.com/hortator-ai/Hortator

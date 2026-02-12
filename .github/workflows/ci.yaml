@@ -134,26 +134,26 @@ jobs:
 
       - name: Build and push operator image
         run: |
-          docker build -t ghcr.io/michael-niemand/hortator/operator:${{ steps.tag.outputs.TAG }} \
-                        -t ghcr.io/michael-niemand/hortator/operator:latest .
-          docker push ghcr.io/michael-niemand/hortator/operator:${{ steps.tag.outputs.TAG }}
-          docker push ghcr.io/michael-niemand/hortator/operator:latest
+          docker build -t ghcr.io/hortator-ai/hortator/operator:${{ steps.tag.outputs.TAG }} \
+                        -t ghcr.io/hortator-ai/hortator/operator:latest .
+          docker push ghcr.io/hortator-ai/hortator/operator:${{ steps.tag.outputs.TAG }}
+          docker push ghcr.io/hortator-ai/hortator/operator:latest
 
       - name: Build and push runtime image
         run: |
-          docker build -t ghcr.io/michael-niemand/hortator/runtime:${{ steps.tag.outputs.TAG }} \
-                        -t ghcr.io/michael-niemand/hortator/runtime:latest \
+          docker build -t ghcr.io/hortator-ai/hortator/runtime:${{ steps.tag.outputs.TAG }} \
+                        -t ghcr.io/hortator-ai/hortator/runtime:latest \
                         -f runtime/Dockerfile .
-          docker push ghcr.io/michael-niemand/hortator/runtime:${{ steps.tag.outputs.TAG }}
-          docker push ghcr.io/michael-niemand/hortator/runtime:latest
+          docker push ghcr.io/hortator-ai/hortator/runtime:${{ steps.tag.outputs.TAG }}
+          docker push ghcr.io/hortator-ai/hortator/runtime:latest
 
       - name: Build and push agentic runtime image
         run: |
-          docker build -t ghcr.io/michael-niemand/hortator/agent-agentic:${{ steps.tag.outputs.TAG }} \
-                        -t ghcr.io/michael-niemand/hortator/agent-agentic:latest \
+          docker build -t ghcr.io/hortator-ai/hortator/agent-agentic:${{ steps.tag.outputs.TAG }} \
+                        -t ghcr.io/hortator-ai/hortator/agent-agentic:latest \
                         -f runtime/agentic/Dockerfile .
-          docker push ghcr.io/michael-niemand/hortator/agent-agentic:${{ steps.tag.outputs.TAG }}
-          docker push ghcr.io/michael-niemand/hortator/agent-agentic:latest
+          docker push ghcr.io/hortator-ai/hortator/agent-agentic:${{ steps.tag.outputs.TAG }}
+          docker push ghcr.io/hortator-ai/hortator/agent-agentic:latest
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -163,4 +163,4 @@ jobs:
       - name: Package and push Helm chart
         run: |
           helm package charts/hortator --version ${{ steps.tag.outputs.TAG }}
-          helm push hortator-${{ steps.tag.outputs.TAG }}.tgz oci://ghcr.io/michael-niemand/hortator/charts
+          helm push hortator-${{ steps.tag.outputs.TAG }}.tgz oci://ghcr.io/hortator-ai/hortator/charts

@@ -22,7 +22,7 @@ import (
 
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 // WarmPoolConfig holds warm pool settings from Helm/ConfigMap.
