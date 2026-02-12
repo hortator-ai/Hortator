@@ -48,6 +48,10 @@ For the full prioritized backlog, see [backlog.md](https://github.com/hortator-a
   - Quickstart script builds all three images and uses correct Helm values paths.
 - **BUG-015 fix: Presidio reachability** — Increased default Presidio wait timeout from 30s to 60s in both runtimes. Made configurable via `PRESIDIO_WAIT_SECONDS` env var.
 
+## Recently Completed (2026-02-12)
+
+- **E2E timeout fix** — `utils.Run()` now wraps every command with `exec.CommandContext` and a 5-minute default timeout (configurable via `RunWithTimeout`). Prevents the test suite from hanging indefinitely when commands like `kubectl delete ns` block on finalizers. `AfterAll` cleanup also passes `--timeout=60s --wait=false` to namespace deletion.
+
 ## Next Up
 
 - CRD regeneration (run `controller-gen` to pick up AgentRole health field)

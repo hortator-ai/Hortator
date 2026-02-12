@@ -6,13 +6,17 @@ SPDX-License-Identifier: MIT
 package utils
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2" //nolint:revive,staticcheck
 )
+
+const defaultRunTimeout = 5 * time.Minute
 
 const (
 	prometheusOperatorVersion = "v0.72.0"
@@ -35,20 +39,36 @@ func InstallPrometheusOperator() error {
 	return err
 }
 
-// Run executes the provided command within this context
+// Run executes the provided command within this context with the default timeout.
 func Run(cmd *exec.Cmd) ([]byte, error) {
-	dir, _ := GetProjectDir()
-	cmd.Dir = dir
+	return RunWithTimeout(cmd, defaultRunTimeout)
+}
 
-	if err := os.Chdir(cmd.Dir); err != nil {
+// RunWithTimeout executes the provided command with the given timeout.
+// When the timeout is exceeded the process is killed and an error is returned.
+func RunWithTimeout(cmd *exec.Cmd, timeout time.Duration) ([]byte, error) {
+	dir, _ := GetProjectDir()
+
+	if err := os.Chdir(dir); err != nil {
 		_, _ = fmt.Fprintf(GinkgoWriter, "chdir dir: %s\n", err)
 	}
 
-	cmd.Env = append(os.Environ(), "GO111MODULE=on")
-	command := strings.Join(cmd.Args, " ")
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Recreate the command with a context so the process is killed on timeout.
+	cmdCtx := exec.CommandContext(ctx, cmd.Args[0], cmd.Args[1:]...) //nolint:gosec
+	cmdCtx.Dir = dir
+	cmdCtx.Env = append(os.Environ(), "GO111MODULE=on")
+	cmdCtx.Stdin = cmd.Stdin
+
+	command := strings.Join(cmdCtx.Args, " ")
 	_, _ = fmt.Fprintf(GinkgoWriter, "running: %s\n", command)
-	output, err := cmd.CombinedOutput()
+	output, err := cmdCtx.CombinedOutput()
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return output, fmt.Errorf("%s timed out after %v: %s", command, timeout, string(output))
+		}
 		return output, fmt.Errorf("%s failed with error: (%v) %s", command, err, string(output))
 	}
 
