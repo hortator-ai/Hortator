@@ -43,7 +43,8 @@ var _ = Describe("controller", Ordered, func() {
 		utils.UninstallCertManager()
 
 		By("removing manager namespace")
-		cmd := exec.Command("kubectl", "delete", "ns", namespace)
+		cmd := exec.Command("kubectl", "delete", "ns", namespace,
+			"--timeout=60s", "--wait=false")
 		_, _ = utils.Run(cmd)
 	})
 
