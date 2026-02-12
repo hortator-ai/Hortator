@@ -55,6 +55,10 @@ helm install hortator oci://ghcr.io/hortator-ai/hortator/charts/hortator \
 - 📊 **Observability** — OpenTelemetry traces + Prometheus metrics
 - 💾 **Context Management** — Structured extraction, summarization, agent reincarnation
 
+## Internal
+
+- [VC Pitch Manual](marketing/vc-pitch.md) — market positioning, competitive landscape, sourced data
+
 ---
 
 *"I don't row. I command the rowers."* — The Hortator
