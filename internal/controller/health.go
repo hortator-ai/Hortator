@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 // StuckScore holds the results of behavioral stuck-detection analysis.

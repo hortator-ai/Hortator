@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 // ResultCacheConfig holds configuration for the result cache.

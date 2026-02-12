@@ -2,7 +2,7 @@
 
 For the full field reference, see the [CRDs documentation](../architecture/crds.md#agenttask-corehortatoraiv1alpha1).
 
-**Go types:** [`api/v1alpha1/agenttask_types.go`](https://github.com/michael-niemand/Hortator/blob/main/api/v1alpha1/agenttask_types.go)
+**Go types:** [`api/v1alpha1/agenttask_types.go`](https://github.com/hortator-ai/Hortator/blob/main/api/v1alpha1/agenttask_types.go)
 
 ## Example
 

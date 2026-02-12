@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
+	v1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 var agentTaskGVR = schema.GroupVersionResource{

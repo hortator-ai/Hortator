@@ -10,9 +10,9 @@ keywords:
   - kubernetes
   - operator
   - orchestration
-home: https://github.com/michael-niemand/Hortator
+home: https://github.com/hortator-ai/Hortator
 sources:
-  - https://github.com/michael-niemand/Hortator
+  - https://github.com/hortator-ai/Hortator
 maintainers:
   - name: Hortator Team
-    url: https://github.com/michael-niemand/Hortator
+    url: https://github.com/hortator-ai/Hortator

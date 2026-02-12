@@ -59,5 +59,5 @@ telemetry:
 
 ## Implementation
 
-- Metrics: [`internal/controller/metrics.go`](https://github.com/michael-niemand/Hortator/blob/main/internal/controller/metrics.go)
+- Metrics: [`internal/controller/metrics.go`](https://github.com/hortator-ai/Hortator/blob/main/internal/controller/metrics.go)
 - OTel tracer and event emission are integrated into the reconcile loop via `emitTaskEvent()`

@@ -28,7 +28,7 @@ Think of it as **Kubernetes for AI workforces**: agents get isolated Pods, resou
 ## Quick Install
 
 ```bash
-helm install hortator oci://ghcr.io/michael-niemand/hortator/charts/hortator \
+helm install hortator oci://ghcr.io/hortator-ai/hortator/charts/hortator \
   --namespace hortator-system --create-namespace \
   --set models.default.endpoint=https://api.anthropic.com/v1 \
   --set models.default.name=claude-sonnet-4-20250514

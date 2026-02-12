@@ -114,16 +114,16 @@ Since CI builds and pushes to GHCR on every merge to `main`, you can skip buildi
 
 ```bash
 # Build all three images
-docker build -t ghcr.io/michael-niemand/hortator/operator:dev .
-docker build -t ghcr.io/michael-niemand/hortator/agent:dev -f runtime/Dockerfile .
-docker build -t ghcr.io/michael-niemand/hortator/agent-agentic:dev -f runtime/agentic/Dockerfile .
+docker build -t ghcr.io/hortator-ai/hortator/operator:dev .
+docker build -t ghcr.io/hortator-ai/hortator/agent:dev -f runtime/Dockerfile .
+docker build -t ghcr.io/hortator-ai/hortator/agent-agentic:dev -f runtime/agentic/Dockerfile .
 ```
 
 If using Kind:
 ```bash
-kind load docker-image ghcr.io/michael-niemand/hortator/operator:dev
-kind load docker-image ghcr.io/michael-niemand/hortator/agent:dev
-kind load docker-image ghcr.io/michael-niemand/hortator/agent-agentic:dev
+kind load docker-image ghcr.io/hortator-ai/hortator/operator:dev
+kind load docker-image ghcr.io/hortator-ai/hortator/agent:dev
+kind load docker-image ghcr.io/hortator-ai/hortator/agent-agentic:dev
 ```
 
 If using a real cluster with a registry, push to your registry and adjust `--set` values below.
@@ -153,11 +153,11 @@ kubectl create namespace hortator-system 2>/dev/null || true
 # For locally-built images:
 helm upgrade --install hortator charts/hortator \
   --namespace hortator-system \
-  --set operator.image.repository=ghcr.io/michael-niemand/hortator/operator \
+  --set operator.image.repository=ghcr.io/hortator-ai/hortator/operator \
   --set operator.image.tag=dev \
   --set operator.image.pullPolicy=IfNotPresent \
-  --set agent.image=ghcr.io/michael-niemand/hortator/agent:dev \
-  --set agent.agenticImage=ghcr.io/michael-niemand/hortator/agent-agentic:dev \
+  --set agent.image=ghcr.io/hortator-ai/hortator/agent:dev \
+  --set agent.agenticImage=ghcr.io/hortator-ai/hortator/agent-agentic:dev \
   --set presidio.enabled=true \
   --wait --timeout 120s
 

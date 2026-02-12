@@ -8,7 +8,7 @@ package main
 import (
 	"os"
 
-	"github.com/michael-niemand/Hortator/cmd/hortator/cmd"
+	"github.com/hortator-ai/Hortator/cmd/hortator/cmd"
 )
 
 func main() {

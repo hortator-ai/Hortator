@@ -1,6 +1,6 @@
 # Helm Values Reference
 
-The full annotated values file is at [`charts/hortator/values.yaml`](https://github.com/michael-niemand/Hortator/blob/main/charts/hortator/values.yaml).
+The full annotated values file is at [`charts/hortator/values.yaml`](https://github.com/hortator-ai/Hortator/blob/main/charts/hortator/values.yaml).
 
 All configuration is Helm-driven — transparent, GitOps-friendly, no custom images needed.
 

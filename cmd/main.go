@@ -25,8 +25,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	corev1alpha1 "github.com/michael-niemand/Hortator/api/v1alpha1"
-	"github.com/michael-niemand/Hortator/internal/controller"
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
+	"github.com/hortator-ai/Hortator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

@@ -12,7 +12,7 @@ spec:
     - shell
     - web-fetch
   allowedImages:
-    - "ghcr.io/michael-niemand/hortator/*"
+    - "ghcr.io/hortator-ai/hortator/*"
     - "ghcr.io/hortator-ai/*"
   maxBudget:
     maxCostUsd: "1.00"
