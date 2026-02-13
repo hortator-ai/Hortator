@@ -29,7 +29,7 @@ jobs:
 
       - name: Verify CRD manifests
         run: |
-          controller-gen crd paths="./..." output:crd:artifacts:config=config/crd/bases
+          controller-gen crd:allowDangerousTypes=true paths="./..." output:crd:artifacts:config=config/crd/bases
           git diff --exit-code
 
       - name: Verify CRDs are synced across locations
