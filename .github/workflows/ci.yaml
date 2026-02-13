@@ -102,13 +102,13 @@ jobs:
           docker push ghcr.io/hortator-ai/hortator/operator:${{ steps.tag.outputs.TAG }}
           docker push ghcr.io/hortator-ai/hortator/operator:latest
 
-      - name: Build and push runtime image
+      - name: Build and push agent image
         run: |
-          docker build -t ghcr.io/hortator-ai/hortator/runtime:${{ steps.tag.outputs.TAG }} \
-                        -t ghcr.io/hortator-ai/hortator/runtime:latest \
+          docker build -t ghcr.io/hortator-ai/hortator/agent:${{ steps.tag.outputs.TAG }} \
+                        -t ghcr.io/hortator-ai/hortator/agent:latest \
                         -f runtime/Dockerfile .
-          docker push ghcr.io/hortator-ai/hortator/runtime:${{ steps.tag.outputs.TAG }}
-          docker push ghcr.io/hortator-ai/hortator/runtime:latest
+          docker push ghcr.io/hortator-ai/hortator/agent:${{ steps.tag.outputs.TAG }}
+          docker push ghcr.io/hortator-ai/hortator/agent:latest
 
       - name: Build and push agentic runtime image
         run: |
