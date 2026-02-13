@@ -7,8 +7,14 @@
 #
 # Expected behavior:
 #   - Presidio sidecar/service scans agent output
-#   - PII entities above scoreThreshold are redacted
+#   - PII entities above scoreThreshold are detected/redacted
 #   - OTel event hortator.presidio.pii_detected is emitted
+#   - status.output should NOT contain raw SSN, credit card, etc.
+#
+# Verification:
+#   kubectl get agenttask guardrails-pii-test -n hortator-test -o jsonpath='{.status.output}'
+#   # Should show redacted values like <PERSON>, <US_SSN>, <CREDIT_CARD>, etc.
+#   # If raw PII is visible, the redaction pipeline has a bug.
 #
 # Prerequisites:
 #   - presidio.enabled=true in Helm values
