@@ -2,8 +2,8 @@ apiVersion: v2
 name: hortator
 description: Hortator - Kubernetes-native AI agent orchestration operator
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.0.1
+appVersion: "0.0.1"
 keywords:
   - ai
   - agent
