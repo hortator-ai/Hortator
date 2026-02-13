@@ -93,6 +93,18 @@ type namespacesMsg struct {
 	err   error
 }
 
+// --- View mode ---
+
+type viewMode int
+
+const (
+	viewList     viewMode = iota // task list (default)
+	viewDetails                  // quick details
+	viewDescribe                 // full describe (spec + output)
+	viewLogs                     // pod logs
+	viewSummary                  // aggregate summary
+)
+
 // --- Model ---
 
 type model struct {
@@ -110,18 +122,16 @@ type model struct {
 	clientset  *kubernetes.Clientset
 	lastErr    error
 	logLines   []string
-	showLogs   bool
-	showDetail bool
+
+	// Current view mode (replaces showLogs/showDetail/showDescribe/showSummary)
+	view viewMode
 
 	// Namespace text input mode
 	nsInput     textinput.Model
 	nsInputMode bool
 
-	// Describe (full spec + output) view
-	showDescribe bool
-
-	// Status summary panel
-	showSummary bool
+	// Scroll offset for content views
+	scrollOffset int
 }
 
 type taskItem struct {
@@ -182,58 +192,94 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// In any sub-view, Esc returns to list
+		if m.view != viewList && msg.String() == "esc" {
+			m.view = viewList
+			m.scrollOffset = 0
+			m.logLines = nil
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-				m.logLines = nil
+			if m.view == viewList {
+				if m.cursor > 0 {
+					m.cursor--
+				}
+			} else {
+				if m.scrollOffset > 0 {
+					m.scrollOffset--
+				}
 			}
 		case "down", "j":
-			if m.cursor < len(m.tasks)-1 {
-				m.cursor++
-				m.logLines = nil
+			if m.view == viewList {
+				if m.cursor < len(m.tasks)-1 {
+					m.cursor++
+				}
+			} else {
+				m.scrollOffset++
 			}
-		case "enter":
-			m.showDetail = !m.showDetail
-			m.showDescribe = false // close describe when toggling details
+		case "enter", "d":
+			if m.view == viewList {
+				m.view = viewDetails
+				m.scrollOffset = 0
+			} else {
+				m.view = viewList
+				m.scrollOffset = 0
+			}
 		case "l":
-			m.showLogs = !m.showLogs
-			if m.showLogs && len(m.tasks) > 0 {
-				return m, fetchLogs(m)
+			if m.view == viewList {
+				m.view = viewLogs
+				m.scrollOffset = 0
+				m.logLines = nil
+				if len(m.tasks) > 0 {
+					return m, fetchLogs(m)
+				}
+			} else {
+				m.view = viewList
+				m.scrollOffset = 0
 			}
-			m.logLines = nil
+		case "D":
+			if m.view == viewList {
+				m.view = viewDescribe
+				m.scrollOffset = 0
+			} else {
+				m.view = viewList
+				m.scrollOffset = 0
+			}
+		case "s", "S":
+			if m.view == viewList {
+				m.view = viewSummary
+				m.scrollOffset = 0
+			} else {
+				m.view = viewList
+				m.scrollOffset = 0
+			}
 		case "r":
 			return m, fetchTasks(m)
 		case "n":
-			// Open namespace text input
-			m.nsInputMode = true
-			m.nsInput.SetValue(m.namespace)
-			m.nsInput.Focus()
-			return m, nil
+			if m.view == viewList {
+				m.nsInputMode = true
+				m.nsInput.SetValue(m.namespace)
+				m.nsInput.Focus()
+				return m, nil
+			}
 		case "N":
-			// Cycle to previous namespace (quick)
-			if len(m.namespaces) > 0 {
+			if m.view == viewList && len(m.namespaces) > 0 {
 				m.nsIndex = (m.nsIndex - 1 + len(m.namespaces)) % len(m.namespaces)
 				m.namespace = m.namespaces[m.nsIndex]
 				m.allNS = false
 				m.cursor = 0
-				m.logLines = nil
 				return m, fetchTasks(m)
 			}
 		case "A":
-			// Toggle all-namespaces
-			m.allNS = !m.allNS
-			m.cursor = 0
-			m.logLines = nil
-			return m, fetchTasks(m)
-		case "D":
-			// Toggle describe view (full spec + prompt + output)
-			m.showDescribe = !m.showDescribe
-		case "S":
-			// Toggle status summary panel
-			m.showSummary = !m.showSummary
+			if m.view == viewList {
+				m.allNS = !m.allNS
+				m.cursor = 0
+				return m, fetchTasks(m)
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -251,7 +297,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor = len(m.tasks) - 1
 			}
 		}
-		if m.showLogs && len(m.tasks) > 0 {
+		if m.view == viewLogs && len(m.tasks) > 0 {
 			return m, fetchLogs(m)
 		}
 
@@ -338,18 +384,85 @@ func (m model) View() string {
 		sections = append(sections, errBox)
 	}
 
-	// --- Tasks ---
-	maxVisible := m.height - 16
-	if m.showDetail {
-		maxVisible -= 8
-	}
-	if m.showLogs {
-		maxVisible -= 8
-	}
-	if maxVisible < 3 {
-		maxVisible = 3
+	// --- Namespace Input (overlays any view) ---
+	if m.nsInputMode {
+		inputContent := fmt.Sprintf("  Namespace: %s", m.nsInput.View())
+		inputBox := styleBorder.Width(contentWidth).
+			BorderForeground(lipgloss.Color("11")).
+			Render(inputContent)
+		inputBox = injectBorderTitle(inputBox, " Set Namespace ", " Enter confirm │ Esc cancel ")
+		sections = append(sections, inputBox)
 	}
 
+	// Available lines for main content (header ~10 lines, footer 1, borders 2)
+	availableLines := m.height - 14
+	if m.lastErr != nil {
+		availableLines -= 3
+	}
+	if m.nsInputMode {
+		availableLines -= 3
+	}
+	if availableLines < 5 {
+		availableLines = 5
+	}
+
+	// --- Main content area (single pane) ---
+	switch m.view {
+	case viewList:
+		sections = append(sections, m.renderTaskListPane(contentWidth, availableLines))
+	case viewDetails:
+		sections = append(sections, m.renderSubView(contentWidth, availableLines, " Details ", " Esc back │ ↑↓ scroll ",
+			func() string {
+				if m.cursor < len(m.tasks) {
+					return renderDetails(m.tasks[m.cursor], contentWidth-4)
+				}
+				return "  (no task selected)"
+			}))
+	case viewDescribe:
+		sections = append(sections, m.renderSubView(contentWidth, availableLines, " Describe ", " Esc back │ ↑↓ scroll ",
+			func() string {
+				if m.cursor < len(m.tasks) {
+					return renderDescribe(m.tasks[m.cursor], contentWidth-4)
+				}
+				return "  (no task selected)"
+			}))
+	case viewLogs:
+		sections = append(sections, m.renderSubView(contentWidth, availableLines, " Logs ", " Esc back │ ↑↓ scroll ",
+			func() string {
+				if len(m.logLines) == 0 {
+					return "  (no logs)"
+				}
+				var lines []string
+				for _, l := range m.logLines {
+					lines = append(lines, "  "+l)
+				}
+				return strings.Join(lines, "\n")
+			}))
+	case viewSummary:
+		sections = append(sections, m.renderSubView(contentWidth, availableLines, " Summary ", " Esc back │ ↑↓ scroll ",
+			func() string {
+				return renderSummary(m.tasks, contentWidth-4)
+			}))
+	}
+
+	// --- Footer ---
+	var footer string
+	if m.view == viewList {
+		footer = styleFooter.Render(fmt.Sprintf("  q quit │ ↑↓ select │ d details │ D describe │ s summary │ l logs │ n namespace │ A all-ns │ r refresh ─── %s", m.refreshInt))
+	} else {
+		taskName := ""
+		if m.cursor < len(m.tasks) {
+			taskName = m.tasks[m.cursor].task.Name
+		}
+		footer = styleFooter.Render(fmt.Sprintf("  Esc back │ ↑↓ scroll │ q quit ─── %s", taskName))
+	}
+	sections = append(sections, footer)
+
+	return lipgloss.JoinVertical(lipgloss.Left, sections...) + "\n"
+}
+
+// renderTaskListPane renders the task list as the main content pane.
+func (m model) renderTaskListPane(contentWidth, maxVisible int) string {
 	var taskLines []string
 	if len(m.tasks) == 0 {
 		taskLines = append(taskLines, "  No tasks found.")
@@ -369,66 +482,51 @@ func (m model) View() string {
 
 	taskContent := strings.Join(taskLines, "\n")
 	taskBox := styleBorder.Width(contentWidth).Render(taskContent)
-	// Inject "Tasks" and hint into top border
 	taskBox = injectBorderTitle(taskBox, " Tasks ", " ↑↓ navigate ")
-	sections = append(sections, taskBox)
+	return taskBox
+}
 
-	// --- Details ---
-	if m.showDetail && m.cursor < len(m.tasks) {
-		detailContent := renderDetails(m.tasks[m.cursor], contentWidth-4)
-		detailBox := styleBorder.Width(contentWidth).Render(detailContent)
-		detailBox = injectBorderTitle(detailBox, " Details ", "")
-		sections = append(sections, detailBox)
+// renderSubView renders a scrollable content view in place of the task list.
+func (m model) renderSubView(contentWidth, maxLines int, title, hint string, contentFn func() string) string {
+	content := contentFn()
+	lines := strings.Split(content, "\n")
+
+	// Clamp scroll offset
+	maxOffset := len(lines) - maxLines
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	offset := m.scrollOffset
+	if offset > maxOffset {
+		offset = maxOffset
 	}
 
-	// --- Describe (full spec + output) ---
-	if m.showDescribe && m.cursor < len(m.tasks) {
-		describeContent := renderDescribe(m.tasks[m.cursor], contentWidth-4)
-		describeBox := styleBorder.Width(contentWidth).Render(describeContent)
-		describeBox = injectBorderTitle(describeBox, " Describe ", " D toggle ")
-		sections = append(sections, describeBox)
+	// Slice visible window
+	end := offset + maxLines
+	if end > len(lines) {
+		end = len(lines)
 	}
+	visible := lines[offset:end]
 
-	// --- Status Summary ---
-	if m.showSummary {
-		summaryContent := renderSummary(m.tasks, contentWidth-4)
-		summaryBox := styleBorder.Width(contentWidth).Render(summaryContent)
-		summaryBox = injectBorderTitle(summaryBox, " Summary ", " S toggle ")
-		sections = append(sections, summaryBox)
-	}
-
-	// --- Namespace Input ---
-	if m.nsInputMode {
-		inputContent := fmt.Sprintf("  Namespace: %s", m.nsInput.View())
-		inputBox := styleBorder.Width(contentWidth).
-			BorderForeground(lipgloss.Color("11")).
-			Render(inputContent)
-		inputBox = injectBorderTitle(inputBox, " Set Namespace ", " Enter confirm │ Esc cancel ")
-		sections = append(sections, inputBox)
-	}
-
-	// --- Logs ---
-	if m.showLogs {
-		var logContent string
-		if len(m.logLines) == 0 {
-			logContent = "  (no logs)"
-		} else {
-			var lines []string
-			for _, l := range m.logLines {
-				lines = append(lines, "  "+l)
-			}
-			logContent = strings.Join(lines, "\n")
+	// Add scroll indicator
+	if offset > 0 {
+		visible = append([]string{styleSubtle.Render("  ↑ more above")}, visible...)
+		if len(visible) > maxLines {
+			visible = visible[:maxLines]
 		}
-		logBox := styleBorder.Width(contentWidth).Render(logContent)
-		logBox = injectBorderTitle(logBox, " Logs (tail) ", "")
-		sections = append(sections, logBox)
+	}
+	if end < len(lines) {
+		if len(visible) >= maxLines {
+			visible[maxLines-1] = styleSubtle.Render("  ↓ more below")
+		} else {
+			visible = append(visible, styleSubtle.Render("  ↓ more below"))
+		}
 	}
 
-	// --- Footer ---
-	footer := styleFooter.Render(fmt.Sprintf("  q quit │ ↑↓ select │ Enter details │ D describe │ S summary │ l logs │ n namespace │ A all-ns │ r refresh ─── %s", m.refreshInt))
-	sections = append(sections, footer)
-
-	return lipgloss.JoinVertical(lipgloss.Left, sections...) + "\n"
+	rendered := strings.Join(visible, "\n")
+	box := styleBorder.Width(contentWidth).Render(rendered)
+	box = injectBorderTitle(box, title, hint)
+	return box
 }
 
 // injectBorderTitle replaces part of the top border line with a title and optional right-side hint.
