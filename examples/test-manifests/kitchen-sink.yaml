@@ -103,19 +103,23 @@ spec:
   thinkingLevel: high
 
   prompt: |
-    Perform a comprehensive code review:
+    Perform a comprehensive system diagnostic:
 
-    1. Clone the sample repo from /inbox/ (if provided)
-    2. Review all Go files for:
-       - Security issues (OWASP Top 10)
+    1. Write a short Go program in /workspace/main.go that:
+       - Starts an HTTP server on :8080
+       - Has a /health endpoint
+       - Has a deliberately hardcoded API key (for PII detection testing)
+       - Has a goroutine leak (for review findings)
+    2. Review the code you wrote for:
+       - Security issues (hardcoded secrets, missing input validation)
        - Performance bottlenecks
        - Error handling gaps
-       - Goroutine/channel leaks
-    3. Check for any PII or hardcoded secrets
-    4. Spawn a legionary to run the test suite
-    5. Produce a structured review in /outbox/result.json
+    3. Produce a structured review in /outbox/result.json with:
+       - findings: array of {severity, category, description, line}
+       - summary: overall assessment
+       - score: 0-100
 
-    Save your state periodically to /memory/state.json in case of
+    Save your state periodically to /workspace/state.json in case of
     budget or timeout interruption.
 
   # Model configuration
