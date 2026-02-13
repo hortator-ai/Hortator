@@ -28,6 +28,11 @@ go.work
 .DS_Store
 Thumbs.db
 
+# Environment files
+.env
+.env.*
+*.env
+
 # Kubernetes
 *.kubeconfig
 
@@ -38,7 +43,11 @@ site/
 # Python SDK
 sdk/python/.venv/
 sdk/python/__pycache__/
+sdk/python/.pytest_cache/
 **/__pycache__/
 *.pyc
+.pytest_cache/
+
+# TypeScript SDK
 sdk/typescript/node_modules/
 sdk/typescript/dist/
