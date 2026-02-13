@@ -14,7 +14,7 @@ data:
   resultCacheEnabled: {{ .Values.resultCache.enabled | quote }}
   resultCacheTTLSeconds: {{ .Values.resultCache.ttlSeconds | quote }}
   resultCacheMaxEntries: {{ .Values.resultCache.maxEntries | quote }}
-  agenticImage: {{ .Values.agent.agenticImage | quote }}
+  agenticImage: {{ include "hortator.agenticImage" . | quote }}
   # Budget enforcement
   budgetEnabled: {{ .Values.budget.enabled | quote }}
   budgetDefaultMaxCostUsd: {{ .Values.budget.defaultLimit.maxCostUsd | quote }}
@@ -44,8 +44,8 @@ data:
   # reconciliation behavior and default values for AgentTask Pods.
   config.yaml: |
     agent:
-      image: {{ .Values.agent.image | quote }}
-      agenticImage: {{ .Values.agent.agenticImage | quote }}
+      image: {{ include "hortator.agentImage" . | quote }}
+      agenticImage: {{ include "hortator.agenticImage" . | quote }}
       timeout: {{ .Values.agent.timeout | quote }}
       defaultTimeoutSeconds: {{ .Values.agent.defaultTimeoutSeconds }}
       resources:

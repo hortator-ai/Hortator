@@ -63,6 +63,22 @@ Create the name of the service account to use
 Create the operator image reference
 */}}
 {{- define "hortator.operatorImage" -}}
-{{- $tag := default .Chart.AppVersion .Values.operator.image.tag }}
+{{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.operator.image.tag }}
 {{- printf "%s:%s" .Values.operator.image.repository $tag }}
+{{- end }}
+
+{{/*
+Create the agent image reference
+*/}}
+{{- define "hortator.agentImage" -}}
+{{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.agent.image.tag }}
+{{- printf "%s:%s" .Values.agent.image.repository $tag }}
+{{- end }}
+
+{{/*
+Create the agentic agent image reference
+*/}}
+{{- define "hortator.agenticImage" -}}
+{{- $tag := default (printf "v%s" .Chart.AppVersion) .Values.agent.agenticImage.tag }}
+{{- printf "%s:%s" .Values.agent.agenticImage.repository $tag }}
 {{- end }}
