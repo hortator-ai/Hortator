@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Hortator!
 
 1. Fork and clone the repository
 2. Install dependencies:
-   - Go 1.24+
+   - Go 1.25+
    - kubectl
    - kubebuilder
    - A Kubernetes cluster (kind, minikube, etc.)
@@ -106,7 +106,7 @@ Types: `feat`, `fix`, `improvement`, `build`, `ci`, `chore`, `docs`, `perf`, `re
 - All Go source files must include the MIT license header (see `hack/boilerplate.go.txt`):
   ```go
   /*
-  Copyright (c) 2026 GeneClackman
+  Copyright (c) 2026 hortator-ai
   SPDX-License-Identifier: MIT
   */
   ```

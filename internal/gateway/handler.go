@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2026 GeneClackman
+Copyright (c) 2026 hortator-ai
 SPDX-License-Identifier: MIT
 */
 
@@ -141,8 +141,10 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Level 1 prep: capture session header for future use
+	// Session continuity: map X-Hortator-Session header to PVC name and set
+	// storage.retain so multi-turn conversations reuse the same workspace.
+	// Tracked in roadmap/level-1-session-continuity.
 	// sessionID := r.Header.Get("X-Hortator-Session")
-	// _ = sessionID // TODO(level-1): map to PVC name, set storage.retain
 
 	var req ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

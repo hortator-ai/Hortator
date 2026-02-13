@@ -65,7 +65,7 @@ spec:
   maxConcurrentTasks: 20
   requirePresidio: true
   allowedImages:
-    - "ghcr.io/michael-niemand/hortator/*"
+    - "ghcr.io/hortator-ai/hortator/*"
     - "ghcr.io/hortator-ai/*"
   egressAllowlist:
     - host: "api.anthropic.com"

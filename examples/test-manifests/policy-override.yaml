@@ -39,7 +39,7 @@ spec:
     - web-fetch                  # Even though it's in allowed, denied wins
   # Restrict container images
   allowedImages:
-    - "ghcr.io/michael-niemand/hortator/*"
+    - "ghcr.io/hortator-ai/hortator/*"
     - "ghcr.io/hortator-ai/*"
   # Budget ceiling
   maxBudget:

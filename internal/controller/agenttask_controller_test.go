@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2026 GeneClackman
+Copyright (c) 2026 hortator-ai
 SPDX-License-Identifier: MIT
 */
 
@@ -27,7 +27,7 @@ var _ = Describe("AgentTask Controller", func() {
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default",
 		}
 		agenttask := &corev1alpha1.AgentTask{}
 
@@ -47,7 +47,6 @@ var _ = Describe("AgentTask Controller", func() {
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			resource := &corev1alpha1.AgentTask{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
@@ -66,8 +65,6 @@ var _ = Describe("AgentTask Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
 		})
 	})
 })
