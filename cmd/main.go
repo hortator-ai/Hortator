@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2026 GeneClackman
+Copyright (c) 2026 hortator-ai
 SPDX-License-Identifier: MIT
 */
 
