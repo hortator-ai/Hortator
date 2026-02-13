@@ -56,51 +56,6 @@ jobs:
           name: coverage
           path: cover.out
 
-  e2e:
-    runs-on: ubuntu-latest
-    needs: [test]
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.25"
-
-      - name: Create Kind cluster
-        uses: helm/kind-action@v1
-        with:
-          cluster_name: hortator-e2e
-
-      - name: Install envtest binaries
-        run: |
-          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-          setup-envtest use
-
-      - name: Build and load images
-        run: |
-          docker build -t example.com/hortator:v0.0.1 .
-          docker build -t example.com/hortator-agent:v0.0.1 -f runtime/Dockerfile .
-          docker build -t example.com/hortator-agent-agentic:v0.0.1 -f runtime/agentic/Dockerfile .
-          kind load docker-image example.com/hortator:v0.0.1 --name hortator-e2e
-          kind load docker-image example.com/hortator-agent:v0.0.1 --name hortator-e2e
-          kind load docker-image example.com/hortator-agent-agentic:v0.0.1 --name hortator-e2e
-
-      - name: Configure agent images for Kind
-        run: |
-          # Override default GHCR agent images with locally-built Kind images
-          sed -i 's|ghcr.io/hortator-ai/hortator/agent:latest|example.com/hortator-agent:v0.0.1|' config/manager/manager.yaml
-          sed -i 's|ghcr.io/hortator-ai/hortator/agent-agentic:latest|example.com/hortator-agent-agentic:v0.0.1|' config/manager/manager.yaml
-          echo "Agent images configured for Kind:"
-          grep 'HORTATOR_.*IMAGE' config/manager/manager.yaml
-
-      - name: Run E2E tests
-        run: |
-          export KUBEBUILDER_ASSETS="$(setup-envtest use -p path)"
-          go test ./test/e2e/ -tags=e2e -v -timeout 15m
-        env:
-          USE_EXISTING_CLUSTER: "true"
-          KIND_CLUSTER: hortator-e2e
-
   build:
     runs-on: ubuntu-latest
     steps:

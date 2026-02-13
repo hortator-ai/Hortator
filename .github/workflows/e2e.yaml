@@ -1,0 +1,56 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster:
+        description: "Kind cluster name"
+        default: "hortator-e2e"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ${{ inputs.cluster }}
+
+      - name: Install envtest binaries
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          setup-envtest use
+
+      - name: Build and load images
+        run: |
+          docker build -t example.com/hortator:v0.0.1 .
+          docker build -t example.com/hortator-agent:v0.0.1 -f runtime/Dockerfile .
+          docker build -t example.com/hortator-agent-agentic:v0.0.1 -f runtime/agentic/Dockerfile .
+          kind load docker-image example.com/hortator:v0.0.1 --name ${{ inputs.cluster }}
+          kind load docker-image example.com/hortator-agent:v0.0.1 --name ${{ inputs.cluster }}
+          kind load docker-image example.com/hortator-agent-agentic:v0.0.1 --name ${{ inputs.cluster }}
+
+      - name: Configure agent images for Kind
+        run: |
+          sed -i 's|ghcr.io/hortator-ai/hortator/agent:latest|example.com/hortator-agent:v0.0.1|' config/manager/manager.yaml
+          sed -i 's|ghcr.io/hortator-ai/hortator/agent-agentic:latest|example.com/hortator-agent-agentic:v0.0.1|' config/manager/manager.yaml
+          echo "Agent images configured for Kind:"
+          grep 'HORTATOR_.*IMAGE' config/manager/manager.yaml
+
+      - name: Run E2E tests
+        run: |
+          export KUBEBUILDER_ASSETS="$(setup-envtest use -p path)"
+          go test ./test/e2e/ -tags=e2e -v -timeout 15m
+        env:
+          USE_EXISTING_CLUSTER: "true"
+          KIND_CLUSTER: ${{ inputs.cluster }}
