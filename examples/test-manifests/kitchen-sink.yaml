@@ -136,11 +136,12 @@ spec:
   env:
     - name: REVIEW_DEPTH
       value: "comprehensive"
-    - name: GITHUB_TOKEN
-      valueFrom:
-        secretKeyRef:
-          secretName: github-credentials
-          key: token
+    # Optional: uncomment if github-credentials secret exists
+    # - name: GITHUB_TOKEN
+    #   valueFrom:
+    #     secretKeyRef:
+    #       secretName: github-credentials
+    #       key: token
     - name: LOG_LEVEL
       value: "debug"
 
