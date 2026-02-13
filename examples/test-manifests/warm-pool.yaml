@@ -1,0 +1,94 @@
+# Test: Warm Pod Pool for Fast Startup
+#
+# Validates warm pool behavior:
+#   - Idle warm pods are pre-provisioned and waiting
+#   - Task claims a warm pod instead of creating a new one
+#   - task.json is injected via kubectl exec
+#   - Consumed pod is replaced (pool replenishment)
+#   - Graceful degradation: falls back to cold pod if no warm pods available
+#
+# Expected behavior:
+#   - Task starts in <1s (vs 2-30s for cold start)
+#   - Pod labels transition: hortator.ai/warm-status=idle → claimed
+#   - Pod gains hortator.ai/task=warm-pool-test label
+#   - A replacement warm pod is created in the background
+#
+# Prerequisites:
+#   - warmPool.enabled=true in Helm values
+#   - warmPool.size >= 1
+#   - At least one idle warm pod in the namespace:
+#     kubectl get pods -n hortator-test -l hortator.ai/warm-pool=true,hortator.ai/warm-status=idle
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: warm-pool-test
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: warm-pool
+    hortator.ai/test-case: claim-warm-pod
+  annotations:
+    hortator.ai/description: "Should claim an idle warm pod for instant startup"
+spec:
+  prompt: |
+    Simple test: report the time it took from pod start to task execution.
+    Check the pod start time and compare with the current time.
+    Write timing info to /outbox/result.json.
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  timeout: 120
+  budget:
+    maxCostUsd: "0.10"
+  capabilities:
+    - shell
+---
+# Burst test: submit multiple tasks quickly to exhaust the warm pool
+# and verify graceful degradation to cold pod creation
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: warm-pool-burst-1
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: warm-pool
+    hortator.ai/test-case: burst-exhaustion
+  annotations:
+    hortator.ai/description: "Part of burst test — may get warm or cold pod"
+spec:
+  prompt: "Report whether you were started from a warm or cold pod. Check pod age."
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  timeout: 120
+  budget:
+    maxCostUsd: "0.10"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: warm-pool-burst-2
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: warm-pool
+    hortator.ai/test-case: burst-exhaustion
+spec:
+  prompt: "Report whether you were started from a warm or cold pod. Check pod age."
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  timeout: 120
+  budget:
+    maxCostUsd: "0.10"

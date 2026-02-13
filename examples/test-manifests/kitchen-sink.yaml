@@ -1,0 +1,188 @@
+# Test: Kitchen Sink — All Features Combined
+#
+# A single task exercising as many Hortator features as possible:
+#   - Custom role with flavor override
+#   - Budget constraints
+#   - Retry policy
+#   - Storage with retention
+#   - Presidio PII scanning
+#   - Stuck detection / health monitoring
+#   - Custom resources
+#   - Environment variables (plain + secretRef)
+#   - Thinking level
+#   - All relevant labels and annotations
+#
+# This is a stress test for the operator's feature composition —
+# all features should work together without conflicts.
+#
+# Prerequisites:
+#   - All feature flags enabled in Helm values
+#   - Anthropic API key secret
+#   - presidio.enabled=true
+#   - warmPool.enabled=true (optional — graceful degradation if off)
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: full-stack-reviewer
+  labels:
+    hortator.ai/test-suite: kitchen-sink
+spec:
+  description: >-
+    A comprehensive code review agent with all capabilities.
+    Used for kitchen sink testing of feature composition.
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+    - web-fetch
+    - spawn
+  rules:
+    - "Review code for security, performance, and maintainability"
+    - "Flag any PII or secrets in code"
+    - "Produce structured output in /outbox/result.json"
+  antiPatterns:
+    - "Don't approve code with hardcoded credentials"
+    - "Don't skip test files"
+  references:
+    - "https://owasp.org/www-project-top-ten/"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentPolicy
+metadata:
+  name: kitchen-sink-policy
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: kitchen-sink
+spec:
+  allowedCapabilities:
+    - shell
+    - web-fetch
+    - spawn
+  maxBudget:
+    maxCostUsd: "5.00"
+    maxTokens: 500000
+  maxTier: tribune
+  maxConcurrentTasks: 20
+  requirePresidio: true
+  allowedImages:
+    - "ghcr.io/michael-niemand/hortator/*"
+    - "ghcr.io/hortator-ai/*"
+  egressAllowlist:
+    - host: "api.anthropic.com"
+      ports: [443]
+    - host: "api.openai.com"
+      ports: [443]
+    - host: "10.0.0.0/8"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: kitchen-sink-test
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: kitchen-sink
+    hortator.ai/test-case: all-features
+    app.kubernetes.io/name: hortator
+    app.kubernetes.io/component: test
+    app.kubernetes.io/part-of: hortator-test-suite
+  annotations:
+    hortator.ai/description: "Kitchen sink test — all features combined"
+    hortator.ai/owner: "platform-team"
+spec:
+  # Role + flavor override
+  role: full-stack-reviewer
+  flavor: |
+    Additional context: You're reviewing a Go microservice.
+    Pay special attention to error handling and goroutine leaks.
+    This flavor text is appended to the role's rules.
+
+  tier: centurion
+  parentTaskId: ""               # No parent — top-level task
+
+  # Thinking level for reasoning depth
+  thinkingLevel: high
+
+  prompt: |
+    Perform a comprehensive code review:
+
+    1. Clone the sample repo from /inbox/ (if provided)
+    2. Review all Go files for:
+       - Security issues (OWASP Top 10)
+       - Performance bottlenecks
+       - Error handling gaps
+       - Goroutine/channel leaks
+    3. Check for any PII or hardcoded secrets
+    4. Spawn a legionary to run the test suite
+    5. Produce a structured review in /outbox/result.json
+
+    Save your state periodically to /memory/state.json in case of
+    budget or timeout interruption.
+
+  # Model configuration
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+
+  # Capabilities
+  capabilities:
+    - shell
+    - web-fetch
+    - spawn
+
+  # Environment variables — plain and secret-ref
+  env:
+    - name: REVIEW_DEPTH
+      value: "comprehensive"
+    - name: GITHUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          secretName: github-credentials
+          key: token
+    - name: LOG_LEVEL
+      value: "debug"
+
+  # Budget — moderate, with room for child tasks
+  budget:
+    maxTokens: 200000
+    maxCostUsd: "3.00"
+
+  # Retry — centurion gets 1 retry
+  retry:
+    maxAttempts: 1
+    backoffSeconds: 30
+    maxBackoffSeconds: 120
+
+  # Storage — retained for future reference
+  storage:
+    size: "1Gi"
+    storageClass: standard
+    retain: true
+    retainDays: 30
+
+  # Resources — explicit CPU/memory
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+  # Health / stuck detection — custom thresholds
+  health:
+    stuckDetection:
+      toolDiversityMin: 0.2
+      maxRepeatedPrompts: 5
+      statusStaleMinutes: 8
+      action: escalate
+
+  # Presidio — per-task overrides
+  presidio:
+    scoreThreshold: 0.5
+    action: detect               # detect-only mode for code review
+
+  # Timeout — 30 minutes
+  timeout: 1800

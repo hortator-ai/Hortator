@@ -1,0 +1,85 @@
+# Test: Storage Promotion (Ephemeral → Retained)
+#
+# Validates the PVC lifecycle: task starts with default ephemeral storage,
+# then the agent marks it for retention via `hortator retain`. The operator
+# should exempt the PVC from TTL cleanup and make it discoverable by
+# future tasks via tag matching.
+#
+# Expected behavior:
+#   1. PVC created with TTL annotation (hortator.io/expires-at)
+#   2. Agent runs `hortator retain --reason "..." --tags "..."`
+#   3. PVC gains hortator.io/retain=true annotation
+#   4. PVC survives TTL cleanup
+#   5. Future tasks with matching tags get this PVC mounted at /prior/
+#
+# Prerequisites:
+#   - storage.cleanup.ttl configured in Helm values
+#   - storage.retained.discovery=tags in Helm values
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: storage-promotion-producer
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: storage
+    hortator.ai/test-case: promotion-producer
+spec:
+  prompt: |
+    You are testing storage retention. Do the following:
+
+    1. Write an architecture decision record to /workspace/adr-001.md
+    2. Write a summary to /outbox/result.json
+    3. Run: hortator retain --reason "Architecture decision for auth system" --tags "auth,architecture,adr"
+
+    The retain command marks your PVC for long-term storage so future
+    agents can discover and reference your work.
+  tier: centurion
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  # Start with default ephemeral storage — agent promotes it at runtime
+  storage:
+    size: "512Mi"
+    storageClass: standard
+    retain: false                # Starts ephemeral; agent promotes via CLI
+  capabilities:
+    - shell
+  timeout: 300
+  budget:
+    maxCostUsd: "0.50"
+---
+# This task should auto-discover the retained PVC from the producer above.
+# Apply AFTER the producer completes and retains its PVC.
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: storage-promotion-consumer
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: storage
+    hortator.ai/test-case: promotion-consumer
+  annotations:
+    hortator.ai/description: "Should discover retained PVC via tag matching"
+spec:
+  prompt: |
+    Check /prior/ for any retained work from previous agents.
+    You should find an architecture decision record about auth.
+    Summarize what you find in /outbox/result.json.
+
+    If /prior/ is empty, report that no retained PVCs were discovered.
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  capabilities:
+    - shell
+  timeout: 180
+  budget:
+    maxCostUsd: "0.25"

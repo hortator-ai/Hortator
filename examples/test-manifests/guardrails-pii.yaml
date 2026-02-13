@@ -1,0 +1,71 @@
+# Test: Presidio PII Scanning Guardrails
+#
+# Validates that the Presidio integration correctly detects and redacts PII
+# in agent output. The prompt intentionally asks the agent to produce text
+# containing PII patterns (emails, SSNs, etc.) so we can verify the
+# guardrail fires.
+#
+# Expected behavior:
+#   - Presidio sidecar/service scans agent output
+#   - PII entities above scoreThreshold are redacted
+#   - OTel event hortator.presidio.pii_detected is emitted
+#
+# Prerequisites:
+#   - presidio.enabled=true in Helm values
+#   - Anthropic API key secret in namespace
+---
+# Policy that forces Presidio on all tasks in this namespace
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentPolicy
+metadata:
+  name: pii-enforced-policy
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: guardrails
+spec:
+  requirePresidio: true
+  allowedCapabilities:
+    - shell
+    - web-fetch
+  maxBudget:
+    maxCostUsd: "0.50"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: guardrails-pii-test
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: guardrails
+    hortator.ai/test-case: pii-scanning
+  annotations:
+    hortator.ai/description: "Tests Presidio PII detection with per-task overrides"
+spec:
+  prompt: |
+    Generate a sample customer onboarding email that includes:
+    - A full name
+    - An email address
+    - A US Social Security Number
+    - A phone number
+    - A credit card number
+
+    This is for testing PII detection. Use realistic-looking fake data.
+    Write the email to /outbox/result.json.
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  # Per-task Presidio overrides — stricter than namespace defaults
+  presidio:
+    scoreThreshold: 0.4          # Lower threshold = more aggressive detection
+    action: redact               # redact | detect | hash | mask
+    configRef: presidio-strict   # Optional ConfigMap with custom recognizers
+  budget:
+    maxTokens: 50000
+    maxCostUsd: "0.25"
+  timeout: 180
+  capabilities:
+    - shell
