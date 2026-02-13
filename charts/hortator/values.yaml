@@ -15,7 +15,7 @@ operator:
 
   # Container image
   image:
-    repository: ghcr.io/hortator-ai/operator
+    repository: ghcr.io/hortator-ai/hortator/operator
     tag: ""  # Defaults to appVersion
     pullPolicy: IfNotPresent
 
@@ -72,11 +72,11 @@ operator:
 
 agent:
   # Bash single-shot runtime (legionary tier)
-  image: ghcr.io/hortator-ai/agent:latest
+  image: ghcr.io/hortator-ai/hortator/agent:latest
 
   # Python agentic runtime (tribune/centurion tiers)
   # Tool-calling loop with litellm, checkpoint/restore, multi-step orchestration
-  agenticImage: ghcr.io/hortator-ai/agent-agentic:latest
+  agenticImage: ghcr.io/hortator-ai/hortator/agent-agentic:latest
 
   timeout: 30m
   defaultTimeoutSeconds: 600
