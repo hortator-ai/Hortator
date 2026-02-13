@@ -61,13 +61,16 @@ kubectl apply -f examples/test-manifests/budget-limit.yaml
 kubectl apply -f examples/test-manifests/retry-backoff.yaml
 ```
 **What to verify:**
-- Three tasks: `retry-transient-test`, `retry-exhaustion-test`, `retry-no-retry-test`
-- `retry-transient-test`: should retry on failure and eventually succeed (maxRetries: 3)
-- `retry-exhaustion-test`: should exhaust retries and end in `Failed` (maxRetries: 1)
-- `retry-no-retry-test`: should fail immediately without retrying (retryOn: never)
-- Check retry history: `kubectl get agenttask retry-transient-test -n hortator-test -o jsonpath='{.status.retryCount}'`
+- Three tasks: `retry-transient-test`, `retry-exhaustion-test`, `retry-success-no-retry`
+- `retry-transient-test`: Agent exits 1 on first attempt (marker file trick), operator retries, succeeds on attempt 2
+  - Check: `kubectl get agenttask retry-transient-test -n hortator-test -o jsonpath='{.status.attempts}'` → should be 2
+  - Phase should end as `Completed`
+- `retry-exhaustion-test`: References non-existent secret → pod fails every time → exhausts retries → `Failed`
+  - Check: `kubectl get agenttask retry-exhaustion-test -n hortator-test -o jsonpath='{.status.phase}'` → `Failed`
+- `retry-success-no-retry`: Normal task with retry config → completes on first attempt, no retries triggered
+  - Check: attempts = 1, phase = `Completed`
 
-**Expected outcome:** Mixed — some tasks succeed after retries, others fail. Verify backoff timing has jitter.
+**Expected outcome:** One retry+recovery, one exhaustion→Failed, one clean success.
 
 ---
 
@@ -84,6 +87,16 @@ kubectl apply -f examples/test-manifests/warm-pool.yaml
 **Expected outcome:** Fast startup if warm pool is provisioned. Graceful fallback to cold start if pool is empty.
 
 ---
+
+### ⚠️ Cleanup Between Phases
+
+AgentPolicies are namespace-scoped and affect ALL tasks. Clean up before moving to the next phase:
+
+```bash
+# Remove all policies and tasks from Phase 1
+kubectl delete agentpolicies --all -n hortator-test
+kubectl delete agenttasks --all -n hortator-test
+```
 
 ### Phase 2 — Sequential Tests
 
@@ -125,6 +138,13 @@ kubectl get agenttask result-cache-skip -n hortator-test -o jsonpath='{.status.p
 **Expected outcome:** Cache hit task completes near-instantly without spawning a pod. Cache skip task runs normally.
 
 ---
+
+### ⚠️ Cleanup Before Phase 3
+
+```bash
+kubectl delete agentpolicies --all -n hortator-test
+kubectl delete agenttasks --all -n hortator-test
+```
 
 ### Phase 3 — Complex Tests
 
