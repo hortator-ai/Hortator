@@ -72,11 +72,15 @@ operator:
 
 agent:
   # Bash single-shot runtime (legionary tier)
-  image: ghcr.io/hortator-ai/hortator/agent:latest
+  image:
+    repository: ghcr.io/hortator-ai/hortator/agent
+    tag: ""  # Defaults to appVersion
 
   # Python agentic runtime (tribune/centurion tiers)
   # Tool-calling loop with litellm, checkpoint/restore, multi-step orchestration
-  agenticImage: ghcr.io/hortator-ai/hortator/agent-agentic:latest
+  agenticImage:
+    repository: ghcr.io/hortator-ai/hortator/agent-agentic
+    tag: ""  # Defaults to appVersion
 
   timeout: 30m
   defaultTimeoutSeconds: 600
