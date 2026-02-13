@@ -88,6 +88,16 @@ kubectl apply -f examples/test-manifests/warm-pool.yaml
 
 ---
 
+### ⚠️ Cleanup Between Phases
+
+AgentPolicies are namespace-scoped and affect ALL tasks. Clean up before moving to the next phase:
+
+```bash
+# Remove all policies and tasks from Phase 1
+kubectl delete agentpolicies --all -n hortator-test
+kubectl delete agenttasks --all -n hortator-test
+```
+
 ### Phase 2 — Sequential Tests
 
 #### 5. Storage Promotion (`storage-promotion.yaml`)
@@ -128,6 +138,13 @@ kubectl get agenttask result-cache-skip -n hortator-test -o jsonpath='{.status.p
 **Expected outcome:** Cache hit task completes near-instantly without spawning a pod. Cache skip task runs normally.
 
 ---
+
+### ⚠️ Cleanup Before Phase 3
+
+```bash
+kubectl delete agentpolicies --all -n hortator-test
+kubectl delete agenttasks --all -n hortator-test
+```
 
 ### Phase 3 — Complex Tests
 
