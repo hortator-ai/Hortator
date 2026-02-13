@@ -13,7 +13,7 @@ spec:
     - web-fetch
   allowedImages:
     - "ghcr.io/hortator-ai/hortator/*"
-    - "ghcr.io/hortator-ai/*"
+    - "ghcr.io/hortator-ai/hortator/*"
   maxBudget:
     maxCostUsd: "1.00"
     maxTokens: 200000

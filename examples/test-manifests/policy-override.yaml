@@ -40,7 +40,7 @@ spec:
   # Restrict container images
   allowedImages:
     - "ghcr.io/hortator-ai/hortator/*"
-    - "ghcr.io/hortator-ai/*"
+    - "ghcr.io/hortator-ai/hortator/*"
   # Budget ceiling
   maxBudget:
     maxCostUsd: "2.00"
