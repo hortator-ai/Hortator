@@ -88,11 +88,11 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	err := r.Get(ctx, types.NamespacedName{Namespace: ns, Name: "hortator-config"}, cm)
 	defaultImage := os.Getenv("HORTATOR_DEFAULT_AGENT_IMAGE")
 	if defaultImage == "" {
-		defaultImage = "ghcr.io/hortator-ai/agent:latest"
+		defaultImage = "ghcr.io/hortator-ai/hortator/agent:latest"
 	}
 	agenticImage := os.Getenv("HORTATOR_AGENTIC_IMAGE")
 	if agenticImage == "" {
-		agenticImage = "ghcr.io/hortator-ai/agent-agentic:latest"
+		agenticImage = "ghcr.io/hortator-ai/hortator/agent-agentic:latest"
 	}
 
 	if err != nil {

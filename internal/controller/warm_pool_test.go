@@ -25,7 +25,7 @@ func warmReconciler(objs ...client.Object) *AgentTaskReconciler {
 		Scheme:    scheme,
 		Namespace: "hortator-system",
 		defaults: ClusterDefaults{
-			DefaultImage:          "ghcr.io/hortator-ai/agent:latest",
+			DefaultImage:          "ghcr.io/hortator-ai/hortator/agent:latest",
 			DefaultTimeout:        600,
 			DefaultRequestsCPU:    "100m",
 			DefaultRequestsMemory: "128Mi",
@@ -108,7 +108,7 @@ func TestBuildWarmPod(t *testing.T) {
 	}
 
 	// Default image
-	if agent.Image != "ghcr.io/hortator-ai/agent:latest" {
+	if agent.Image != "ghcr.io/hortator-ai/hortator/agent:latest" {
 		t.Errorf("image = %q, want default", agent.Image)
 	}
 
