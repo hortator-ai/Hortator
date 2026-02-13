@@ -44,7 +44,6 @@ spec:
   # Start with default ephemeral storage — agent promotes it at runtime
   storage:
     size: "512Mi"
-    storageClass: standard
     retain: false                # Starts ephemeral; agent promotes via CLI
   capabilities:
     - shell
