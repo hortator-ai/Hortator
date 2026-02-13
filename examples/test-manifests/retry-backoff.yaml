@@ -1,0 +1,114 @@
+# Test: Retry Policy with Exponential Backoff
+#
+# Validates the hybrid retry semantics:
+#   - Transient failures (pod crash, no result.json) → auto-retry with backoff
+#   - Logical failures (result.json with status:failed) → no retry
+#   - Budget exceeded → no retry
+#
+# Uses a flaky image that crashes on first attempt to simulate transient failure.
+# The retry policy should recover on subsequent attempts.
+#
+# Expected behavior:
+#   - Attempt 1: Pod crashes (transient failure, no result.json)
+#   - status.phase transitions: Pending → Running → Retrying
+#   - Backoff: 15s (attempt 1), 30s (attempt 2), 60s (attempt 3) ±25% jitter
+#   - Attempt 2+: Agent completes successfully
+#   - status.history contains records for each attempt
+#   - K8s Events: Normal/Retrying and (if exhausted) Warning/RetryExhausted
+#
+# Prerequisites:
+#   - None beyond standard cluster setup
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: retry-backoff-test
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: retry
+    hortator.ai/test-case: exponential-backoff
+  annotations:
+    hortator.ai/description: "Tests transient failure recovery with exponential backoff"
+spec:
+  prompt: |
+    Simple task: write "Hello from retry test" to /outbox/result.json.
+    This tests that the retry mechanism recovers from transient pod failures.
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  # Retry configuration — generous retries with short backoff for testing
+  retry:
+    maxAttempts: 3               # Up to 3 retry attempts
+    backoffSeconds: 15           # Initial backoff: 15s
+    maxBackoffSeconds: 120       # Cap at 2 minutes
+  timeout: 180
+  capabilities:
+    - shell
+  budget:
+    maxCostUsd: "0.50"
+---
+# Test: Retry exhaustion — task should fail after all attempts
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: retry-exhaustion-test
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: retry
+    hortator.ai/test-case: exhaustion
+  annotations:
+    hortator.ai/description: "Tests that retry exhaustion results in terminal Failed phase"
+spec:
+  prompt: |
+    This task uses an invalid model endpoint to simulate persistent transient
+    failure. All retry attempts should fail, and the task should reach
+    terminal Failed status with complete attempt history.
+  tier: legionary
+  model:
+    name: nonexistent-model
+    endpoint: https://invalid.endpoint.example.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  retry:
+    maxAttempts: 2               # Only 2 retries — will exhaust quickly
+    backoffSeconds: 10
+    maxBackoffSeconds: 30
+  timeout: 60
+  capabilities: []
+---
+# Test: Logical failure should NOT be retried
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: retry-logical-no-retry
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: retry
+    hortator.ai/test-case: logical-failure-no-retry
+  annotations:
+    hortator.ai/description: "Logical failure (result.json status:failed) should not trigger retry"
+spec:
+  prompt: |
+    Write a result.json to /outbox/ with status "failed" and reason
+    "intentional logical failure for testing". This simulates an agent
+    that determines it cannot complete the task.
+
+    The retry policy should NOT retry this — logical failures are terminal.
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  retry:
+    maxAttempts: 5               # High retry limit — but should never trigger
+    backoffSeconds: 10
+  timeout: 120
+  capabilities:
+    - shell

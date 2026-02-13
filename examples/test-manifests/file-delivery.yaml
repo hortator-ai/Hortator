@@ -1,0 +1,115 @@
+# Test: File Delivery & RAG Input Configuration
+#
+# Validates the file delivery mechanism:
+#   - Files attached to task creation are delivered to /inbox/
+#   - Agent can access delivered files alongside task.json
+#   - RAG capability provides vector store access via env vars
+#
+# This tests the design from docs/design-file-delivery-and-rag.md:
+#   - Gateway accepts file attachments (inline base64 or file refs)
+#   - Operator writes files to /inbox/ via init container or exec
+#   - RAG capability injects vector store connection config
+#
+# Expected behavior:
+#   - /inbox/ contains task.json AND the delivered file(s)
+#   - Agent can read and process the delivered files
+#   - With rag capability: agent has VECTOR_STORE_* env vars
+#
+# Prerequisites:
+#   - For RAG test: a vector store endpoint accessible from the cluster
+#   - ConfigMap with sample file content (simulating gateway delivery)
+---
+# Simulate file delivery by pre-creating a ConfigMap with file content.
+# In production, the gateway handles this via the OpenAI-compatible API.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-contract-file
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: file-delivery
+data:
+  contract.txt: |
+    SERVICE AGREEMENT
+
+    This agreement is between Acme Corp ("Provider") and Beta Inc ("Client").
+
+    1. SCOPE: Provider shall deliver software consulting services.
+    2. TERM: 12 months from effective date.
+    3. COMPENSATION: $150,000 USD, payable monthly.
+    4. TERMINATION: Either party may terminate with 30 days written notice.
+    5. CONFIDENTIALITY: All project materials are confidential.
+    6. LIABILITY: Limited to total fees paid under this agreement.
+
+    Signed: Jane Smith, CEO Acme Corp
+    Date: 2026-01-15
+---
+# AgentRole with RAG capability for vector store access
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: legal-analyst
+  labels:
+    hortator.ai/test-suite: file-delivery
+spec:
+  description: >-
+    Analyses contracts and legal documents against a reference corpus.
+    Has access to RAG for searching legal precedents.
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+    - rag
+  rules:
+    - "Always cite specific clauses when making observations"
+    - "Flag any unusual or missing standard clauses"
+    - "Check delivered files in /inbox/ before starting analysis"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: file-delivery-test
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: file-delivery
+    hortator.ai/test-case: contract-analysis
+  annotations:
+    hortator.ai/description: "Tests file delivery to /inbox/ and RAG capability"
+spec:
+  prompt: |
+    Analyse the contract delivered to /inbox/contract.txt.
+
+    1. List all clauses found in the document
+    2. Identify any missing standard clauses (indemnification, IP rights,
+       dispute resolution, force majeure)
+    3. Flag any concerning terms
+    4. If RAG is available, search for similar contract precedents
+
+    Write your analysis to /outbox/result.json.
+  role: legal-analyst
+  tier: centurion
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  capabilities:
+    - shell
+    - rag
+  # RAG connection details injected as env vars by the operator
+  # when the rag capability is granted
+  env:
+    - name: VECTOR_STORE_ENDPOINT
+      value: "http://milvus.vector-system:19530"
+    - name: VECTOR_STORE_COLLECTION
+      value: "legal-documents"
+    - name: VECTOR_STORE_API_KEY
+      valueFrom:
+        secretKeyRef:
+          secretName: milvus-credentials
+          key: api-key
+  storage:
+    size: "512Mi"
+  timeout: 600
+  budget:
+    maxCostUsd: "1.00"

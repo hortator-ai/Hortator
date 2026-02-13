@@ -1,0 +1,93 @@
+# Test: Result Cache with Content-Addressable Dedup
+#
+# Validates the in-memory LRU result cache:
+#   - Cache key = SHA-256(prompt + role)
+#   - First execution: cache miss → pod created → result cached
+#   - Second execution (identical prompt+role): cache hit → instant result
+#   - Opt-out via annotation: hortator.ai/cache=skip
+#
+# Expected behavior:
+#   1. First task runs normally (cache miss)
+#   2. Second task (identical prompt+role) returns cached result instantly
+#      - No pod created for the second task
+#      - status.phase jumps directly to Completed
+#   3. Third task (same prompt but cache=skip) runs a new pod
+#
+# Prerequisites:
+#   - Result cache enabled (default in operator)
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: result-cache-miss
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: cache
+    hortator.ai/test-case: cache-miss
+  annotations:
+    hortator.ai/description: "First execution — should be a cache miss"
+spec:
+  prompt: "What is the capital of France? Reply with just the city name."
+  role: trivia-bot
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  timeout: 120
+  budget:
+    maxCostUsd: "0.10"
+---
+# Apply AFTER the first task completes — should hit the cache
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: result-cache-hit
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: cache
+    hortator.ai/test-case: cache-hit
+  annotations:
+    hortator.ai/description: "Identical prompt+role — should be a cache hit (no pod created)"
+spec:
+  # Identical prompt and role to result-cache-miss
+  prompt: "What is the capital of France? Reply with just the city name."
+  role: trivia-bot
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  timeout: 120
+  budget:
+    maxCostUsd: "0.10"
+---
+# Same prompt but opt-out of cache — should create a new pod
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: result-cache-skip
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: cache
+    hortator.ai/test-case: cache-skip
+  annotations:
+    hortator.ai/cache: "skip"   # Opt-out: bypass cache even if a hit exists
+    hortator.ai/description: "Same prompt but cache=skip — should create a new pod"
+spec:
+  prompt: "What is the capital of France? Reply with just the city name."
+  role: trivia-bot
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  timeout: 120
+  budget:
+    maxCostUsd: "0.10"

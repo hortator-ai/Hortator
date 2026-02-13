@@ -1,0 +1,87 @@
+# Test: Budget Enforcement (Three-Phase Wind-Down)
+#
+# Validates the soft-ceiling budget enforcement:
+#   Phase 1 (80%): Warning injected into agent context
+#   Phase 2 (100%): Soft ceiling — grace window for wrap-up
+#   Phase 3 (grace exhausted): Hard ceiling — auto-checkpoint + BudgetExceeded
+#
+# Uses an intentionally low budget with a verbose prompt to trigger
+# the budget phases during execution.
+#
+# Expected behavior:
+#   - Task starts Running
+#   - At ~80% budget: OTel event hortator.budget.warning
+#   - At 100%: OTel event hortator.budget.soft_ceiling, grace window starts
+#   - Grace exhausted: status.phase=BudgetExceeded, partial results preserved
+#   - /outbox/result.json contains partial results
+#   - /memory/state.json contains checkpoint for potential resume
+#
+# Prerequisites:
+#   - budget.enabled=true in Helm values
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: budget-limit-test
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: budget
+    hortator.ai/test-case: three-phase-winddown
+  annotations:
+    hortator.ai/description: "Intentionally low budget to trigger enforcement phases"
+spec:
+  prompt: |
+    Write a comprehensive analysis of microservice architecture patterns.
+    Cover at least 10 patterns in detail with code examples for each.
+    This is intentionally verbose to test budget limits — keep writing
+    until you're told to stop or run out of budget.
+
+    Important: If you receive a budget warning, start wrapping up.
+    Write partial results to /outbox/result.json and save state to
+    /memory/state.json so a future agent can continue your work.
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  # Very low budget — designed to be exceeded
+  budget:
+    maxTokens: 5000              # ~2-3 LLM calls before hitting limit
+    maxCostUsd: "0.02"           # $0.02 — will trigger quickly
+  timeout: 300
+  capabilities:
+    - shell
+---
+# A second task that resumes from the budget-exceeded task above.
+# Apply AFTER the first task reaches BudgetExceeded.
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: budget-limit-resume
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: budget
+    hortator.ai/test-case: resume-after-budget
+  annotations:
+    hortator.ai/description: "Resumes work from a budget-exceeded task"
+spec:
+  prompt: |
+    You are continuing work from a previous agent that ran out of budget.
+    Check /inbox/context.json for prior work references and /prior/ for
+    any retained state. Continue the microservice analysis from where
+    the previous agent left off.
+  tier: legionary
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  budget:
+    maxTokens: 50000
+    maxCostUsd: "0.50"
+  timeout: 300
+  capabilities:
+    - shell
