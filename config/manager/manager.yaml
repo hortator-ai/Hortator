@@ -65,6 +65,11 @@ spec:
           - --health-probe-bind-address=:8081
         image: controller:latest
         name: manager
+        env:
+          - name: HORTATOR_DEFAULT_AGENT_IMAGE
+            value: ghcr.io/hortator-ai/hortator/agent:latest
+          - name: HORTATOR_AGENTIC_IMAGE
+            value: ghcr.io/hortator-ai/hortator/agent-agentic:latest
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

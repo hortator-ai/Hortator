@@ -85,6 +85,14 @@ jobs:
           kind load docker-image example.com/hortator-agent:v0.0.1 --name hortator-e2e
           kind load docker-image example.com/hortator-agent-agentic:v0.0.1 --name hortator-e2e
 
+      - name: Configure agent images for Kind
+        run: |
+          # Override default GHCR agent images with locally-built Kind images
+          sed -i 's|ghcr.io/hortator-ai/hortator/agent:latest|example.com/hortator-agent:v0.0.1|' config/manager/manager.yaml
+          sed -i 's|ghcr.io/hortator-ai/hortator/agent-agentic:latest|example.com/hortator-agent-agentic:v0.0.1|' config/manager/manager.yaml
+          echo "Agent images configured for Kind:"
+          grep 'HORTATOR_.*IMAGE' config/manager/manager.yaml
+
       - name: Run E2E tests
         run: |
           export KUBEBUILDER_ASSETS="$(setup-envtest use -p path)"
