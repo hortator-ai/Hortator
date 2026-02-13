@@ -158,7 +158,6 @@ spec:
   # Storage — retained for future reference
   storage:
     size: "1Gi"
-    storageClass: standard
     retain: true
     retainDays: 30
 
