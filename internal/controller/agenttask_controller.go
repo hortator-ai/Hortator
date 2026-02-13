@@ -248,7 +248,7 @@ func (r *AgentTaskReconciler) handleTTLCleanup(ctx context.Context, task *corev1
 		defaultRetention = ttlCfg.Completed
 	}
 	if defaultRetention == "" {
-		defaultRetention = "7d"
+		defaultRetention = "1h"
 	}
 
 	retention := defaultRetention
