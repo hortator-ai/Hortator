@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.1](https://github.com/hortator-ai/Hortator/compare/v0.1.0...v0.1.1) (2026-02-13)
+
+
+### Bug Fixes
+
+* add cleanup steps between test phases to prevent policy pollution ([c0aa2ba](https://github.com/hortator-ai/Hortator/commit/c0aa2ba74ef08d8e7654fda03a8a7045fef3bc5f))
+* default all image tags to appVersion instead of latest ([2fcc8e4](https://github.com/hortator-ai/Hortator/commit/2fcc8e4b6f5204db484960e9938e18d419309294))
+* default all image tags to appVersion instead of latest ([e48184d](https://github.com/hortator-ai/Hortator/commit/e48184dfbcf5e20276d4a5405840d415a2444b84))
+* improve phase 1 test manifests for reliable failure testing ([6153dc2](https://github.com/hortator-ai/Hortator/commit/6153dc2efa9345fb419a7a74c9d0ca0a836019e5))
+* improve phase 1 test manifests for reliable failure testing ([7e563d0](https://github.com/hortator-ai/Hortator/commit/7e563d0930b6379b6c39303bef94555a3ced711d))
+* kitchen-sink test uses self-generated code instead of external repo ([4156ca5](https://github.com/hortator-ai/Hortator/commit/4156ca582c3fb7e8607aceba5fab950f3073de28))
+* make github-credentials optional in kitchen-sink test ([0a1405b](https://github.com/hortator-ai/Hortator/commit/0a1405bb27d4d79c2eb96a43b28bd8e138a4c5de))
+* reduce cleanup TTL defaults (completed=1h, failed=24h, cancelled=1h) ([e2a9544](https://github.com/hortator-ai/Hortator/commit/e2a9544cda403d89c18bef4b836011ce6852987a))
+* reduce cleanup TTL defaults to practical values ([c13c18c](https://github.com/hortator-ai/Hortator/commit/c13c18caf0b0747eec79671bef127c2612ac7a4e))
+* remove hardcoded storageClass, use cluster default ([3c39081](https://github.com/hortator-ai/Hortator/commit/3c3908174df3e71ce8db8491281413622ea29706))
+
 ## [0.1.0](https://github.com/hortator-ai/Hortator/compare/v0.0.1...v0.1.0) (2026-02-13)
 
 
