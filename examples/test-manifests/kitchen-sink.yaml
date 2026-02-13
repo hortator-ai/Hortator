@@ -66,7 +66,7 @@ spec:
   requirePresidio: true
   allowedImages:
     - "ghcr.io/hortator-ai/hortator/*"
-    - "ghcr.io/hortator-ai/*"
+    - "ghcr.io/hortator-ai/hortator/*"
   egressAllowlist:
     - host: "api.anthropic.com"
       ports: [443]
