@@ -12,7 +12,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
+          go-version: "1.25"
 
       - name: Verify go.mod is tidy
         run: |
@@ -20,7 +20,7 @@ jobs:
           git diff --exit-code go.mod go.sum
 
       - name: Install controller-gen
-        run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0
+        run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.18.0
 
       - name: Verify generated code
         run: |
@@ -29,7 +29,7 @@ jobs:
 
       - name: Verify CRD manifests
         run: |
-          controller-gen crd paths="./..." output:crd:artifacts:config=config/crd/bases
+          controller-gen crd:allowDangerousTypes=true paths="./..." output:crd:artifacts:config=config/crd/bases
           git diff --exit-code
 
       - name: Verify CRDs are synced across locations

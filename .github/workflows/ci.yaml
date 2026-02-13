@@ -118,12 +118,9 @@ jobs:
           docker push ghcr.io/hortator-ai/hortator/agent-agentic:${{ steps.tag.outputs.TAG }}
           docker push ghcr.io/hortator-ai/hortator/agent-agentic:latest
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-
       - name: Package and push Helm chart
         run: |
-          helm package charts/hortator --version ${{ steps.tag.outputs.TAG }}
-          helm push hortator-${{ steps.tag.outputs.TAG }}.tgz oci://ghcr.io/hortator-ai/hortator/charts
+          helm package charts/hortator --version ${TAG#v}
+          helm push hortator-${TAG#v}.tgz oci://ghcr.io/hortator-ai/hortator/charts
+        env:
+          TAG: ${{ steps.tag.outputs.TAG }}
