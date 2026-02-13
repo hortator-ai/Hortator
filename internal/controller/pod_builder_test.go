@@ -25,7 +25,7 @@ func defaultReconciler(scheme *runtime.Scheme, objs ...runtime.Object) *AgentTas
 		Client: fc,
 		Scheme: scheme,
 		defaults: ClusterDefaults{
-			DefaultImage:          "ghcr.io/hortator-ai/agent:latest",
+			DefaultImage:          "ghcr.io/hortator-ai/hortator/agent:latest",
 			DefaultTimeout:        600,
 			DefaultRequestsCPU:    "100m",
 			DefaultRequestsMemory: "128Mi",
@@ -48,7 +48,7 @@ func TestBuildPod(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if pod.Spec.Containers[0].Image != "ghcr.io/hortator-ai/agent:latest" {
+		if pod.Spec.Containers[0].Image != "ghcr.io/hortator-ai/hortator/agent:latest" {
 			t.Errorf("image = %q, want default", pod.Spec.Containers[0].Image)
 		}
 	})

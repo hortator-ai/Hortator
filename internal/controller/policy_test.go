@@ -160,11 +160,11 @@ func TestEnforcePolicy(t *testing.T) {
 			name: "allowed images with glob pattern passes",
 			policies: []corev1alpha1.AgentPolicy{{
 				ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
-				Spec:       corev1alpha1.AgentPolicySpec{AllowedImages: []string{"ghcr.io/hortator-ai/*"}},
+				Spec:       corev1alpha1.AgentPolicySpec{AllowedImages: []string{"ghcr.io/hortator-ai/hortator/*"}},
 			}},
 			task: &corev1alpha1.AgentTask{
 				ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
-				Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Image: "ghcr.io/hortator-ai/agent:latest"},
+				Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Image: "ghcr.io/hortator-ai/hortator/agent:latest"},
 			},
 			wantPass: true,
 		},
@@ -172,7 +172,7 @@ func TestEnforcePolicy(t *testing.T) {
 			name: "allowed images blocks non-matching",
 			policies: []corev1alpha1.AgentPolicy{{
 				ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
-				Spec:       corev1alpha1.AgentPolicySpec{AllowedImages: []string{"ghcr.io/hortator-ai/*"}},
+				Spec:       corev1alpha1.AgentPolicySpec{AllowedImages: []string{"ghcr.io/hortator-ai/hortator/*"}},
 			}},
 			task: &corev1alpha1.AgentTask{
 				ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
@@ -222,7 +222,7 @@ func TestEnforcePolicy(t *testing.T) {
 				Client: fc,
 				Scheme: scheme,
 				defaults: ClusterDefaults{
-					DefaultImage: "ghcr.io/hortator-ai/agent:latest",
+					DefaultImage: "ghcr.io/hortator-ai/hortator/agent:latest",
 				},
 			}
 
