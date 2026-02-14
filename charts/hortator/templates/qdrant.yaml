@@ -1,0 +1,90 @@
+{{- if and .Values.vectorStore.enabled .Values.vectorStore.qdrant.deploy }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hortator.fullname" . }}-qdrant
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: vector-store
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qdrant
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qdrant
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: qdrant
+          image: {{ .Values.vectorStore.qdrant.image }}
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+          resources:
+            {{- toYaml .Values.vectorStore.qdrant.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /qdrant/storage
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "hortator.fullname" . }}-qdrant
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hortator.fullname" . }}-qdrant
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: vector-store
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6333
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 6334
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "hortator.fullname" . }}-qdrant
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: vector-store
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.vectorStore.qdrant.storage }}
+{{- end }}
