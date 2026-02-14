@@ -104,7 +104,7 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 	}
 
 	if outputFormat == "json" {
-		data, _ := json.MarshalIndent(map[string]string{"task": name, "namespace": getNamespace()}, "", "  ")
+		data, _ := json.MarshalIndent(map[string]string{"name": name, "task": name, "namespace": getNamespace()}, "", "  ")
 		fmt.Println(string(data))
 		if spawnWait {
 			return waitForTask(ctx, name)
