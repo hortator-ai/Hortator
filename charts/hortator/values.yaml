@@ -425,7 +425,7 @@ vectorStore:
 
 enterprise:
   enabled: false
-  image: ghcr.io/hortator-ai/operator:enterprise
+  # image: ghcr.io/hortator-ai/hortator/operator:enterprise  # Not yet available
 
 # ── Tenant / Multi-tenancy ──────────────────────────────────────────────────
 # Per-namespace resource controls. Apply per tenant namespace.
