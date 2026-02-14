@@ -87,6 +87,48 @@ presidio_scan() {
     fi
 }
 
+presidio_redact() {
+    local text="$1"
+    if [ -z "${PRESIDIO_ENDPOINT:-}" ] || [ "$PRESIDIO_READY" -ne 1 ]; then
+        echo "$text"
+        return 0
+    fi
+    # Step 1: Analyze
+    local analyze_result
+    analyze_result=$(curl -s --max-time 5 "$PRESIDIO_ENDPOINT/analyze" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg t "$text" '{text:$t, language:"en"}')" 2>/dev/null) || {
+        echo "[hortator-runtime] WARN: Presidio analyze failed, returning original text" >&2
+        echo "$text"
+        return 0
+    }
+    # If no PII found, return original
+    local count
+    count=$(echo "$analyze_result" | jq 'length' 2>/dev/null) || count=0
+    if [ "$count" -eq 0 ]; then
+        echo "$text"
+        return 0
+    fi
+    echo "[hortator-runtime] Redacting ${count} PII entities..." >&2
+    # Step 2: Anonymize
+    local anon_result
+    anon_result=$(curl -s --max-time 5 "$PRESIDIO_ENDPOINT/anonymize" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg t "$text" --argjson ar "$analyze_result" \
+            '{text:$t, analyzer_results:$ar, anonymizers:{DEFAULT:{type:"replace"}}}')" 2>/dev/null) || {
+        echo "[hortator-runtime] WARN: Presidio anonymize failed, returning original text" >&2
+        echo "$text"
+        return 0
+    }
+    local redacted
+    redacted=$(echo "$anon_result" | jq -r '.text // empty' 2>/dev/null)
+    if [ -n "$redacted" ]; then
+        echo "$redacted"
+    else
+        echo "$text"
+    fi
+}
+
 # --- Read task.json ---
 [[ -f "$TASK_FILE" ]] || die "task.json not found at ${TASK_FILE}"
 
@@ -181,8 +223,8 @@ else
   OUTPUT_TOKENS=0
 fi
 
-# Scan response for PII before reporting results
-presidio_scan "$SUMMARY"
+# Redact PII from response before reporting results
+SUMMARY=$(presidio_redact "$SUMMARY")
 
 # --- Report results via CRD status ---
 # Primary path: patch the AgentTask CRD directly via the K8s API.

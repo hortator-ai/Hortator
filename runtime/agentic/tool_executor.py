@@ -52,7 +52,7 @@ def _exec_spawn_task(args: dict, parent_name: str, task_ns: str) -> dict:
     if args.get("tier"):
         cmd.extend(["--tier", args["tier"]])
     if args.get("capabilities"):
-        cmd.extend(["--cap", args["capabilities"]])
+        cmd.extend(["--capabilities", args["capabilities"]])
 
     wait = args.get("wait", False)
     if wait:
@@ -78,7 +78,7 @@ def _exec_spawn_task(args: dict, parent_name: str, task_ns: str) -> dict:
 
     return {
         "success": True,
-        "task_name": output.get("name", ""),
+        "task_name": output.get("name") or output.get("task", ""),
         "phase": output.get("phase", ""),
         "output": output.get("output", ""),
         "async": not wait,
