@@ -358,15 +358,6 @@ type AgentTaskStatus struct {
 	// +optional
 	PendingChildren []string `json:"pendingChildren,omitempty"`
 
-	// HierarchyTokensUsed tracks cumulative token usage across the entire task tree.
-	// Only updated on the root task.
-	// +optional
-	HierarchyTokensUsed *TokenUsage `json:"hierarchyTokensUsed,omitempty"`
-
-	// HierarchyCostUsed tracks cumulative estimated cost across the task tree.
-	// +optional
-	HierarchyCostUsed string `json:"hierarchyCostUsed,omitempty"`
-
 	// Message provides human-readable status information.
 	// +optional
 	Message string `json:"message,omitempty"`
