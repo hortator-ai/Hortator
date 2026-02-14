@@ -180,6 +180,15 @@ def _exec_run_shell(args: dict) -> dict:
     if not command:
         return {"success": False, "error": "command is required"}
 
+    # Shell command filtering via AgentPolicy env vars
+    base_cmd = command.strip().split()[0] if command.strip() else ""
+    allowed = os.environ.get("HORTATOR_ALLOWED_COMMANDS", "").split(",")
+    denied = os.environ.get("HORTATOR_DENIED_COMMANDS", "").split(",")
+    if allowed and allowed != [''] and base_cmd not in allowed:
+        return {"success": False, "error": f"Command '{base_cmd}' not in allowed list"}
+    if denied and denied != [''] and base_cmd in denied:
+        return {"success": False, "error": f"Command '{base_cmd}' is denied by policy"}
+
     timeout = args.get("timeout", 120)
     workspace = "/workspace"
 

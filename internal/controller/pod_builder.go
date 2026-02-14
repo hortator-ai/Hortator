@@ -197,7 +197,7 @@ func isAgenticTier(tier string) bool {
 }
 
 // buildPod creates a pod spec for the agent task.
-func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Pod, error) {
+func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask, policies ...corev1alpha1.AgentPolicy) (*corev1.Pod, error) {
 	image := task.Spec.Image
 	if image == "" {
 		if isAgenticTier(task.Spec.Tier) {
@@ -292,12 +292,49 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		}
 	}
 
+	// Shell command filtering from AgentPolicy
+	readOnlyWorkspace := false
+	var allAllowedCmds, allDeniedCmds []string
+	for _, policy := range policies {
+		if len(policy.Spec.AllowedShellCommands) > 0 {
+			allAllowedCmds = append(allAllowedCmds, policy.Spec.AllowedShellCommands...)
+		}
+		if len(policy.Spec.DeniedShellCommands) > 0 {
+			allDeniedCmds = append(allDeniedCmds, policy.Spec.DeniedShellCommands...)
+		}
+		if policy.Spec.ReadOnlyWorkspace {
+			readOnlyWorkspace = true
+		}
+	}
+	if len(allAllowedCmds) > 0 {
+		env = append(env, corev1.EnvVar{
+			Name:  "HORTATOR_ALLOWED_COMMANDS",
+			Value: strings.Join(allAllowedCmds, ","),
+		})
+	}
+	if len(allDeniedCmds) > 0 {
+		env = append(env, corev1.EnvVar{
+			Name:  "HORTATOR_DENIED_COMMANDS",
+			Value: strings.Join(allDeniedCmds, ","),
+		})
+	}
+
 	resources, err := r.buildResources(task)
 	if err != nil {
 		return nil, fmt.Errorf("invalid resource spec: %w", err)
 	}
 
 	volumes, volumeMounts := r.buildVolumes(task)
+
+	// Apply ReadOnlyWorkspace policy: make /workspace mount read-only
+	if readOnlyWorkspace {
+		for i := range volumeMounts {
+			if volumeMounts[i].MountPath == "/workspace" {
+				volumeMounts[i].ReadOnly = true
+				break
+			}
+		}
+	}
 
 	// Discover and mount retained PVCs for knowledge discovery.
 	retainedPVCs := r.mountRetainedPVCs(task, &volumes, &volumeMounts)
