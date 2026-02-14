@@ -15,9 +15,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hortator-ai/Hortator/releases"><img src="https://img.shields.io/github/v/release/hortator-ai/Hortator?style=flat-square" alt="Release"></a>
-  <a href="https://github.com/hortator-ai/Hortator/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hortator-ai/Hortator?style=flat-square" alt="License"></a>
-  <a href="https://github.com/hortator-ai/Hortator/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/hortator-ai/Hortator/ci.yaml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+  <a href="https://github.com/hortator-ai/Hortator/actions/workflows/ci.yaml"><img src="https://github.com/hortator-ai/Hortator/actions/workflows/ci.yaml/badge.svg?branch=main" alt="CI"></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT">
+  <img src="https://img.shields.io/badge/language-Go-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/kubernetes-1.28+-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Kubernetes 1.28+">
 </p>
 
 ---
