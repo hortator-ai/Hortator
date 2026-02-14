@@ -96,7 +96,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: multi-tier-tribune
-  namespace: hortator-test
+  namespace: hortator-test-multitier
   labels:
     hortator.ai/test-suite: multi-tier
     hortator.ai/test-case: full-hierarchy

@@ -50,7 +50,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentPolicy
 metadata:
   name: kitchen-sink-policy
-  namespace: hortator-test
+  namespace: hortator-test-kitchensink
   labels:
     hortator.ai/test-suite: kitchen-sink
 spec:
@@ -78,7 +78,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: kitchen-sink-test
-  namespace: hortator-test
+  namespace: hortator-test-kitchensink
   labels:
     hortator.ai/test-suite: kitchen-sink
     hortator.ai/test-case: all-features
