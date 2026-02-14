@@ -380,13 +380,14 @@ spec:
                 description: EstimatedCostUsd is the estimated cost in USD.
                 type: string
               hierarchyCostUsed:
-                description: HierarchyCostUsed tracks cumulative estimated cost across
-                  the task tree.
+                description: |-
+                  HierarchyCostUsed tracks cumulative cost across the entire task tree.
+                  Only populated on root tasks that define a HierarchyBudget.
                 type: string
               hierarchyTokensUsed:
                 description: |-
                   HierarchyTokensUsed tracks cumulative token usage across the entire task tree.
-                  Only updated on the root task.
+                  Only populated on root tasks that define a HierarchyBudget.
                 properties:
                   input:
                     format: int64

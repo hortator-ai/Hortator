@@ -23,7 +23,7 @@ jobs:
         run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.18.0
 
       - name: Regenerate deepcopy
-        run: controller-gen object paths="./..."
+        run: controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
       - name: Verify no unexpected generated changes
         run: git diff --exit-code -- ':(exclude)**/zz_generated.deepcopy.go'
