@@ -374,6 +374,59 @@ func TestBuildPod(t *testing.T) {
 		}
 	})
 
+	t.Run("shell policy env vars injected from AgentPolicy", func(t *testing.T) {
+		policy := corev1alpha1.AgentPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
+			Spec: corev1alpha1.AgentPolicySpec{
+				AllowedShellCommands: []string{"python", "node"},
+				DeniedShellCommands:  []string{"rm", "curl"},
+			},
+		}
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
+		}
+		pod, err := r.buildPod(task, policy)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_ALLOWED_COMMANDS"] != "python,node" {
+			t.Errorf("HORTATOR_ALLOWED_COMMANDS = %q, want 'python,node'", envMap["HORTATOR_ALLOWED_COMMANDS"])
+		}
+		if envMap["HORTATOR_DENIED_COMMANDS"] != "rm,curl" {
+			t.Errorf("HORTATOR_DENIED_COMMANDS = %q, want 'rm,curl'", envMap["HORTATOR_DENIED_COMMANDS"])
+		}
+	})
+
+	t.Run("readOnlyWorkspace sets workspace mount to read-only", func(t *testing.T) {
+		policy := corev1alpha1.AgentPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
+			Spec: corev1alpha1.AgentPolicySpec{
+				ReadOnlyWorkspace: true,
+			},
+		}
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
+		}
+		pod, err := r.buildPod(task, policy)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, m := range pod.Spec.Containers[0].VolumeMounts {
+			if m.MountPath == "/workspace" {
+				if !m.ReadOnly {
+					t.Error("/workspace should be read-only")
+				}
+				return
+			}
+		}
+		t.Error("/workspace mount not found")
+	})
+
 	t.Run("pod labels", func(t *testing.T) {
 		r := defaultReconciler(scheme)
 		task := &corev1alpha1.AgentTask{

@@ -174,6 +174,43 @@ def _exec_checkpoint_and_wait(args: dict) -> dict:
 
 # ── Shell Execution ──────────────────────────────────────────────────────────
 
+def _check_shell_command_policy(command: str) -> str | None:
+    """Check if a shell command is allowed by policy.
+
+    Returns an error message if the command is rejected, or None if allowed.
+    """
+    allowed_raw = os.environ.get("HORTATOR_ALLOWED_COMMANDS", "")
+    denied_raw = os.environ.get("HORTATOR_DENIED_COMMANDS", "")
+
+    if not allowed_raw and not denied_raw:
+        return None
+
+    allowed = [c.strip() for c in allowed_raw.split(",") if c.strip()] if allowed_raw else []
+    denied = [c.strip() for c in denied_raw.split(",") if c.strip()] if denied_raw else []
+
+    # Extract base commands: first word of the command and first word after each pipe
+    parts = command.split("|")
+    base_commands = []
+    for part in parts:
+        stripped = part.strip()
+        if stripped:
+            base_cmd = stripped.split()[0] if stripped.split() else ""
+            if base_cmd:
+                base_commands.append(base_cmd)
+
+    for base_cmd in base_commands:
+        # Check allowed list (if set, only these are permitted)
+        if allowed and base_cmd not in allowed:
+            return f"Command '{base_cmd}' is not allowed by policy"
+
+        # Check denied list
+        for denied_prefix in denied:
+            if command.strip().startswith(denied_prefix) or base_cmd == denied_prefix:
+                return f"Command '{base_cmd}' is denied by policy"
+
+    return None
+
+
 def _exec_run_shell(args: dict) -> dict:
     """Execute a shell command in /workspace/."""
     command = args.get("command", "")

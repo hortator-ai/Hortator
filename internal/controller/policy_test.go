@@ -26,6 +26,57 @@ func newTestScheme() *runtime.Scheme {
 	return s
 }
 
+func TestCollectShellPolicy(t *testing.T) {
+	ctx := context.Background()
+	scheme := newTestScheme()
+
+	t.Run("no policies returns empty", func(t *testing.T) {
+		fc := fake.NewClientBuilder().WithScheme(scheme).Build()
+		r := &AgentTaskReconciler{Client: fc, Scheme: scheme}
+		allowed, denied, readOnly := r.collectShellPolicy(ctx, "default")
+		if len(allowed) != 0 || len(denied) != 0 || readOnly {
+			t.Errorf("expected empty, got allowed=%v denied=%v readOnly=%v", allowed, denied, readOnly)
+		}
+	})
+
+	t.Run("collects allowed and denied commands", func(t *testing.T) {
+		policy := &corev1alpha1.AgentPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
+			Spec: corev1alpha1.AgentPolicySpec{
+				AllowedShellCommands: []string{"python", "node", "git"},
+				DeniedShellCommands:  []string{"rm", "curl"},
+			},
+		}
+		fc := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(policy).Build()
+		r := &AgentTaskReconciler{Client: fc, Scheme: scheme}
+		allowed, denied, readOnly := r.collectShellPolicy(ctx, "default")
+		if len(allowed) != 3 {
+			t.Errorf("expected 3 allowed, got %v", allowed)
+		}
+		if len(denied) != 2 {
+			t.Errorf("expected 2 denied, got %v", denied)
+		}
+		if readOnly {
+			t.Error("expected readOnly=false")
+		}
+	})
+
+	t.Run("readOnlyWorkspace flag", func(t *testing.T) {
+		policy := &corev1alpha1.AgentPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
+			Spec: corev1alpha1.AgentPolicySpec{
+				ReadOnlyWorkspace: true,
+			},
+		}
+		fc := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(policy).Build()
+		r := &AgentTaskReconciler{Client: fc, Scheme: scheme}
+		_, _, readOnly := r.collectShellPolicy(ctx, "default")
+		if !readOnly {
+			t.Error("expected readOnly=true")
+		}
+	})
+}
+
 func TestEnforcePolicy(t *testing.T) {
 	ctx := context.Background()
 	scheme := newTestScheme()

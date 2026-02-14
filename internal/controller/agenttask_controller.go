@@ -349,6 +349,18 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		}
 	}
 
+	// Hierarchy budget check — reject new children if tree budget exhausted
+	if reason := r.checkHierarchyBudgetExhausted(ctx, task); reason != "" {
+		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
+		task.Status.Message = fmt.Sprintf("Hierarchy budget exhausted: %s", reason)
+		setCompletionStatus(task)
+		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// Capability inheritance validation
 	if task.Spec.ParentTaskID != "" {
 		parent := &corev1alpha1.AgentTask{}
@@ -369,16 +381,22 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			return ctrl.Result{}, err
 		}
 
-		parentCaps := make(map[string]bool, len(parent.Spec.Capabilities))
-		for _, c := range parent.Spec.Capabilities {
+		// Build effective parent capabilities including auto-injected ones
+		// (e.g., "spawn" is auto-injected for tribune/centurion tiers).
+		parentEffectiveCaps := effectiveCapabilities(parent.Spec.Tier, parent.Spec.Capabilities)
+		parentCaps := make(map[string]bool, len(parentEffectiveCaps))
+		for _, c := range parentEffectiveCaps {
 			parentCaps[c] = true
 		}
 		for _, cap := range task.Spec.Capabilities {
 			if !parentCaps[cap] {
+				msg := fmt.Sprintf("capability escalation denied: child requested [%s] but parent only has %v",
+					cap, parentEffectiveCaps)
 				task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
-				task.Status.Message = fmt.Sprintf("capability escalation denied: %s not in parent capabilities", cap)
+				task.Status.Message = msg
 				setCompletionStatus(task)
 				tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
+				r.Recorder.Eventf(task, corev1.EventTypeWarning, "CapabilityEscalation", msg)
 				if err := r.updateStatusWithRetry(ctx, task); err != nil {
 					return ctrl.Result{}, err
 				}
@@ -615,6 +633,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			if err := r.updateStatusWithRetry(ctx, task); err != nil {
 				return ctrl.Result{}, err
 			}
+			r.updateHierarchyBudget(ctx, task)
 			r.notifyParentTask(ctx, task)
 			return ctrl.Result{}, nil
 		}
@@ -675,6 +694,9 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
+
+		// Update hierarchy budget on the root task
+		r.updateHierarchyBudget(ctx, task)
 
 		r.notifyParentTask(ctx, task)
 		return ctrl.Result{}, nil
@@ -751,6 +773,7 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 			return ctrl.Result{}, err
 		}
 
+		r.updateHierarchyBudget(ctx, task)
 		r.notifyParentTask(ctx, task)
 		return ctrl.Result{}, nil
 

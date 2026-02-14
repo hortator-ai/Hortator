@@ -42,6 +42,7 @@ def agentic_loop(
     budget: dict,
     state_file: str,
     is_killed: callable,
+    presidio_redact_fn: callable | None = None,
 ) -> LoopResult:
     """
     Run the tool-calling loop until the LLM produces a final answer,
@@ -177,11 +178,17 @@ def agentic_loop(
                     if path.startswith("/outbox/artifacts/"):
                         artifacts.append(path.removeprefix("/outbox/artifacts/"))
 
+                # Redact PII from tool results before feeding back to LLM.
+                # Tool outputs (especially run_shell stdout) may contain PII.
+                result_str = json.dumps(result)
+                if presidio_redact_fn:
+                    result_str = presidio_redact_fn(result_str)
+
                 # Append tool result to conversation
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": json.dumps(result),
+                    "content": result_str,
                 })
 
             # If the agent called checkpoint_and_wait, save state and exit

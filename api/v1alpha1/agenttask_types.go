@@ -260,6 +260,12 @@ type AgentTaskSpec struct {
 	// +optional
 	Budget *BudgetSpec `json:"budget,omitempty"`
 
+	// HierarchyBudget is a shared budget pool across the entire task tree.
+	// Only meaningful on root tasks (no parent). Children inherit and decrement
+	// from the root's hierarchy budget.
+	// +optional
+	HierarchyBudget *BudgetSpec `json:"hierarchyBudget,omitempty"`
+
 	// Resources defines compute resources for the agent pod.
 	// +optional
 	Resources *ResourceRequirements `json:"resources,omitempty"`
@@ -341,6 +347,15 @@ type AgentTaskStatus struct {
 	// PendingChildren tracks children the task is waiting on (set when entering Waiting phase).
 	// +optional
 	PendingChildren []string `json:"pendingChildren,omitempty"`
+
+	// HierarchyTokensUsed tracks cumulative token usage across the entire task tree.
+	// Only updated on the root task.
+	// +optional
+	HierarchyTokensUsed *TokenUsage `json:"hierarchyTokensUsed,omitempty"`
+
+	// HierarchyCostUsed tracks cumulative estimated cost across the task tree.
+	// +optional
+	HierarchyCostUsed string `json:"hierarchyCostUsed,omitempty"`
 
 	// Message provides human-readable status information.
 	// +optional
