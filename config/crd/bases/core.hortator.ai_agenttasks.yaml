@@ -133,9 +133,8 @@ spec:
                 type: object
               hierarchyBudget:
                 description: |-
-                  HierarchyBudget is a shared budget pool across the entire task tree.
-                  Only meaningful on root tasks (no parent). Children inherit and decrement
-                  from the root's hierarchy budget.
+                  HierarchyBudget defines a shared token/cost budget across the entire task tree.
+                  Only meaningful on root tasks; child tasks inherit and draw from this budget.
                 properties:
                   maxCostUsd:
                     description: MaxCostUsd is the dollar cap as string (e.g. "0.50").
