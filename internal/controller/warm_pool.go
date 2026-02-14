@@ -217,7 +217,7 @@ func (r *AgentTaskReconciler) buildWarmPod(ctx context.Context) (*corev1.Pod, *c
 				{
 					Name:      "agent",
 					Image:     image,
-					Command: []string{"sh", "-c", `while [ ! -f /inbox/task.json ]; do sleep 0.5; done; TIER=$(cat /inbox/task.json | grep -o '"tier":"[^"]*"' | head -1 | cut -d'"' -f4); case "$TIER" in centurion|tribune) exec python3 /opt/hortator/main.py ;; *) exec /entrypoint.sh ;; esac`},
+					Command:   []string{"sh", "-c", `while [ ! -f /inbox/task.json ]; do sleep 0.5; done; TIER=$(cat /inbox/task.json | grep -o '"tier":"[^"]*"' | head -1 | cut -d'"' -f4); case "$TIER" in centurion|tribune) exec python3 /opt/hortator/main.py ;; *) exec /entrypoint.sh ;; esac`},
 					Env:       env,
 					Resources: resources,
 					VolumeMounts: []corev1.VolumeMount{
