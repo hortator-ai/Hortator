@@ -313,6 +313,67 @@ func TestBuildPod(t *testing.T) {
 		}
 	})
 
+	t.Run("service account basic for pod without spawn", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Capabilities: []string{"shell", "web-fetch"}},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pod.Spec.ServiceAccountName != "hortator-worker-basic" {
+			t.Errorf("ServiceAccountName = %q, want hortator-worker-basic", pod.Spec.ServiceAccountName)
+		}
+	})
+
+	t.Run("service account spawn for pod with spawn capability", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Capabilities: []string{"shell", "spawn"}},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pod.Spec.ServiceAccountName != "hortator-worker-spawn" {
+			t.Errorf("ServiceAccountName = %q, want hortator-worker-spawn", pod.Spec.ServiceAccountName)
+		}
+	})
+
+	t.Run("service account spawn for agentic tier (auto-injected spawn)", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		r.defaults.AgenticImage = "ghcr.io/hortator-ai/hortator/agentic:latest"
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Tier: "tribune"},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pod.Spec.ServiceAccountName != "hortator-worker-spawn" {
+			t.Errorf("ServiceAccountName = %q, want hortator-worker-spawn", pod.Spec.ServiceAccountName)
+		}
+	})
+
+	t.Run("service account basic for pod with no capabilities", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pod.Spec.ServiceAccountName != "hortator-worker-basic" {
+			t.Errorf("ServiceAccountName = %q, want hortator-worker-basic", pod.Spec.ServiceAccountName)
+		}
+	})
+
 	t.Run("pod labels", func(t *testing.T) {
 		r := defaultReconciler(scheme)
 		task := &corev1alpha1.AgentTask{
@@ -510,40 +571,72 @@ func TestEnsureWorkerRBAC(t *testing.T) {
 	ctx := context.Background()
 	scheme := newTestScheme()
 
-	t.Run("creates SA, Role, and RoleBinding in namespace", func(t *testing.T) {
+	t.Run("creates all three SA sets in namespace", func(t *testing.T) {
 		r := defaultReconciler(scheme)
 		if err := r.ensureWorkerRBAC(ctx, "test-ns"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify ServiceAccount
-		sa := &corev1.ServiceAccount{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "hortator-worker"}, sa); err != nil {
-			t.Fatalf("ServiceAccount not found: %v", err)
-		}
-		if sa.Labels["app.kubernetes.io/managed-by"] != "hortator-operator" {
-			t.Errorf("SA label = %q, want hortator-operator", sa.Labels["app.kubernetes.io/managed-by"])
-		}
+		for _, name := range []string{"hortator-worker-basic", "hortator-worker-spawn", "hortator-worker"} {
+			sa := &corev1.ServiceAccount{}
+			if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: name}, sa); err != nil {
+				t.Fatalf("ServiceAccount %s not found: %v", name, err)
+			}
+			if sa.Labels["app.kubernetes.io/managed-by"] != "hortator-operator" {
+				t.Errorf("SA %s label = %q, want hortator-operator", name, sa.Labels["app.kubernetes.io/managed-by"])
+			}
 
-		// Verify Role
+			role := &rbacv1.Role{}
+			if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: name}, role); err != nil {
+				t.Fatalf("Role %s not found: %v", name, err)
+			}
+			if len(role.Rules) != 2 {
+				t.Errorf("Role %s: expected 2 rules, got %d", name, len(role.Rules))
+			}
+
+			rb := &rbacv1.RoleBinding{}
+			if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: name}, rb); err != nil {
+				t.Fatalf("RoleBinding %s not found: %v", name, err)
+			}
+			if rb.RoleRef.Name != name {
+				t.Errorf("RoleBinding %s: RoleRef.Name = %q", name, rb.RoleRef.Name)
+			}
+		}
+	})
+
+	t.Run("basic role has no create verb", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		if err := r.ensureWorkerRBAC(ctx, "verb-ns"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		role := &rbacv1.Role{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "hortator-worker"}, role); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Namespace: "verb-ns", Name: "hortator-worker-basic"}, role); err != nil {
 			t.Fatalf("Role not found: %v", err)
 		}
-		if len(role.Rules) != 2 {
-			t.Errorf("expected 2 rules, got %d", len(role.Rules))
+		for _, verb := range role.Rules[0].Verbs {
+			if verb == "create" {
+				t.Error("basic role should not have create verb on agenttasks")
+			}
 		}
+	})
 
-		// Verify RoleBinding
-		rb := &rbacv1.RoleBinding{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: "test-ns", Name: "hortator-worker"}, rb); err != nil {
-			t.Fatalf("RoleBinding not found: %v", err)
+	t.Run("spawn role has create verb", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		if err := r.ensureWorkerRBAC(ctx, "verb-ns2"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
-		if rb.RoleRef.Name != "hortator-worker" {
-			t.Errorf("RoleRef.Name = %q, want hortator-worker", rb.RoleRef.Name)
+		role := &rbacv1.Role{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: "verb-ns2", Name: "hortator-worker-spawn"}, role); err != nil {
+			t.Fatalf("Role not found: %v", err)
 		}
-		if len(rb.Subjects) != 1 || rb.Subjects[0].Name != "hortator-worker" {
-			t.Errorf("unexpected subjects: %v", rb.Subjects)
+		hasCreate := false
+		for _, verb := range role.Rules[0].Verbs {
+			if verb == "create" {
+				hasCreate = true
+			}
+		}
+		if !hasCreate {
+			t.Error("spawn role should have create verb on agenttasks")
 		}
 	})
 

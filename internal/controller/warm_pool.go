@@ -212,7 +212,7 @@ func (r *AgentTaskReconciler) buildWarmPod(ctx context.Context) (*corev1.Pod, *c
 		},
 		Spec: corev1.PodSpec{
 			RestartPolicy:      corev1.RestartPolicyNever,
-			ServiceAccountName: "hortator-worker",
+			ServiceAccountName: workerSpawnSAName, // warm pods use spawn SA since they can be claimed by any tier
 			Containers: []corev1.Container{
 				{
 					Name:      "agent",
