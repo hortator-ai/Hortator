@@ -8,8 +8,9 @@ package controller
 import (
 	"testing"
 
-	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 )
 
 func ptr64(v int64) *int64 { return &v }
