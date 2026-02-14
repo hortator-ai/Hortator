@@ -375,19 +375,19 @@ func TestBuildPod(t *testing.T) {
 	})
 
 	t.Run("shell policy env vars injected from AgentPolicy", func(t *testing.T) {
-		policy := &corev1alpha1.AgentPolicy{
+		policy := corev1alpha1.AgentPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
 			Spec: corev1alpha1.AgentPolicySpec{
 				AllowedShellCommands: []string{"python", "node"},
 				DeniedShellCommands:  []string{"rm", "curl"},
 			},
 		}
-		r := defaultReconciler(scheme, policy)
+		r := defaultReconciler(scheme)
 		task := &corev1alpha1.AgentTask{
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(task, policy)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -401,18 +401,18 @@ func TestBuildPod(t *testing.T) {
 	})
 
 	t.Run("readOnlyWorkspace sets workspace mount to read-only", func(t *testing.T) {
-		policy := &corev1alpha1.AgentPolicy{
+		policy := corev1alpha1.AgentPolicy{
 			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
 			Spec: corev1alpha1.AgentPolicySpec{
 				ReadOnlyWorkspace: true,
 			},
 		}
-		r := defaultReconciler(scheme, policy)
+		r := defaultReconciler(scheme)
 		task := &corev1alpha1.AgentTask{
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(task, policy)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
