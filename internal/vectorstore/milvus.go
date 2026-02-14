@@ -1,12 +1,12 @@
 package vectorstore
 
+// MilvusStore is a placeholder implementation. Milvus support is not yet available.
+// Contributions welcome — see https://github.com/hortator-ai/Hortator/issues
+
 import (
 	"context"
 	"fmt"
 )
-
-// TODO: Implement full Milvus vector store client.
-// This is a stub that satisfies the Store interface.
 
 // Milvus is a stub Store implementation for Milvus.
 type Milvus struct {
@@ -32,21 +32,17 @@ func NewMilvus(endpoint string, opts ...Option) (*Milvus, error) {
 }
 
 func (m *Milvus) Upsert(ctx context.Context, doc Document) error {
-	// TODO: Implement Milvus upsert via REST or gRPC API.
-	return fmt.Errorf("milvus: not implemented")
+	return fmt.Errorf("milvus: not yet implemented")
 }
 
 func (m *Milvus) Search(ctx context.Context, query string, topK int, filter map[string]string) ([]SearchResult, error) {
-	// TODO: Implement Milvus search.
-	return nil, fmt.Errorf("milvus: not implemented")
+	return nil, fmt.Errorf("milvus: not yet implemented")
 }
 
 func (m *Milvus) Delete(ctx context.Context, id string) error {
-	// TODO: Implement Milvus delete.
-	return fmt.Errorf("milvus: not implemented")
+	return fmt.Errorf("milvus: not yet implemented")
 }
 
 func (m *Milvus) Health(ctx context.Context) error {
-	// TODO: Implement Milvus health check.
-	return fmt.Errorf("milvus: not implemented")
+	return fmt.Errorf("milvus: not yet implemented")
 }
