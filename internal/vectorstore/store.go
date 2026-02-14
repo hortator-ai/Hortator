@@ -4,8 +4,8 @@ import "context"
 
 // Document represents an indexed piece of knowledge from a completed task.
 type Document struct {
-	ID        string            // task name or artifact path
-	TaskID    string            // originating AgentTask name
+	ID        string // task name or artifact path
+	TaskID    string // originating AgentTask name
 	Namespace string
 	Content   string            // text content
 	Embedding []float32         // pre-computed embedding (optional, store can compute)

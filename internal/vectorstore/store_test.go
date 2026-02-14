@@ -80,7 +80,9 @@ func TestQdrantUpsertAndDelete(t *testing.T) {
 		case r.Method == http.MethodPut && r.URL.Path == "/collections/hortator-knowledge/points":
 			upsertCalled = true
 			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode upsert body: %v", err)
+			}
 			points := body["points"].([]any)
 			if len(points) != 1 {
 				t.Errorf("expected 1 point, got %d", len(points))
@@ -143,7 +145,7 @@ func TestQdrantSearchByVector(t *testing.T) {
 					},
 				},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -176,7 +178,9 @@ func TestQdrantAutoCreateCollection(t *testing.T) {
 		case r.Method == http.MethodPut && r.URL.Path == "/collections/test-col":
 			createCalled = true
 			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode create body: %v", err)
+			}
 			vectors := body["vectors"].(map[string]any)
 			if int(vectors["size"].(float64)) != 768 {
 				t.Errorf("expected dimension 768, got %v", vectors["size"])

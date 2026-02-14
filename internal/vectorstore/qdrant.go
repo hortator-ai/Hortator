@@ -53,7 +53,7 @@ func (q *Qdrant) ensureCollection(ctx context.Context) error {
 			q.ensureErr = err
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
 			return
 		}
@@ -143,23 +143,9 @@ func (q *Qdrant) Search(ctx context.Context, query string, topK int, filter map[
 		return nil, fmt.Errorf("ensure collection: %w", err)
 	}
 
-	// Build filter conditions.
-	var must []any
-	for k, v := range filter {
-		must = append(must, map[string]any{
-			"key": k,
-			"match": map[string]any{
-				"value": v,
-			},
-		})
-	}
-
-	// NOTE: query is a text string; in production, the caller should convert
-	// the query to an embedding vector before calling Search, or a wrapper
-	// should handle embedding. For now, this returns an error if no embedding
-	// is possible at this layer.
-	// For the initial implementation, we expect callers to provide a vector
-	// via a higher-level API. This method is here for interface compliance.
+	// Text-based search requires embedding generation, which is out of scope
+	// for this layer. Callers should use SearchByVector with a pre-computed
+	// embedding, or wrap this store with an embedding middleware.
 	return nil, fmt.Errorf("text-based search not yet implemented; caller must provide embedding vector via SearchByVector")
 }
 
