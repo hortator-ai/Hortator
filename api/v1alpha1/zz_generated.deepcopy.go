@@ -374,6 +374,11 @@ func (in *AgentTaskStatus) DeepCopyInto(out *AgentTaskStatus) {
 		*out = new(TokenUsage)
 		**out = **in
 	}
+	if in.HierarchyTokensUsed != nil {
+		in, out := &in.HierarchyTokensUsed, &out.HierarchyTokensUsed
+		*out = new(TokenUsage)
+		**out = **in
+	}
 	if in.ChildTasks != nil {
 		in, out := &in.ChildTasks, &out.ChildTasks
 		*out = make([]string, len(*in))
@@ -383,11 +388,6 @@ func (in *AgentTaskStatus) DeepCopyInto(out *AgentTaskStatus) {
 		in, out := &in.PendingChildren, &out.PendingChildren
 		*out = make([]string, len(*in))
 		copy(*out, *in)
-	}
-	if in.HierarchyTokensUsed != nil {
-		in, out := &in.HierarchyTokensUsed, &out.HierarchyTokensUsed
-		*out = new(TokenUsage)
-		**out = **in
 	}
 	if in.NextRetryTime != nil {
 		in, out := &in.NextRetryTime, &out.NextRetryTime
