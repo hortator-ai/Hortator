@@ -25,7 +25,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentPolicy
 metadata:
   name: production-policy
-  namespace: hortator-test
+  namespace: hortator-test-policy
   labels:
     hortator.ai/test-suite: policy
 spec:
@@ -80,7 +80,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-compliant-task
-  namespace: hortator-test
+  namespace: hortator-test-policy
   labels:
     hortator.ai/test-suite: policy
     hortator.ai/test-case: compliant
@@ -111,7 +111,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-violation-tier
-  namespace: hortator-test
+  namespace: hortator-test-policy
   labels:
     hortator.ai/test-suite: policy
     hortator.ai/test-case: violation-tier
@@ -138,7 +138,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-violation-capability
-  namespace: hortator-test
+  namespace: hortator-test-policy
   labels:
     hortator.ai/test-suite: policy
     hortator.ai/test-case: violation-capability
@@ -165,7 +165,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-violation-budget
-  namespace: hortator-test
+  namespace: hortator-test-policy
   labels:
     hortator.ai/test-suite: policy
     hortator.ai/test-case: violation-budget
