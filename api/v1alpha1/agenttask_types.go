@@ -340,6 +340,16 @@ type AgentTaskStatus struct {
 	// +optional
 	EstimatedCostUsd string `json:"estimatedCostUsd,omitempty"`
 
+	// HierarchyTokensUsed tracks cumulative token usage across the entire task tree.
+	// Only populated on root tasks that define a HierarchyBudget.
+	// +optional
+	HierarchyTokensUsed *TokenUsage `json:"hierarchyTokensUsed,omitempty"`
+
+	// HierarchyCostUsed tracks cumulative cost across the entire task tree.
+	// Only populated on root tasks that define a HierarchyBudget.
+	// +optional
+	HierarchyCostUsed string `json:"hierarchyCostUsed,omitempty"`
+
 	// ChildTasks are the task IDs of spawned children.
 	// +optional
 	ChildTasks []string `json:"childTasks,omitempty"`
@@ -347,15 +357,6 @@ type AgentTaskStatus struct {
 	// PendingChildren tracks children the task is waiting on (set when entering Waiting phase).
 	// +optional
 	PendingChildren []string `json:"pendingChildren,omitempty"`
-
-	// HierarchyTokensUsed tracks cumulative token usage across the entire task tree.
-	// Only updated on the root task.
-	// +optional
-	HierarchyTokensUsed *TokenUsage `json:"hierarchyTokensUsed,omitempty"`
-
-	// HierarchyCostUsed tracks cumulative estimated cost across the task tree.
-	// +optional
-	HierarchyCostUsed string `json:"hierarchyCostUsed,omitempty"`
 
 	// Message provides human-readable status information.
 	// +optional
