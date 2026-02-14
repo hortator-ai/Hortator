@@ -162,12 +162,30 @@ echo "[hortator-runtime] Task=${TASK_ID} Role=${ROLE} Tier=${TIER} Model=${MODEL
 # Wait for Presidio to become ready before first scan
 wait_for_presidio
 
-# Scan prompt for PII before sending to LLM
-presidio_scan "$PROMPT"
+# --- PII redaction on input (before LLM submission) ---
+# Controlled by HORTATOR_REDACT_INPUT (default: true when Presidio is enabled).
+# When enabled, prompts and system messages are redacted via Presidio before
+# being sent to third-party LLM APIs, preventing PII exfiltration.
+REDACT_INPUT="${HORTATOR_REDACT_INPUT:-true}"
+
+if [ "$PRESIDIO_READY" -eq 1 ] && [ "$REDACT_INPUT" = "true" ]; then
+  # Scan prompt for PII (logging only)
+  presidio_scan "$PROMPT"
+  # Redact PII from prompt before sending to LLM
+  PROMPT=$(presidio_redact "$PROMPT")
+else
+  # Still scan for visibility even if redaction is disabled
+  presidio_scan "$PROMPT"
+fi
 
 # --- Build system message ---
 SYSTEM="You are an AI agent working as a ${ROLE}. Complete the task given to you."
 [[ -n "$PRIOR_WORK" ]] && SYSTEM="${SYSTEM} Prior work from sub-agents: ${PRIOR_WORK}"
+
+# Redact system message if it contains prior work (which may have PII from child results)
+if [ "$PRESIDIO_READY" -eq 1 ] && [ "$REDACT_INPUT" = "true" ] && [ -n "$PRIOR_WORK" ]; then
+  SYSTEM=$(presidio_redact "$SYSTEM")
+fi
 
 # --- Call LLM ---
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
@@ -223,8 +241,10 @@ else
   OUTPUT_TOKENS=0
 fi
 
-# Redact PII from response before reporting results
-SUMMARY=$(presidio_redact "$SUMMARY")
+# Redact PII from LLM response before reporting results
+if [ "$PRESIDIO_READY" -eq 1 ]; then
+  SUMMARY=$(presidio_redact "$SUMMARY")
+fi
 
 # --- Report results via CRD status ---
 # Primary path: patch the AgentTask CRD directly via the K8s API.
