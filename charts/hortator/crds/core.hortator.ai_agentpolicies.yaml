@@ -66,9 +66,22 @@ spec:
                 items:
                   type: string
                 type: array
+              allowedShellCommands:
+                description: |-
+                  AllowedShellCommands restricts which base commands agents can execute.
+                  Only first word of command is checked. Empty = all allowed.
+                items:
+                  type: string
+                type: array
               deniedCapabilities:
                 description: DeniedCapabilities explicitly blocks specific capabilities
                   (overrides allowed).
+                items:
+                  type: string
+                type: array
+              deniedShellCommands:
+                description: DeniedShellCommands blocks specific command prefixes.
+                  Applied after allow list.
                 items:
                   type: string
                 type: array
@@ -165,6 +178,10 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-map-type: atomic
+              readOnlyWorkspace:
+                description: ReadOnlyWorkspace makes /workspace read-only for analysis-only
+                  tasks.
+                type: boolean
               requirePresidio:
                 description: RequirePresidio forces PII scanning on all tasks.
                 type: boolean

@@ -490,8 +490,14 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		return ctrl.Result{}, nil
 	}
 
+	// Collect policies for pod builder injection
+	policyList := &corev1alpha1.AgentPolicyList{}
+	if err := r.List(ctx, policyList, client.InNamespace(task.Namespace)); err != nil {
+		logger.Error(err, "Failed to list policies for pod builder")
+	}
+
 	// Create the pod
-	pod, err := r.buildPod(task)
+	pod, err := r.buildPod(task, policyList.Items...)
 	if err != nil {
 		logger.Error(err, "Failed to build pod spec")
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed
