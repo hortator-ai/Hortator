@@ -398,6 +398,29 @@ gateway:
     sectionName: http             # Listener name on the Gateway
     hostnames: []                 # e.g. ["api.hortator.example.com"]
 
+# ── Vector Store ─────────────────────────────────────────────────────────────
+# Pluggable vector store for knowledge promotion (PVC graduation).
+# When retained PVCs become stale, their contents are indexed here.
+
+vectorStore:
+  enabled: false
+  provider: qdrant                # qdrant | milvus
+  endpoint: ""                    # e.g., http://qdrant:6333
+  collection: hortator-knowledge
+  embeddingDimension: 1536
+  # Qdrant sub-chart (optional, deploy Qdrant in-cluster)
+  qdrant:
+    deploy: false
+    image: qdrant/qdrant:v1.7.4
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+    storage: 5Gi
+
 # ── Enterprise ──────────────────────────────────────────────────────────────
 
 enterprise:
