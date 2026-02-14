@@ -1,85 +1,40 @@
 <p align="center">
   <h1 align="center">⚔️ Hortator</h1>
-  <p align="center"><strong>Kubernetes-native orchestration for autonomous AI agents</strong></p>
-  <p align="center">
-    <em>Named after the officer on Roman galleys who commanded the rowers — orchestrates agents without doing the thinking.</em>
-  </p>
+  <p align="center"><strong>A Kubernetes operator that lets AI agents spawn AI agents.</strong></p>
 </p>
 
 <p align="center">
+  <a href="#the-problem">The Problem</a> •
+  <a href="#what-hortator-does">What Hortator Does</a> •
   <a href="#quickstart">Quickstart</a> •
   <a href="#how-it-works">How It Works</a> •
-  <a href="#architecture">Architecture</a> •
+  <a href="#guardrails">Guardrails</a> •
   <a href="#crds">CRDs</a> •
-  <a href="#configuration">Configuration</a> •
   <a href="#faq">FAQ</a> •
   <a href="#roadmap">Roadmap</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/hortator-ai/Hortator/releases"><img src="https://img.shields.io/github/v/release/hortator-ai/Hortator?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/hortator-ai/Hortator/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hortator-ai/Hortator?style=flat-square" alt="License"></a>
+  <a href="https://github.com/hortator-ai/Hortator/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/hortator-ai/Hortator/ci.yaml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+</p>
+
 ---
 
-## What is Hortator?
+## The Problem
 
-Hortator is a **Kubernetes operator** that lets AI agents spawn other AI agents — forming autonomous hierarchies with guardrails to solve complex problems.
+AI agents today run in one of two modes: **sandboxed toys** (single container, no real autonomy) or **terrifying cowboys** (SSH into prod, spawn Docker containers, `curl | bash` whatever they want).
 
-It provides the **infrastructure layer** — isolation, lifecycle management, budget enforcement, security, and health monitoring — so agents can focus on thinking. Build your agents with LangGraph, CrewAI, AutoGen, or plain Python. Hortator runs them safely.
+There's no middle ground. No infrastructure that says: *"Yes, you can spawn sub-agents, decompose problems, and work autonomously — but within boundaries I define."*
 
-### Why not just run agents in a single container?
+Hortator is that middle ground.
 
-| Single container | Hortator |
-|---|---|
-| All agents share one process | Each agent gets its own Pod |
-| One agent crashes → everything crashes | Isolated failures |
-| No resource limits per agent | CPU/memory limits per agent |
-| No security boundaries | NetworkPolicy + RBAC per agent |
-| Static agent count | Dynamic spawning (agents create agents) |
-| One big context window | Per-agent context + structured handoffs |
+## What Hortator Does
 
-## Prerequisites
+Hortator is a **Kubernetes operator** that gives AI agents the ability to create other AI agents at runtime — forming dynamic task hierarchies to solve complex problems. Each agent runs in its own Pod with its own context, budget, and security boundary.
 
-- **Kubernetes** 1.28+ (RKE2, K3s, EKS, GKE, etc.)
-- **Helm** 3.x
-- **Default StorageClass** — required for tribune/centurion tiers. RKE2/K3s don't ship one by default; install [local-path-provisioner](https://github.com/rancher/local-path-provisioner):
-  ```bash
-  kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.30/deploy/local-path-storage.yaml
-  kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-  ```
-- **LLM API key** — Anthropic, OpenAI, or any OpenAI-compatible endpoint
-
-## Quickstart
-
-```bash
-# Install the operator
-helm install hortator oci://ghcr.io/hortator-ai/hortator/charts/hortator \
-  --namespace hortator-system --create-namespace \
-  --set models.default.endpoint=https://api.anthropic.com/v1 \
-  --set models.default.name=claude-sonnet-4-20250514
-
-# Create a secret with your API key
-kubectl create namespace hortator-demo
-kubectl create secret generic anthropic-api-key \
-  --namespace hortator-demo \
-  --from-literal=api-key=sk-ant-...
-
-# Run your first task
-kubectl apply -f examples/quickstart/hello-world.yaml
-
-# Watch it
-kubectl get agenttasks -n hortator-demo -w
-kubectl logs -n hortator-demo -l hortator.ai/task=hello-world -c agent
-```
-
-## How It Works
-
-### The Roman Hierarchy
-
-Hortator uses a Roman military hierarchy — because the Hortator was a Roman galley officer, and because `tier: legionary` in YAML is just cool.
-
-| Tier | Role | Storage | Model | Lifespan |
-|------|------|---------|-------|----------|
-| **Tribune** | Strategic leadership. Decomposes complex problems. | PVC (persistent) | Expensive reasoning | Long-lived |
-| **Centurion** | Coordinates a unit. Delegates to legionaries, collects results. | PVC (persistent) | Mid-tier | Medium |
-| **Legionary** | Executes a single focused task. | PVC (256Mi default) | Fast/cheap | Short-lived |
+You define the guardrails. Agents do the thinking.
 
 ```
          ┌──────────┐
@@ -93,95 +48,143 @@ Hortator uses a Roman military hierarchy — because the Hortator was a Roman ga
 └───┬───┘ └───┬───┘ └───┬───┘
     │         │         │
  ┌──▼──┐   ┌──▼──┐   ┌──▼──┐
- │ Leg.│   │ Leg.│   │ Leg.│    Focused tasks: "Fix session.ts:47" / "Update login form" / ...
+ │ Leg.│   │ Leg.│   │ Leg.│    "Fix session.ts:47" / "Update login form" / ...
  └─────┘   └─────┘   └─────┘
 ```
 
-### The Flow
+The task tree isn't defined upfront — it **emerges** from the work. A Tribune decides it needs three Centurions. A Centurion decides it needs five Legionaries. Hortator manages the lifecycle, result passing, and cleanup.
 
-1. A **Tribune** receives a complex task via `AgentTask` CRD
-2. It uses the `hortator` CLI inside its Pod to spawn **Centurions**
-3. Each Centurion spawns **Legionaries** for specific subtasks
-4. Legionaries write results to `/outbox/result.json`
-5. Operator copies results to parent's `/inbox/` and triggers the next turn
-6. Results flow up the chain: Legionary → Centurion → Tribune → done
+**Key idea:** Agents never see YAML. They use a CLI (`hortator spawn`, `hortator result`) inside their Pod. The operator handles everything else.
+
+### What makes this different from [Argo / Tekton / CrewAI / LangGraph]?
+
+- **Argo/Tekton** define static DAGs upfront. Hortator task trees are dynamic — agents decide the structure at runtime.
+- **CrewAI/LangGraph** are Python frameworks that run agents in-process. Hortator gives each agent its own Pod, PVC, network policy, and budget. They're complementary — you can run CrewAI *inside* a Hortator agent.
+- **Raw Kubernetes Jobs** are the primitive Hortator builds on. The value is everything around the Job: result brokering between parent/child, PVC lifecycle, budget enforcement, stuck detection, PII redaction, security policies.
+
+## Quickstart
+
+```bash
+# Install the operator
+helm install hortator oci://ghcr.io/hortator-ai/hortator/charts/hortator \
+  --namespace hortator-system --create-namespace \
+  --set models.default.endpoint=https://api.anthropic.com/v1 \
+  --set models.default.name=claude-sonnet-4-20250514
+
+# Create a namespace and API key secret
+kubectl create namespace hortator-demo
+kubectl create secret generic llm-api-key \
+  --namespace hortator-demo \
+  --from-literal=api-key=sk-ant-...
+
+# Run your first task
+kubectl apply -f examples/quickstart/hello-world.yaml
+
+# Watch it work
+kubectl get agenttasks -n hortator-demo -w
+```
+
+That's it. The operator creates a Pod, injects your prompt, runs the agent, collects the result, and updates the CRD status.
+
+For multi-tier examples (Tribune → Centurion → Legionary chains), see [`examples/advanced/`](examples/advanced/).
+
+## How It Works
+
+### The Roman Hierarchy
+
+*Named after the officer on Roman galleys who commanded the rowers — Hortator orchestrates agents without doing the thinking.*
+
+Three tiers, inspired by the Roman military:
+
+| Tier | Role | Think of it as... |
+|------|------|-------------------|
+| **Tribune** | Strategic leadership. Decomposes problems, coordinates Centurions. | The architect |
+| **Centurion** | Mid-level coordination. Delegates to Legionaries, aggregates results. | The tech lead |
+| **Legionary** | Executes a single focused task. Fast, cheap, disposable. | The developer |
+
+Tiers determine defaults (model, storage, timeout) but aren't rigid — a Legionary can use GPT-4 if you want. They're conventions, not constraints.
 
 ### Agent Communication
 
-Agents don't talk to each other directly. The **operator is the broker**:
+Agents don't talk to each other. The operator is the message broker:
 
 ```
-Legionary completes
-  → Writes /outbox/result.json
+Legionary writes /outbox/result.json
   → Operator detects completion
   → Copies result to parent Centurion's /inbox/
-  → Spawns parent Centurion's next turn (new Job, same PVC)
+  → Centurion wakes up with new context
+  → Repeat until Tribune has all results
 ```
 
-Each agent Pod has four mount points:
+Each agent Pod gets four mount points:
 
 | Path | Purpose |
 |------|---------|
-| `/inbox/` | Task definition + context from parent (operator writes) |
-| `/outbox/` | Results + artifacts for parent (agent writes) |
-| `/memory/` | Persistent state across turns (agent reads/writes) |
-| `/workspace/` | Scratch space for temporary files |
+| `/inbox/` | Task definition + results from children |
+| `/outbox/` | Results + artifacts for parent |
+| `/memory/` | Persistent state across agent "turns" |
+| `/workspace/` | Scratch space |
 
-## Architecture
+### Agent Reincarnation
 
-```
-┌────────────────────────────────────────────────────────┐
-│                    Kubernetes Cluster                   │
-│                                                        │
-│  ┌──────────────┐    watches   ┌───────────────────┐   │
-│  │   Hortator   │◄────────────►│  AgentTask CRDs   │   │
-│  │   Operator   │              │  AgentRole CRDs   │   │
-│  └──────┬───────┘              │  AgentPolicy CRDs │   │
-│         │ creates              └───────────────────┘   │
-│         ▼                                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │  Agent Pod   │  │  Agent Pod   │  │  Agent Pod   │  │
-│  │  (Tribune)   │  │  (Centurion) │  │  (Legionary) │  │
-│  │  ┌────────┐  │  │  ┌────────┐  │  │  ┌────────┐  │  │
-│  │  │Runtime │  │  │  │Runtime │  │  │  │Runtime │  │  │
-│  │  │+ CLI   │  │  │  │+ CLI   │  │  │  │+ CLI   │  │  │
-│  │  └────────┘  │  │  └────────┘  │  │  └────────┘  │  │
-│  │  ┌────────┐  │  │  ┌────────┐  │  │              │  │
-│  │  │  PVC   │  │  │  │  PVC   │  │  │  │  PVC   │  │  │
-│  │  └────────┘  │  │  └────────┘  │  │              │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-│                                                        │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  Optional: Presidio │ OTel Collector │ LiteLLM   │  │
-│  └──────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────┘
+When an agent's context window fills up, it doesn't crash — it **checkpoints** its state to `/memory/`, gets killed, and respawns with a fresh context window and its checkpoint. The agent picks up where it left off. We call this reincarnation.
+
+### The CLI
+
+Agents interact with Hortator through a CLI, not YAML:
+
+```bash
+# Spawn a sub-agent and wait for the result
+hortator spawn --prompt "Fix the login bug" --role backend-dev --wait
+
+# Spawn with specific capabilities
+hortator spawn --prompt "Scrape the API docs" --cap shell,web-fetch --tier legionary
+
+# Check on your children
+hortator tree my-task              # Visualize task hierarchy
+hortator status child-task-id      # Check phase
+hortator result child-task-id      # Get output
+
+# Budget awareness
+hortator budget-remaining          # "You have 42,000 tokens left"
+
+# Self-report (feeds into stuck detection)
+hortator progress --status "Analyzing auth module, found 3 issues"
 ```
 
-**Written in Go** — first-class K8s ecosystem support.
+## Guardrails
 
-**Two personas interact with Hortator:**
+The whole point of Hortator is **autonomous agents with boundaries**. Here's what's built in:
 
-| Who | Interface | What they do |
-|-----|-----------|--------------|
-| **Platform engineers** | Helm values, YAML CRDs | Configure operator, define roles/policies, set budgets |
-| **Agents** | `hortator` CLI inside Pods | Spawn sub-agents, check status, report results |
+### 🔒 Security
+- **Pod isolation** — each agent is its own Pod with its own ServiceAccount
+- **NetworkPolicies** — auto-generated from declared capabilities. `web-fetch` opens specific egress. `shell` stays isolated. No capability = no network.
+- **Capability inheritance** — children cannot escalate beyond their parent. A Legionary spawned by a Centurion with `[shell]` cannot request `[shell, web-fetch]`.
+- **Per-capability RBAC** — agents get minimal ServiceAccount permissions based on their declared capabilities
 
-Agents never touch YAML. The CLI creates CRDs under the hood.
+### 💰 Budget
+- **Token and cost caps** — per-task and per-hierarchy (shared budget across an entire task tree)
+- **LiteLLM price map** — automatic cost tracking across providers
+- **`BudgetExceeded` phase** — tasks stop cleanly when limits are hit, not mid-stream
 
-**Security layers:**
-- **NetworkPolicies** — automatically generated from agent capabilities (e.g., `web-fetch` opens egress, `shell` stays isolated)
-- **RBAC** — agents get minimal permissions (only create AgentTasks in their own namespace); capability inheritance prevents escalation
-- **Namespace restrictions** — optionally require `core.hortator.ai/enabled=true` label on namespaces (via `enforceNamespaceLabels` in Helm values)
+### 🛡️ PII Redaction
+- **Presidio sidecar** — scans agent input and output for PII, secrets, API keys
+- **Input redaction** — prompts are scrubbed before reaching the LLM (configurable)
+- **Output redaction** — results are scrubbed before being passed to parent agents
 
-**Observability:**
+### 🏥 Health Monitoring
+- **Behavioral stuck detection** — not just "is the process alive" but "is the agent making progress?" Monitors tool diversity, prompt repetition, state staleness.
+- **Auto-kill or escalate** — stuck agents can be terminated or flagged for human review
+
+### 📊 Observability
 - **Prometheus metrics** — `hortator_tasks_total`, `hortator_tasks_active`, `hortator_task_duration_seconds`
-- **OpenTelemetry** — task hierarchy maps to distributed traces; audit events emitted as OTel spans for Jaeger/Tempo/Datadog
+- **OpenTelemetry traces** — task hierarchy maps directly to distributed traces. Open in Jaeger/Tempo and see the full agent tree.
 
 ## CRDs
 
 ### AgentTask
 
-The core resource. Defines a task for an agent to execute.
+The core resource. One task = one agent = one Pod.
 
 ```yaml
 apiVersion: core.hortator.ai/v1alpha1
@@ -195,44 +198,24 @@ spec:
   parentTaskId: feature-auth-refactor
   timeout: 600
   capabilities: [shell, web-fetch]
-  thinkingLevel: low            # Reasoning depth hint (low/medium/high)
   budget:
     maxTokens: 100000
     maxCostUsd: "0.50"
   model:
     name: claude-sonnet
-  storage:
-    size: 1Gi
-    storageClass: fast-ssd
-    retain: false
   env:
     - name: ANTHROPIC_API_KEY
       valueFrom:
         secretKeyRef:
           name: llm-keys
           key: anthropic
-  resources:
-    requests:
-      cpu: "100m"
-      memory: 128Mi
-    limits:
-      cpu: "1"
-      memory: 1Gi
 ```
-
-**Key fields:**
-- `tier` — tribune / centurion / legionary (determines storage and default model)
-- `capabilities` — `shell`, `web-fetch`, `spawn` (maps to NetworkPolicies)
-- `thinkingLevel` — per-task reasoning depth hint (`low` / `medium` / `high`)
-- `flavor` — free-form addendum appended to the role's rules (task-specific context without a new role)
-- `image` — custom container image (defaults to Hortator runtime from Helm values)
-- `parentTaskId` — establishes hierarchy; children inherit and cannot escalate beyond parent capabilities
 
 **Status phases:** `Pending` → `Running` → `Waiting` → `Completed` | `Failed` | `BudgetExceeded` | `TimedOut` | `Cancelled`
 
 ### AgentRole / ClusterAgentRole
 
-Defines behavioral archetypes for agents. Namespace-scoped (`AgentRole`) or cluster-wide (`ClusterAgentRole`).
+Behavioral archetypes. Define what an agent *is* — its rules, anti-patterns, and default tools.
 
 ```yaml
 apiVersion: core.hortator.ai/v1alpha1
@@ -244,36 +227,28 @@ spec:
   rules:
     - "Always write tests before implementation"
     - "Security best practices (input validation, auth checks)"
-    - "Proper error handling with meaningful messages"
   antiPatterns:
     - "Never use `any` in TypeScript"
-    - "Don't install new dependencies without checking existing ones"
   tools: [shell, web-fetch]
   defaultModel: claude-sonnet
-  references:
-    - "https://internal-docs.example.com/api-guidelines"
 ```
 
-**Resolution:** Namespace-local `AgentRole` takes precedence over `ClusterAgentRole` with the same name.
+### AgentPolicy
 
-### AgentPolicy *(Enterprise)*
-
-Namespace-scoped governance constraints. Enforces limits that individual tasks cannot override.
+Namespace-scoped governance. The guardrails that individual agents can't override.
 
 ```yaml
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentPolicy
 metadata:
-  name: production-restrictions
+  name: production-policy
   namespace: ai-team
 spec:
-  maxTier: centurion                    # No tribunes in this namespace
-  maxTimeout: 1800                      # 30 min max
+  maxTier: centurion                     # No tribunes allowed
   maxConcurrentTasks: 10
   allowedCapabilities: [shell, web-fetch]
-  deniedCapabilities: [spawn]           # Overrides allowed
-  allowedImages: ["ghcr.io/hortator/*"]
-  requirePresidio: true
+  deniedCapabilities: [spawn]            # No recursive agent spawning
+  requirePresidio: true                  # PII redaction mandatory
   maxBudget:
     maxCostUsd: "5.00"
   egressAllowlist:
@@ -283,118 +258,85 @@ spec:
 
 ## Configuration
 
-All configuration lives in Helm `values.yaml` — transparent, GitOps-friendly, no custom images needed.
+Everything lives in Helm values — GitOps-friendly, no custom images needed.
 
 **Three-tier override:** Helm defaults → AgentRole → AgentTask (most specific wins).
 
-Key configuration areas:
+See [`charts/hortator/values.yaml`](charts/hortator/values.yaml) for the full reference.
 
-| Area | What it controls |
-|------|-----------------|
-| `models.*` | LLM endpoint, model name, API keys, presets (Ollama/vLLM/LiteLLM) |
-| `budget.*` | Cost tracking, price source (LiteLLM map), per-task limits |
-| `presidio.*` | PII detection sidecar, recognizers, scan thresholds |
-| `telemetry.*` | OpenTelemetry audit events, distributed traces, Prometheus metrics |
-| `health.*` | Stuck detection thresholds, behavioral analysis, per-role overrides |
-| `storage.*` | PVC cleanup TTLs, retention, knowledge discovery, quotas |
-| `security.*` | Capabilities → NetworkPolicy mapping, RBAC |
-| `examples.*` | Install quickstart examples (off by default) |
+## Architecture
 
-See [`charts/hortator/values.yaml`](charts/hortator/values.yaml) for the full reference with comments.
-
-## Built-in Guardrails
-
-Hortator is designed for **autonomous agents with guardrails**:
-
-- 🔒 **Security**: Per-agent NetworkPolicies, RBAC, capability inheritance (children can't escalate beyond parent)
-- 💰 **Budget**: Token/cost caps per task, powered by LiteLLM price map. Optional LiteLLM proxy for authoritative tracking.
-- 🛡️ **PII Detection** *(Enterprise)*: Centralized Presidio service scans agent output for secrets, API keys, PII. Configurable action (redact/detect/hash/mask).
-- 🏥 **Health Monitoring**: Behavioral stuck detection (tool diversity, prompt repetition, state staleness). Auto-kill or escalate stuck agents.
-- 📊 **Observability**: Full OpenTelemetry integration. Task hierarchy = distributed trace. Budget + health metrics via Prometheus.
-- 💾 **Context Management**: Structured extraction + summarization fallback. Graceful degradation when context windows fill up ("agent reincarnation").
-
-## CLI (for agents)
-
-The `hortator` CLI ships inside the runtime container. Agents use it to interact with the operator — they never write YAML.
-
-```bash
-hortator spawn --prompt "Fix the login bug" --role backend-dev --wait
-hortator spawn --prompt "..." --cap shell,web-fetch --tier legionary
-hortator status <task-id>              # Check task phase
-hortator status <task-id> -o json      # JSON output for scripting
-hortator result <task-id>              # Get task output
-hortator logs <task-id>                # Stream/fetch worker logs
-hortator cancel <task-id>              # Terminate a running task
-hortator list                          # List tasks in namespace
-hortator list -o json                  # JSON output for automation
-hortator tree <task-id>                # Visualize task hierarchy (parent/children)
-hortator retain --reason "..." --tags "auth,backend"  # Mark PVC for retention
-hortator budget-remaining              # Check remaining budget
-hortator progress --status "..."       # Self-report progress (for stuck detection)
 ```
+┌─────────────────────────────────────────────────────────┐
+│                   Kubernetes Cluster                    │
+│                                                         │
+│  ┌──────────────┐   watches    ┌────────────────────┐   │
+│  │   Operator   │◄────────────►│  AgentTask CRDs    │   │
+│  │   (Go)       │              │  AgentRole CRDs    │   │
+│  └──────┬───────┘              │  AgentPolicy CRDs  │   │
+│         │ creates Pods         └────────────────────┘   │
+│         ▼                                               │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐                 │
+│  │ Tribune │  │Centurion│  │Legionary│  (each a Pod)   │
+│  │ + PVC   │  │ + PVC   │  │ + PVC   │                 │
+│  └─────────┘  └─────────┘  └─────────┘                 │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Optional: Presidio · OTel Collector · Qdrant      │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Written in Go.** Operator pattern, controller-runtime, Helm chart. The boring infrastructure choices, on purpose.
+
+**Two personas:**
+
+| Who | Interface | What they do |
+|-----|-----------|--------------|
+| **Platform engineers** | Helm, YAML | Configure operator, define roles/policies, set budgets |
+| **Agents** | `hortator` CLI | Spawn sub-agents, check status, report results |
+
+**SDKs:** [Python](sdk/python/) (sync/async, LangChain + CrewAI integrations) and [TypeScript](sdk/typescript/) (zero deps, LangChain.js integration).
 
 ## FAQ
 
-**"This is just Kubernetes Jobs with extra steps."** — At the lowest level, yes. The value is the lifecycle management around the Job: result brokering, PVC lifecycle, budget enforcement, stuck detection, context management, security. Same argument for any K8s operator.
+**"Agents spawning agents sounds terrifying."**
+That's the point. Agents are *already* doing this — spawning Docker containers, SSH-ing into machines, running arbitrary code. Hortator adds the guardrails: capability inheritance, network isolation, budget caps, PII redaction, stuck detection. The question isn't whether agents will spawn agents. It's whether they'll do it with or without guardrails.
 
-**"Why not Argo Workflows / Tekton?"** — Argo defines static DAGs upfront. Hortator tasks are dynamically spawned by agents at runtime. The task tree emerges from the work, it's not predetermined. Argo is CI/CD infrastructure. Hortator is agent infrastructure.
+**"This is just Kubernetes Jobs with extra steps."**
+At the lowest level, yes — like how Kubernetes is just Linux processes with extra steps. The value is the lifecycle management: result brokering between parent and child agents, PVC lifecycle, budget enforcement, stuck detection, PII redaction, security policies, observability. The same argument applies to any operator.
 
-**"Agents spawning agents is terrifying."** — This is exactly why Hortator exists. Without guardrails, agents are already spawning Docker containers and SSH-ing into machines. Hortator adds capability inheritance, NetworkPolicies, budget caps, and namespace isolation.
+**"Why not just use CrewAI / LangGraph / AutoGen?"**
+Those are agent frameworks. Hortator is agent infrastructure. They solve different problems at different layers. You can run CrewAI *inside* a Hortator agent — and now your CrewAI crew has pod isolation, budget enforcement, and network policies. They're complementary.
 
-**"This doesn't make my agents smarter."** — Correct. Hortator is infrastructure, not an AI framework. It stops good agents from failing for infrastructure reasons: context exhaustion, runaway costs, no isolation, no monitoring.
+**"Why Kubernetes?"**
+Because Kubernetes already solved pod isolation, resource limits, networking, storage, RBAC, and scheduling. Building agent orchestration on top of K8s means inheriting all of that for free. If your agents don't need isolation or you're running on a laptop, Hortator is probably overkill — and that's fine.
 
-See [full FAQ](docs/faq.md) for more.
+**"Does this make my agents smarter?"**
+No. Hortator is infrastructure, not intelligence. It prevents good agents from failing for infrastructure reasons: context window exhaustion, runaway costs, no isolation, no monitoring, no cleanup. It's the difference between running a web app on bare metal vs. in Kubernetes.
 
 ## Roadmap
 
-### ✅ Done
-- AgentTask CRD + operator (watch → create Pod → track status)
-- CLI: `spawn`, `status`, `result`, `logs`, `cancel`, `list`, `tree`
-- Default runtime container with standard filesystem layout
-- Helm chart with sane defaults
-- Task hierarchy (tribune → centurion → legionary chains)
-- TTL-based PVC cleanup + retention labels
-- Prometheus metrics
-- Security: NetworkPolicies from capabilities, RBAC, capability inheritance
-- OpenTelemetry distributed tracing
-- Namespace restrictions (`enforceNamespaceLabels`)
-- JSON output for all CLI commands
-- Retry semantics with jitter (transient vs logical failure classification)
-- AgentPolicy CRD *(Enterprise)*
-- Presidio PII detection (centralized Deployment+Service) *(Enterprise)*
-- CI/CD pipeline (GitHub Actions, linting, Dependabot)
-- OpenAI-compatible API gateway (`/v1/chat/completions`, SSE streaming)
-- Controller refactor (split into focused files: pod builder, policy, helpers, metrics)
-- Comprehensive unit tests (controller, gateway, helpers, pod builder, policy, warm pool, result cache)
-- Warm Pod pool for sub-second task assignment (opt-in)
-- Content-addressable result cache with LRU eviction (opt-in)
-- Python SDK (`hortator` package — sync/async, streaming, LangChain + CrewAI integrations)
-- TypeScript SDK (`@hortator/sdk` — zero deps, streaming, LangChain.js integration)
+**Done:** CRD-driven task lifecycle, CLI, Helm chart, multi-tier hierarchies, PVC management, Presidio PII redaction, OpenTelemetry tracing, Prometheus metrics, NetworkPolicies, capability inheritance, warm pod pool, result caching, agent reincarnation, Python + TypeScript SDKs, OpenAI-compatible API gateway.
 
-### Next
-- CRD regeneration (run `controller-gen` to pick up AgentRole health field)
-- Full end-to-end validation of Tribune orchestration flow
-- Multi-tenancy (cross-namespace policies)
-- Gateway session continuity (Level 1: PVC reuse across requests)
-- CRD validation webhook
+**Current (v0.2):** Hierarchy-wide budgets, shell command filtering, per-capability RBAC, PII input redaction, pluggable vector store (Qdrant).
 
-### Future
-- Object storage archival for completed task artifacts
-- RAG integration (vector store access capability)
-- OIDC/SSO *(Enterprise)*
-- Web dashboard for task hierarchy visualization
-- Go SDK
+**Next:** Validation webhooks, multi-tenancy, gateway session continuity, object storage archival for artifacts, web dashboard.
+
+See [`docs/roadmap.md`](docs/roadmap.md) for the full breakdown.
 
 ## Contributing
 
-*(Coming soon)*
+We're just getting started and welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) *(coming soon)*.
 
 ## License
 
-MIT (core) — Enterprise features under separate license.
+[MIT](LICENSE) — core operator, CLI, SDKs, Helm chart.
+
+Enterprise features (AgentPolicy, Presidio integration) available under separate license.
 
 ---
 
 <p align="center">
-  <em>"I don't row. I command the rowers."</em> — The Hortator
+  <em>Named after the officer on Roman galleys who commanded the rowers.<br>Hortator orchestrates agents without doing the thinking.</em>
 </p>
