@@ -144,3 +144,37 @@ func (r *AgentTaskReconciler) enforcePolicy(ctx context.Context, task *corev1alp
 
 	return ""
 }
+
+// collectShellPolicy aggregates shell command filtering and read-only workspace
+// settings from all matching AgentPolicy objects in the task's namespace.
+// Returns allowed commands, denied commands, and whether workspace should be read-only.
+func (r *AgentTaskReconciler) collectShellPolicy(ctx context.Context, namespace string) (allowed, denied []string, readOnlyWorkspace bool) {
+	policies := &corev1alpha1.AgentPolicyList{}
+	if err := r.List(ctx, policies, client.InNamespace(namespace)); err != nil {
+		return nil, nil, false
+	}
+
+	seenAllowed := map[string]bool{}
+	seenDenied := map[string]bool{}
+
+	for _, policy := range policies.Items {
+		p := policy.Spec
+		for _, cmd := range p.AllowedShellCommands {
+			if !seenAllowed[cmd] {
+				seenAllowed[cmd] = true
+				allowed = append(allowed, cmd)
+			}
+		}
+		for _, cmd := range p.DeniedShellCommands {
+			if !seenDenied[cmd] {
+				seenDenied[cmd] = true
+				denied = append(denied, cmd)
+			}
+		}
+		if p.ReadOnlyWorkspace {
+			readOnlyWorkspace = true
+		}
+	}
+
+	return allowed, denied, readOnlyWorkspace
+}

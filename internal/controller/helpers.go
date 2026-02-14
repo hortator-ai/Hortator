@@ -572,6 +572,26 @@ func (r *AgentTaskReconciler) injectChildResult(ctx context.Context,
 	}
 }
 
+// effectiveCapabilities returns the capabilities for a task including auto-injected
+// ones. Tribune and centurion tiers automatically get "spawn" capability.
+func effectiveCapabilities(tier string, specCaps []string) []string {
+	caps := make([]string, len(specCaps))
+	copy(caps, specCaps)
+	if isAgenticTier(tier) {
+		hasSpawn := false
+		for _, c := range caps {
+			if c == "spawn" {
+				hasSpawn = true
+				break
+			}
+		}
+		if !hasSpawn {
+			caps = append(caps, "spawn")
+		}
+	}
+	return caps
+}
+
 // extractTokenUsage parses agent logs to extract token usage from the runtime output.
 func (r *AgentTaskReconciler) extractTokenUsage(task *corev1alpha1.AgentTask) {
 	if task.Status.Output == "" {

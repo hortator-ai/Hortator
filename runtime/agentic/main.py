@@ -230,6 +230,13 @@ def main():
     # Wait for Presidio to become ready (if configured)
     presidio_ready = wait_for_presidio()
 
+    # PII redaction on input — controlled by HORTATOR_REDACT_INPUT (default: true).
+    # When enabled, prompts are redacted via Presidio before LLM submission to
+    # prevent PII from being sent to third-party LLM APIs.
+    redact_input = os.environ.get("HORTATOR_REDACT_INPUT", "true").lower() == "true"
+    if presidio_ready and redact_input:
+        prompt = presidio_redact(prompt)
+
     # Check for checkpoint (reincarnation)
     checkpoint = load_checkpoint(STATE_FILE)
     child_results = load_child_results()
@@ -247,6 +254,10 @@ def main():
         capabilities=capabilities,
         tool_names=[t["function"]["name"] for t in tools],
     )
+
+    # Redact system prompt if it may contain user-provided content
+    if presidio_ready and redact_input:
+        system_prompt = presidio_redact(system_prompt)
 
     # Build initial messages
     messages = [{"role": "system", "content": system_prompt}]
@@ -268,9 +279,10 @@ def main():
         budget=budget,
         state_file=STATE_FILE,
         is_killed=lambda: _killed,
+        presidio_redact_fn=presidio_redact if (presidio_ready and redact_input) else None,
     )
 
-    # Redact PII from output before persisting
+    # Redact PII from output before reporting
     if presidio_ready:
         result.output = presidio_redact(result.output)
 
