@@ -55,6 +55,9 @@ type ClusterDefaults struct {
 	Health                 HealthConfig
 	StorageRetained        StorageRetainedConfig
 	CleanupTTL             CleanupTTLConfig
+	VectorStoreEnabled     bool
+	VectorStoreProvider    string
+	VectorStoreEndpoint    string
 }
 
 // BudgetConfig holds budget enforcement settings from the ConfigMap.
