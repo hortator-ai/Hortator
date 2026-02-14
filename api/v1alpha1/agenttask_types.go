@@ -340,6 +340,16 @@ type AgentTaskStatus struct {
 	// +optional
 	EstimatedCostUsd string `json:"estimatedCostUsd,omitempty"`
 
+	// HierarchyTokensUsed tracks cumulative token usage across the entire task tree.
+	// Only populated on root tasks that define a HierarchyBudget.
+	// +optional
+	HierarchyTokensUsed *TokenUsage `json:"hierarchyTokensUsed,omitempty"`
+
+	// HierarchyCostUsed tracks cumulative cost across the entire task tree.
+	// Only populated on root tasks that define a HierarchyBudget.
+	// +optional
+	HierarchyCostUsed string `json:"hierarchyCostUsed,omitempty"`
+
 	// ChildTasks are the task IDs of spawned children.
 	// +optional
 	ChildTasks []string `json:"childTasks,omitempty"`

@@ -211,6 +211,17 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	case corev1alpha1.AgentTaskPhaseCompleted, corev1alpha1.AgentTaskPhaseFailed,
 		corev1alpha1.AgentTaskPhaseTimedOut, corev1alpha1.AgentTaskPhaseBudgetExceeded,
 		corev1alpha1.AgentTaskPhaseCancelled:
+		// Accumulate usage to hierarchy budget on first terminal reconcile
+		if task.Annotations == nil {
+			task.Annotations = map[string]string{}
+		}
+		if _, done := task.Annotations["hortator.ai/hierarchy-accounted"]; !done {
+			r.updateHierarchyBudget(ctx, task)
+			task.Annotations["hortator.ai/hierarchy-accounted"] = "true"
+			if err := r.Update(ctx, task); err != nil {
+				logger.V(1).Info("Failed to mark hierarchy-accounted", "error", err)
+			}
+		}
 		return r.handleTTLCleanup(ctx, task)
 	default:
 		logger.Info("Unknown phase", "phase", task.Status.Phase)
@@ -411,6 +422,18 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		task.Status.Message = fmt.Sprintf("policy violation: %s", violation)
 		setCompletionStatus(task)
 		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseFailed), task.Namespace).Inc()
+		if err := r.updateStatusWithRetry(ctx, task); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Check hierarchy budget (shared budget across task tree)
+	if reason := r.checkHierarchyBudgetExhausted(ctx, task); reason != "" {
+		task.Status.Phase = corev1alpha1.AgentTaskPhaseCancelled
+		task.Status.Message = reason
+		setCompletionStatus(task)
+		tasksTotal.WithLabelValues(string(corev1alpha1.AgentTaskPhaseCancelled), task.Namespace).Inc()
 		if err := r.updateStatusWithRetry(ctx, task); err != nil {
 			return ctrl.Result{}, err
 		}
