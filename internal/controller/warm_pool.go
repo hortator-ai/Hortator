@@ -109,7 +109,12 @@ func (r *AgentTaskReconciler) buildWarmPod(ctx context.Context) (*corev1.Pod, *c
 	cfg := r.defaults.WarmPool
 	image := cfg.Image
 	if image == "" {
-		image = r.defaults.DefaultImage
+		// Use the agentic image for warm pods — it's a superset that can run
+		// both the bash (legionary) and Python (centurion/tribune) runtimes.
+		image = r.defaults.AgenticImage
+		if image == "" {
+			image = r.defaults.DefaultImage
+		}
 	}
 	defaults := r.defaults
 	r.defaultsMu.RUnlock()
@@ -213,7 +218,7 @@ func (r *AgentTaskReconciler) buildWarmPod(ctx context.Context) (*corev1.Pod, *c
 				{
 					Name:      "agent",
 					Image:     image,
-					Command:   []string{"sh", "-c", "while [ ! -f /inbox/task.json ]; do sleep 0.5; done; exec /entrypoint.sh"},
+					Command: []string{"sh", "-c", `while [ ! -f /inbox/task.json ]; do sleep 0.5; done; TIER=$(cat /inbox/task.json | grep -o '"tier":"[^"]*"' | head -1 | cut -d'"' -f4); case "$TIER" in centurion|tribune) exec python3 /opt/hortator/main.py ;; *) exec /entrypoint.sh ;; esac`},
 					Env:       env,
 					Resources: resources,
 					VolumeMounts: []corev1.VolumeMount{

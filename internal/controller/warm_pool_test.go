@@ -7,6 +7,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,7 @@ func warmReconciler(objs ...client.Object) *AgentTaskReconciler {
 		Namespace: "hortator-system",
 		defaults: ClusterDefaults{
 			DefaultImage:          "ghcr.io/hortator-ai/hortator/agent:latest",
+			AgenticImage:          "ghcr.io/hortator-ai/hortator/agent-agentic:latest",
 			DefaultTimeout:        600,
 			DefaultRequestsCPU:    "100m",
 			DefaultRequestsMemory: "128Mi",
@@ -70,6 +72,14 @@ func TestBuildWarmPod(t *testing.T) {
 	if len(agent.Command) != 3 || agent.Command[0] != "sh" {
 		t.Errorf("unexpected command: %v", agent.Command)
 	}
+	// Command should select entrypoint based on tier from task.json
+	cmdStr := agent.Command[2]
+	if !strings.Contains(cmdStr, "main.py") {
+		t.Error("warm pod command should reference agentic runtime (main.py) for centurion/tribune")
+	}
+	if !strings.Contains(cmdStr, "entrypoint.sh") {
+		t.Error("warm pod command should reference bash runtime (entrypoint.sh) for legionary")
+	}
 
 	// EmptyDir for /inbox
 	foundInbox := false
@@ -107,9 +117,9 @@ func TestBuildWarmPod(t *testing.T) {
 		}
 	}
 
-	// Default image
-	if agent.Image != "ghcr.io/hortator-ai/hortator/agent:latest" {
-		t.Errorf("image = %q, want default", agent.Image)
+	// Warm pods use the agentic image (superset) so they can run both runtimes
+	if agent.Image != "ghcr.io/hortator-ai/hortator/agent-agentic:latest" {
+		t.Errorf("image = %q, want agentic image", agent.Image)
 	}
 
 	// RestartPolicy
