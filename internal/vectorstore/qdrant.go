@@ -77,7 +77,7 @@ func (q *Qdrant) ensureCollection(ctx context.Context) error {
 			q.ensureErr = err
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode >= 300 {
 			b, _ := io.ReadAll(resp.Body)
 			q.ensureErr = fmt.Errorf("failed to create collection: %s %s", resp.Status, string(b))
@@ -130,7 +130,7 @@ func (q *Qdrant) Upsert(ctx context.Context, doc Document) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("qdrant upsert failed: %s %s", resp.Status, string(b))
@@ -184,7 +184,7 @@ func (q *Qdrant) SearchByVector(ctx context.Context, vector []float32, topK int,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("qdrant search failed: %s %s", resp.Status, string(b))
@@ -236,7 +236,7 @@ func (q *Qdrant) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("qdrant delete failed: %s %s", resp.Status, string(b))
@@ -254,7 +254,7 @@ func (q *Qdrant) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("qdrant health check failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("qdrant unhealthy: %s", resp.Status)
 	}
