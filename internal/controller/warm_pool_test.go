@@ -127,9 +127,9 @@ func TestBuildWarmPod(t *testing.T) {
 		t.Errorf("RestartPolicy = %q, want Never", pod.Spec.RestartPolicy)
 	}
 
-	// ServiceAccountName
-	if pod.Spec.ServiceAccountName != "hortator-worker" {
-		t.Errorf("ServiceAccountName = %q, want hortator-worker", pod.Spec.ServiceAccountName)
+	// ServiceAccountName — warm pods use spawn SA since they can be claimed by any tier
+	if pod.Spec.ServiceAccountName != "hortator-worker-spawn" {
+		t.Errorf("ServiceAccountName = %q, want hortator-worker-spawn", pod.Spec.ServiceAccountName)
 	}
 
 	// No init containers
