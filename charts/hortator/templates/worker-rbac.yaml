@@ -1,14 +1,124 @@
 {{/*
-Worker RBAC (ServiceAccount, Role, RoleBinding) is now dynamically created
-by the operator in each task's namespace via ensureWorkerRBAC(). This
-template pre-provisions the resources in the operator namespace so that tasks
-running in the same namespace as the operator work immediately.
+Worker RBAC — per-capability ServiceAccounts.
 
-For tasks in other namespaces, the operator creates these resources
-automatically at reconcile time.
+Two tiers:
+  - hortator-worker-basic: read-only access to AgentTasks + status updates
+  - hortator-worker-spawn: basic + create AgentTasks (for task delegation)
+  - hortator-worker: backward-compatible alias with spawn permissions
+
+The operator also dynamically creates these in task namespaces via
+ensureWorkerRBAC().
 */}}
 {{- if .Values.workerRbac.create }}
 ---
+# === Basic SA — no CRD create permissions ===
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hortator-worker-basic
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/name: hortator-worker
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hortator-worker-basic
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/name: hortator-worker
+rules:
+  - apiGroups:
+      - core.hortator.ai
+    resources:
+      - agenttasks
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - core.hortator.ai
+    resources:
+      - agenttasks/status
+    verbs:
+      - get
+      - update
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hortator-worker-basic
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/name: hortator-worker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hortator-worker-basic
+subjects:
+  - kind: ServiceAccount
+    name: hortator-worker-basic
+    namespace: {{ .Release.Namespace }}
+---
+# === Spawn SA — can create AgentTasks ===
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hortator-worker-spawn
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/name: hortator-worker
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hortator-worker-spawn
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/name: hortator-worker
+rules:
+  - apiGroups:
+      - core.hortator.ai
+    resources:
+      - agenttasks
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+  - apiGroups:
+      - core.hortator.ai
+    resources:
+      - agenttasks/status
+    verbs:
+      - get
+      - update
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hortator-worker-spawn
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hortator.labels" . | nindent 4 }}
+    app.kubernetes.io/name: hortator-worker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hortator-worker-spawn
+subjects:
+  - kind: ServiceAccount
+    name: hortator-worker-spawn
+    namespace: {{ .Release.Namespace }}
+---
+# === Legacy SA — backward compatible (spawn permissions) ===
 apiVersion: v1
 kind: ServiceAccount
 metadata:

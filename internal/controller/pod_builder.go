@@ -89,103 +89,121 @@ const (
 	workerServiceAccountName = "hortator-worker"
 	workerRoleName           = "hortator-worker"
 	workerRoleBindingName    = "hortator-worker"
+
+	// Per-capability RBAC service accounts
+	workerBasicSAName = "hortator-worker-basic"
+	workerSpawnSAName = "hortator-worker-spawn"
 )
 
-// ensureWorkerRBAC creates the hortator-worker ServiceAccount, Role, and
-// RoleBinding in the task's namespace if they don't already exist. Worker pods
-// reference this ServiceAccount so they can interact with the Kubernetes API
-// (e.g., creating child AgentTasks via the hortator CLI).
+// ensureWorkerRBAC creates per-capability ServiceAccounts, Roles, and
+// RoleBindings in the task's namespace if they don't already exist:
+//   - hortator-worker-basic: read-only AgentTask access + status updates
+//   - hortator-worker-spawn: basic + create AgentTasks
+//   - hortator-worker: legacy backward-compatible SA (spawn permissions)
 func (r *AgentTaskReconciler) ensureWorkerRBAC(ctx context.Context, namespace string) error {
 	logger := log.FromContext(ctx)
 
-	// 1. ServiceAccount
-	sa := &corev1.ServiceAccount{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: workerServiceAccountName}, sa); err != nil {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to check worker ServiceAccount: %w", err)
-		}
-		sa = &corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      workerServiceAccountName,
-				Namespace: namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "hortator-operator",
-					"app.kubernetes.io/name":       "hortator-worker",
-				},
-			},
-		}
-		if err := r.Create(ctx, sa); err != nil && !errors.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create worker ServiceAccount in %s: %w", namespace, err)
-		}
-		logger.Info("Created worker ServiceAccount", "namespace", namespace)
+	type rbacSet struct {
+		name  string
+		verbs []string // verbs for agenttasks resource
 	}
 
-	// 2. Role — allows worker pods to manage AgentTasks (spawn children, check status)
-	role := &rbacv1.Role{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: workerRoleName}, role); err != nil {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to check worker Role: %w", err)
-		}
-		role = &rbacv1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      workerRoleName,
-				Namespace: namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "hortator-operator",
-					"app.kubernetes.io/name":       "hortator-worker",
-				},
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					APIGroups: []string{"core.hortator.ai"},
-					Resources: []string{"agenttasks"},
-					Verbs:     []string{"get", "list", "create", "update"},
-				},
-				{
-					APIGroups: []string{"core.hortator.ai"},
-					Resources: []string{"agenttasks/status"},
-					Verbs:     []string{"get", "update", "patch"},
-				},
-			},
-		}
-		if err := r.Create(ctx, role); err != nil && !errors.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create worker Role in %s: %w", namespace, err)
-		}
-		logger.Info("Created worker Role", "namespace", namespace)
+	sets := []rbacSet{
+		{name: workerBasicSAName, verbs: []string{"get", "list", "watch"}},
+		{name: workerSpawnSAName, verbs: []string{"get", "list", "watch", "create"}},
+		{name: workerServiceAccountName, verbs: []string{"get", "list", "create", "update"}}, // legacy
 	}
 
-	// 3. RoleBinding
-	rb := &rbacv1.RoleBinding{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: workerRoleBindingName}, rb); err != nil {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to check worker RoleBinding: %w", err)
-		}
-		rb = &rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      workerRoleBindingName,
-				Namespace: namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "hortator-operator",
-					"app.kubernetes.io/name":       "hortator-worker",
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "Role",
-				Name:     workerRoleName,
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      workerServiceAccountName,
+	for _, s := range sets {
+		// ServiceAccount
+		sa := &corev1.ServiceAccount{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: s.name}, sa); err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to check worker ServiceAccount %s: %w", s.name, err)
+			}
+			sa = &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      s.name,
 					Namespace: namespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/managed-by": "hortator-operator",
+						"app.kubernetes.io/name":       "hortator-worker",
+					},
 				},
-			},
+			}
+			if err := r.Create(ctx, sa); err != nil && !errors.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create worker ServiceAccount %s in %s: %w", s.name, namespace, err)
+			}
+			logger.Info("Created worker ServiceAccount", "name", s.name, "namespace", namespace)
 		}
-		if err := r.Create(ctx, rb); err != nil && !errors.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create worker RoleBinding in %s: %w", namespace, err)
+
+		// Role
+		role := &rbacv1.Role{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: s.name}, role); err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to check worker Role %s: %w", s.name, err)
+			}
+			role = &rbacv1.Role{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      s.name,
+					Namespace: namespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/managed-by": "hortator-operator",
+						"app.kubernetes.io/name":       "hortator-worker",
+					},
+				},
+				Rules: []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{"core.hortator.ai"},
+						Resources: []string{"agenttasks"},
+						Verbs:     s.verbs,
+					},
+					{
+						APIGroups: []string{"core.hortator.ai"},
+						Resources: []string{"agenttasks/status"},
+						Verbs:     []string{"get", "update", "patch"},
+					},
+				},
+			}
+			if err := r.Create(ctx, role); err != nil && !errors.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create worker Role %s in %s: %w", s.name, namespace, err)
+			}
+			logger.Info("Created worker Role", "name", s.name, "namespace", namespace)
 		}
-		logger.Info("Created worker RoleBinding", "namespace", namespace)
+
+		// RoleBinding
+		rb := &rbacv1.RoleBinding{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: s.name}, rb); err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to check worker RoleBinding %s: %w", s.name, err)
+			}
+			rb = &rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      s.name,
+					Namespace: namespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/managed-by": "hortator-operator",
+						"app.kubernetes.io/name":       "hortator-worker",
+					},
+				},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "Role",
+					Name:     s.name,
+				},
+				Subjects: []rbacv1.Subject{
+					{
+						Kind:      "ServiceAccount",
+						Name:      s.name,
+						Namespace: namespace,
+					},
+				},
+			}
+			if err := r.Create(ctx, rb); err != nil && !errors.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create worker RoleBinding %s in %s: %w", s.name, namespace, err)
+			}
+			logger.Info("Created worker RoleBinding", "name", s.name, "namespace", namespace)
+		}
 	}
 
 	return nil
@@ -194,6 +212,18 @@ func (r *AgentTaskReconciler) ensureWorkerRBAC(ctx context.Context, namespace st
 // isAgenticTier returns true if the tier uses the Python agentic runtime.
 func isAgenticTier(tier string) bool {
 	return tier == "tribune" || tier == "centurion"
+}
+
+// workerSAForCaps returns the appropriate ServiceAccount name based on
+// effective capabilities. Pods with "spawn" get hortator-worker-spawn;
+// all others get hortator-worker-basic.
+func workerSAForCaps(caps []string) string {
+	for _, c := range caps {
+		if c == "spawn" {
+			return workerSpawnSAName
+		}
+	}
+	return workerBasicSAName
 }
 
 // buildPod creates a pod spec for the agent task.
@@ -398,7 +428,7 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask) (*corev1.Po
 		},
 		Spec: corev1.PodSpec{
 			RestartPolicy:      corev1.RestartPolicyNever,
-			ServiceAccountName: "hortator-worker",
+			ServiceAccountName: workerSAForCaps(effectiveCaps),
 			InitContainers:     initContainers,
 			Containers: []corev1.Container{
 				{
