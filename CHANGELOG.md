@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.2](https://github.com/hortator-ai/Hortator/compare/v0.1.1...v0.1.2) (2026-02-14)
+
+
+### Bug Fixes
+
+* correct spawn CLI flags and JSON key mismatch in agentic runtime ([b71db5c](https://github.com/hortator-ai/Hortator/commit/b71db5c5a950fc8aae9161807b971c8b91ca19ad))
+* isolate test phases to prevent AgentPolicy cross-contamination ([d20b738](https://github.com/hortator-ai/Hortator/commit/d20b73857f1df3bee2154df84be7305d353e71a9))
+* redact PII in runtime output via Presidio anonymize endpoint ([428f1bc](https://github.com/hortator-ai/Hortator/commit/428f1bc09039daebedff2c4512dfbbca5671ee21))
+* redact PII in runtime output via Presidio anonymize endpoint ([a4c03b3](https://github.com/hortator-ai/Hortator/commit/a4c03b3d7b54e2c6b4659b6483265d5a62442b2d))
+* use correct runtime entrypoint for agentic tiers in warm pool ([ad421a3](https://github.com/hortator-ai/Hortator/commit/ad421a38257d32bd38ebe6950ad5e71c04a5c042))
+* use correct runtime entrypoint for agentic tiers in warm pool ([b496b54](https://github.com/hortator-ai/Hortator/commit/b496b542aaa342316a51a61052d094156fc0dffc))
+* wire result cache check before pod creation and add retain CLI command ([e223593](https://github.com/hortator-ai/Hortator/commit/e2235933f2c14f672f0001dbb88ab885bb3e9e58))
+* wire result cache config and add hortator retain CLI command ([bab297d](https://github.com/hortator-ai/Hortator/commit/bab297d2f23e772d0f72d31294d4e6a488a20885))
+
 ## [0.1.1](https://github.com/hortator-ai/Hortator/compare/v0.1.0...v0.1.1) (2026-02-13)
 
 
