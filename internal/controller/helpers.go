@@ -347,6 +347,11 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	r.defaults = d
 	r.defaultsAt = time.Now()
 	r.defaultsMu.Unlock()
+
+	// Sync result cache config from ConfigMap so it stays in sync with defaults.
+	if r.ResultCache != nil {
+		r.ResultCache.SyncConfig(d.ResultCacheEnabled, d.ResultCacheTTL, d.ResultCacheMaxEntries)
+	}
 }
 
 // parseDurationString parses a duration string like "7d", "2d", "24h", "48h".

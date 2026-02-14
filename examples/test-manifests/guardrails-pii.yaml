@@ -25,7 +25,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentPolicy
 metadata:
   name: pii-enforced-policy
-  namespace: hortator-test
+  namespace: hortator-test-guardrails
   labels:
     hortator.ai/test-suite: guardrails
 spec:
@@ -40,7 +40,7 @@ apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: guardrails-pii-test
-  namespace: hortator-test
+  namespace: hortator-test-guardrails
   labels:
     hortator.ai/test-suite: guardrails
     hortator.ai/test-case: pii-scanning

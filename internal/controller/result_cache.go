@@ -150,6 +150,19 @@ func (c *ResultCache) evictOldest() {
 	}
 }
 
+// SyncConfig updates the cache configuration dynamically (e.g. from ConfigMap refresh).
+func (c *ResultCache) SyncConfig(enabled bool, ttl time.Duration, maxEntries int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.config.Enabled = enabled
+	if ttl > 0 {
+		c.config.TTL = ttl
+	}
+	if maxEntries > 0 {
+		c.config.MaxEntries = maxEntries
+	}
+}
+
 // Len returns the current number of entries.
 func (c *ResultCache) Len() int {
 	c.mu.RLock()
