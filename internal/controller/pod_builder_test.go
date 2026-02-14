@@ -670,6 +670,83 @@ func TestEnsureWorkerRBAC(t *testing.T) {
 	})
 }
 
+func TestBuildPodShellCommandPolicy(t *testing.T) {
+	scheme := newTestScheme()
+
+	t.Run("AllowedShellCommands injects env var", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t-shell", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
+		}
+		policy := corev1alpha1.AgentPolicy{
+			Spec: corev1alpha1.AgentPolicySpec{
+				AllowedShellCommands: []string{"ls", "cat", "grep"},
+				DeniedShellCommands:  []string{"rm", "curl"},
+			},
+		}
+		pod, err := r.buildPod(task, policy)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_ALLOWED_COMMANDS"] != "ls,cat,grep" {
+			t.Errorf("expected allowed commands 'ls,cat,grep', got %q", envMap["HORTATOR_ALLOWED_COMMANDS"])
+		}
+		if envMap["HORTATOR_DENIED_COMMANDS"] != "rm,curl" {
+			t.Errorf("expected denied commands 'rm,curl', got %q", envMap["HORTATOR_DENIED_COMMANDS"])
+		}
+	})
+
+	t.Run("ReadOnlyWorkspace sets mount to read-only", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t-ro", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "analyze"},
+		}
+		policy := corev1alpha1.AgentPolicy{
+			Spec: corev1alpha1.AgentPolicySpec{
+				ReadOnlyWorkspace: true,
+			},
+		}
+		pod, err := r.buildPod(task, policy)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		found := false
+		for _, m := range pod.Spec.Containers[0].VolumeMounts {
+			if m.MountPath == "/workspace" {
+				found = true
+				if !m.ReadOnly {
+					t.Error("expected /workspace to be read-only")
+				}
+			}
+		}
+		if !found {
+			t.Error("/workspace mount not found")
+		}
+	})
+
+	t.Run("no policies means no shell env vars", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t-nopol", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if _, ok := envMap["HORTATOR_ALLOWED_COMMANDS"]; ok {
+			t.Error("unexpected HORTATOR_ALLOWED_COMMANDS without policy")
+		}
+		if _, ok := envMap["HORTATOR_DENIED_COMMANDS"]; ok {
+			t.Error("unexpected HORTATOR_DENIED_COMMANDS without policy")
+		}
+	})
+}
+
 // helpers
 
 func envToMap(envs []corev1.EnvVar) map[string]string {

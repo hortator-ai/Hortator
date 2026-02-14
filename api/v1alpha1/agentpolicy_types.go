@@ -54,6 +54,19 @@ type AgentPolicySpec struct {
 	// MaxConcurrentTasks limits active tasks per namespace.
 	// +optional
 	MaxConcurrentTasks *int `json:"maxConcurrentTasks,omitempty"`
+
+	// AllowedShellCommands restricts which base commands agents can execute.
+	// Only first word of command is checked. Empty = all allowed.
+	// +optional
+	AllowedShellCommands []string `json:"allowedShellCommands,omitempty"`
+
+	// DeniedShellCommands blocks specific command prefixes. Applied after allow list.
+	// +optional
+	DeniedShellCommands []string `json:"deniedShellCommands,omitempty"`
+
+	// ReadOnlyWorkspace makes /workspace read-only for analysis-only tasks.
+	// +optional
+	ReadOnlyWorkspace bool `json:"readOnlyWorkspace,omitempty"`
 }
 
 // EgressRule defines an allowed outbound network destination.
