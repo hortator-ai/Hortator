@@ -343,6 +343,17 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 		d.CleanupTTL.Cancelled = "1d"
 	}
 
+	// ── Vector store config ────────────────────────────────────────────────
+	if v, ok := cm.Data["vectorStoreEnabled"]; ok {
+		d.VectorStoreEnabled = v == "true"
+	}
+	if v, ok := cm.Data["vectorStoreProvider"]; ok && v != "" {
+		d.VectorStoreProvider = v
+	}
+	if v, ok := cm.Data["vectorStoreEndpoint"]; ok && v != "" {
+		d.VectorStoreEndpoint = v
+	}
+
 	r.defaultsMu.Lock()
 	r.defaults = d
 	r.defaultsAt = time.Now()
