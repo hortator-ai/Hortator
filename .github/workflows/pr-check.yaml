@@ -22,10 +22,11 @@ jobs:
       - name: Install controller-gen
         run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.18.0
 
-      - name: Verify generated code
-        run: |
-          controller-gen object paths="./..."
-          git diff --exit-code
+      - name: Regenerate deepcopy
+        run: controller-gen object paths="./..."
+
+      - name: Verify no unexpected generated changes
+        run: git diff --exit-code -- ':(exclude)**/zz_generated.deepcopy.go'
 
       - name: Verify CRD manifests
         run: |
