@@ -125,6 +125,48 @@ def wait_for_presidio() -> bool:
     return False
 
 
+def presidio_redact(text: str) -> str:
+    """Redact PII from text using Presidio analyze + anonymize endpoints."""
+    endpoint = os.environ.get("PRESIDIO_ENDPOINT", "")
+    if not endpoint:
+        return text
+    try:
+        # Step 1: Analyze
+        analyze_payload = json.dumps({"text": text, "language": "en"}).encode()
+        req = urllib.request.Request(
+            f"{endpoint}/analyze",
+            data=analyze_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            analyzer_results = json.loads(resp.read())
+
+        if not analyzer_results:
+            return text
+
+        print(f"[hortator-agentic] Redacting {len(analyzer_results)} PII entities...")
+
+        # Step 2: Anonymize
+        anon_payload = json.dumps({
+            "text": text,
+            "analyzer_results": analyzer_results,
+            "anonymizers": {"DEFAULT": {"type": "replace"}},
+        }).encode()
+        req = urllib.request.Request(
+            f"{endpoint}/anonymize",
+            data=anon_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            anon_result = json.loads(resp.read())
+            return anon_result.get("text", text)
+    except Exception as e:
+        print(f"[hortator-agentic] WARN: Presidio redaction failed: {e}")
+        return text
+
+
 def load_child_results() -> dict[str, dict]:
     """Load child results from /inbox/child-results/."""
     results = {}
@@ -186,7 +228,7 @@ def main():
     print(f"[hortator-agentic] Task={task_name} Role={role} Tier={tier} Model={model}")
 
     # Wait for Presidio to become ready (if configured)
-    wait_for_presidio()
+    presidio_ready = wait_for_presidio()
 
     # Check for checkpoint (reincarnation)
     checkpoint = load_checkpoint(STATE_FILE)
@@ -227,6 +269,10 @@ def main():
         state_file=STATE_FILE,
         is_killed=lambda: _killed,
     )
+
+    # Redact PII from output before persisting
+    if presidio_ready:
+        result.output = presidio_redact(result.output)
 
     # Write results
     write_result(
