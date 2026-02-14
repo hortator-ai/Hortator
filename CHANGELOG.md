@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.0](https://github.com/hortator-ai/Hortator/compare/v0.1.2...v0.2.0) (2026-02-14)
+
+
+### Features
+
+* add pluggable vector store abstraction with Qdrant implementation ([9e4622a](https://github.com/hortator-ai/Hortator/commit/9e4622a9abf97bf18d96bb832184d31f3d25db50))
+* add pluggable vector store abstraction with Qdrant implementation ([74b58d4](https://github.com/hortator-ai/Hortator/commit/74b58d4e21c5d745004a36bf6aece814474e3580))
+* add shell command filtering and read-only workspace to AgentPolicy ([bc994e2](https://github.com/hortator-ai/Hortator/commit/bc994e21710699833eea8d6ded17e62f14e3950f))
+* add shell command filtering and read-only workspace via AgentPolicy ([38bd1b6](https://github.com/hortator-ai/Hortator/commit/38bd1b6b32b267f16e8f6dfff403bb41b0c91799))
+* per-capability RBAC — split worker ServiceAccounts ([0f5be43](https://github.com/hortator-ai/Hortator/commit/0f5be436ae988aeba5d8551279454dbb25ded60d))
+* redact PII in prompts and tool results before LLM submission ([#35](https://github.com/hortator-ai/Hortator/issues/35)) ([ab4d0f4](https://github.com/hortator-ai/Hortator/commit/ab4d0f4cf8d81a07676fcaba19726a33ed2949df))
+* split worker ServiceAccount by spawn capability for least-privilege RBAC ([2974e45](https://github.com/hortator-ai/Hortator/commit/2974e45a1d90e257ade5a6c0e2dc41d6aa7407a3))
+* validate child task capabilities are subset of parent ([#31](https://github.com/hortator-ai/Hortator/issues/31)) ([93a1a2d](https://github.com/hortator-ai/Hortator/commit/93a1a2d312b55d2bd5708344427bf57ff117aae2))
+
+
+### Bug Fixes
+
+* handle errcheck for resp.Body.Close in qdrant client ([5a677a7](https://github.com/hortator-ai/Hortator/commit/5a677a7549b4655d4a1484e9e0f129091c6e1aa5))
+* regenerate deepcopy to match controller-gen output ([398b74a](https://github.com/hortator-ai/Hortator/commit/398b74acd802e1b5a031de6ae8f215d9800383db))
+
 ## [0.1.2](https://github.com/hortator-ai/Hortator/compare/v0.1.1...v0.1.2) (2026-02-14)
 
 
