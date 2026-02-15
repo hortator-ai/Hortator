@@ -1,0 +1,27 @@
+# Default values for litellm subchart.
+# Overridden by parent chart's litellm: section.
+enabled: true
+image:
+  repository: ghcr.io/berriai/litellm
+  tag: main-latest
+  pullPolicy: IfNotPresent
+replicas: 1
+port: 4000
+existingSecret: ""
+anthropicApiKey: ""
+masterKey: ""
+existingMasterKeySecret: ""
+models:
+  - name: claude-sonnet
+    provider: anthropic
+    model: anthropic/claude-sonnet-4-20250514
+  - name: claude-haiku
+    provider: anthropic
+    model: anthropic/claude-3-5-haiku-20241022
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
