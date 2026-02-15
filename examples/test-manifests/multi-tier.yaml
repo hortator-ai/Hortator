@@ -21,7 +21,7 @@
 #   - spawn capability available
 ---
 # Roles for each tier
-# Roles for each tier
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: project-architect
@@ -33,7 +33,7 @@ spec:
     - spawn
     - web-fetch
 ---
-    - web-fetch
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: api-team-lead
@@ -45,7 +45,7 @@ spec:
     - spawn
     - shell
 ---
-    - shell
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: endpoint-coder
@@ -56,7 +56,7 @@ spec:
   tools:
     - shell
 ---
-    - shell
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: test-writer
@@ -68,7 +68,7 @@ spec:
     - shell
 ---
 # The Tribune task — top of the hierarchy
-# The Tribune task — top of the hierarchy
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: multi-tier-tribune

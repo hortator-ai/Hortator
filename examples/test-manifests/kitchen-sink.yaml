@@ -21,7 +21,7 @@
 #   - presidio.enabled=true
 #   - warmPool.enabled=true (optional — graceful degradation if off)
 ---
----
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: full-stack-reviewer
@@ -36,7 +36,7 @@ spec:
     - "Don't approve code with hardcoded credentials"
     - "Don't skip test files"
 ---
-    - "Don't skip test files"
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentPolicy
 metadata:
   name: kitchen-sink-policy
@@ -64,7 +64,7 @@ spec:
       ports: [443]
     - host: "10.0.0.0/8"
 ---
----
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: kitchen-sink-test
