@@ -69,6 +69,15 @@ spec:
               value: {{ include "hortator.agenticImage" . }}
             - name: HORTATOR_DEFAULT_TIMEOUT
               value: {{ .Values.agent.timeout }}
+            {{- if .Values.litellm.enabled }}
+            - name: LITELLM_ENDPOINT
+              value: {{ .Values.operator.litellmEndpoint | default (printf "http://%s-litellm:%v" .Release.Name (.Values.litellm.port | int)) }}
+            - name: LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.litellm.existingMasterKeySecret }}{{ .Values.litellm.existingMasterKeySecret }}{{ else }}{{ .Release.Name }}-litellm{{ end }}
+                  key: LITELLM_MASTER_KEY
+            {{- end }}
       {{- with .Values.operator.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

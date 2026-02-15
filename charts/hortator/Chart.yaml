@@ -16,3 +16,7 @@ sources:
 maintainers:
   - name: Hortator Team
     url: https://github.com/hortator-ai/Hortator
+dependencies:
+  - name: litellm
+    version: 0.1.0
+    condition: litellm.enabled

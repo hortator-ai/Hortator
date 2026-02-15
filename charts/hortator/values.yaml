@@ -59,6 +59,9 @@ operator:
     name: ""
     annotations: {}
 
+  # LiteLLM endpoint (auto-configured when litellm subchart is enabled)
+  litellmEndpoint: ""
+
   # Leader election for HA deployments
   leaderElection:
     enabled: true
@@ -464,3 +467,73 @@ tenant:
     defaultRequestMemory: "128Mi"
     maxCpu: "4"
     maxMemory: "8Gi"
+
+# ── LiteLLM Proxy ──────────────────────────────────────────────────────────
+# Unified LLM API proxy deployed as a subchart alongside the operator.
+
+litellm:
+  enabled: true
+  image:
+    repository: ghcr.io/berriai/litellm
+    tag: main-latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 4000
+
+  # API key secrets
+  existingSecret: ""  # if set, use this secret for API keys
+  anthropicApiKey: "" # set via --set or secret
+
+  # Master key for proxy auth
+  masterKey: ""  # auto-generated if empty
+  existingMasterKeySecret: ""
+
+  # Model configuration
+  models:
+    - name: claude-sonnet
+      provider: anthropic
+      model: anthropic/claude-sonnet-4-20250514
+    - name: claude-haiku
+      provider: anthropic
+      model: anthropic/claude-3-5-haiku-20241022
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  ## Optional features — uncomment to enable
+  #
+  # # Fallback models (tried in order if primary fails)
+  # fallbacks:
+  #   - model_name: claude-sonnet
+  #     fallback:
+  #       - model_name: gpt-4o
+  #         litellm_params:
+  #           model: openai/gpt-4o
+  #           api_key: os.environ/OPENAI_API_KEY
+  #
+  # # Rate limiting per model
+  # rateLimits:
+  #   - model_name: claude-sonnet
+  #     rpm: 60
+  #     tpm: 100000
+  #   - model_name: claude-haiku
+  #     rpm: 120
+  #     tpm: 200000
+  #
+  # # Redis caching
+  # cache:
+  #   enabled: false
+  #   type: redis
+  #   host: redis.default.svc.cluster.local
+  #   port: 6379
+  #
+  # # Spend tracking / budget
+  # budgetTracking:
+  #   enabled: false
+  #   maxBudget: 100.00  # USD
+  #   budgetDuration: "30d"

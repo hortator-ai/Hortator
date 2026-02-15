@@ -15,6 +15,9 @@ data:
   resultCacheTTLSeconds: {{ .Values.resultCache.ttlSeconds | quote }}
   resultCacheMaxEntries: {{ .Values.resultCache.maxEntries | quote }}
   agenticImage: {{ include "hortator.agenticImage" . | quote }}
+  {{- if .Values.litellm.enabled }}
+  litellmEndpoint: {{ .Values.operator.litellmEndpoint | default (printf "http://%s-litellm:%v" .Release.Name (.Values.litellm.port | int)) | quote }}
+  {{- end }}
   # Budget enforcement
   budgetEnabled: {{ .Values.budget.enabled | quote }}
   budgetDefaultMaxCostUsd: {{ .Values.budget.defaultLimit.maxCostUsd | quote }}
