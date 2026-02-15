@@ -153,6 +153,9 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	if v, ok := cm.Data["presidioEndpoint"]; ok && v != "" {
 		d.PresidioEndpoint = v
 	}
+	if v, ok := cm.Data["presidioAnonymizerEndpoint"]; ok && v != "" {
+		d.PresidioAnonymizerEndpoint = v
+	}
 	if v, ok := cm.Data["warmPoolEnabled"]; ok {
 		d.WarmPool.Enabled = v == "true"
 	}

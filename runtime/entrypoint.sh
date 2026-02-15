@@ -112,7 +112,8 @@ presidio_redact() {
     echo "[hortator-runtime] Redacting ${count} PII entities..." >&2
     # Step 2: Anonymize
     local anon_result
-    anon_result=$(curl -s --max-time 5 "$PRESIDIO_ENDPOINT/anonymize" \
+    local anon_endpoint="${PRESIDIO_ANONYMIZER_ENDPOINT:-$PRESIDIO_ENDPOINT}"
+    anon_result=$(curl -s --max-time 5 "$anon_endpoint/anonymize" \
         -H "Content-Type: application/json" \
         -d "$(jq -n --arg t "$text" --argjson ar "$analyze_result" \
             '{text:$t, analyzer_results:$ar, anonymizers:{DEFAULT:{type:"replace"}}}')" 2>/dev/null) || {

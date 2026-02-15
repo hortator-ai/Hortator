@@ -147,14 +147,15 @@ def presidio_redact(text: str) -> str:
 
         print(f"[hortator-agentic] Redacting {len(analyzer_results)} PII entities...")
 
-        # Step 2: Anonymize
+        # Step 2: Anonymize (may be on a separate endpoint)
+        anonymizer_endpoint = os.environ.get("PRESIDIO_ANONYMIZER_ENDPOINT", endpoint)
         anon_payload = json.dumps({
             "text": text,
             "analyzer_results": analyzer_results,
             "anonymizers": {"DEFAULT": {"type": "replace"}},
         }).encode()
         req = urllib.request.Request(
-            f"{endpoint}/anonymize",
+            f"{anonymizer_endpoint}/anonymize",
             data=anon_payload,
             headers={"Content-Type": "application/json"},
             method="POST",

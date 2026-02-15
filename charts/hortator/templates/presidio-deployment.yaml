@@ -58,6 +58,36 @@ spec:
               mountPath: /etc/presidio/config.yaml
               subPath: config.yaml
           {{- end }}
+        - name: presidio-anonymizer
+          image: {{ .Values.presidio.anonymizerImage | default "mcr.microsoft.com/presidio-anonymizer:latest" }}
+          imagePullPolicy: {{ .Values.presidio.imagePullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: anonymizer
+              containerPort: 3001
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3001"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: anonymizer
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: anonymizer
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
       {{- if .Values.presidio.recognizers }}
       volumes:
         - name: presidio-config
@@ -80,6 +110,10 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: 3001
+      targetPort: anonymizer
+      protocol: TCP
+      name: anonymizer
   selector:
     {{- include "hortator.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: presidio

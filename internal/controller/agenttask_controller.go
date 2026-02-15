@@ -45,8 +45,9 @@ type ClusterDefaults struct {
 	DefaultLimitsCPU       string
 	DefaultLimitsMemory    string
 	EnforceNamespaceLabels bool
-	PresidioEnabled        bool
-	PresidioEndpoint       string
+	PresidioEnabled             bool
+	PresidioEndpoint            string
+	PresidioAnonymizerEndpoint  string
 	WarmPool               WarmPoolConfig
 	ResultCacheEnabled     bool
 	ResultCacheTTL         time.Duration
