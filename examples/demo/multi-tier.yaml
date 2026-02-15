@@ -1,0 +1,120 @@
+# Test: Multi-Tier Hierarchy (Tribune → Centurion → Legionary)
+#
+# Validates the full task hierarchy:
+#   - Tribune decomposes work and delegates to Centurions
+#   - Centurions coordinate and spawn Legionaries
+#   - Legionaries execute focused tasks
+#   - Results flow upward: Legionary → Centurion → Tribune
+#   - Capability inheritance: children cannot escalate beyond parent
+#   - Budget tracking aggregates across the entire tree
+#
+# Expected behavior:
+#   - Tribune spawns centurion child tasks via `hortator spawn`
+#   - Centurion spawns legionary child tasks
+#   - status.childTasks populated at each level
+#   - parentTaskId links children to parents
+#   - Total cost = sum across all tasks in hierarchy
+#   - Tribune reviews and produces final deliverable
+#
+# Prerequisites:
+#   - Anthropic API key secret
+#   - spawn capability available
+---
+# Roles for each tier
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: project-architect
+  labels:
+    hortator.ai/test-suite: multi-tier
+spec:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - spawn
+    - web-fetch
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: api-team-lead
+  labels:
+    hortator.ai/test-suite: multi-tier
+spec:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - spawn
+    - shell
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: endpoint-coder
+  labels:
+    hortator.ai/test-suite: multi-tier
+spec:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: test-writer
+  labels:
+    hortator.ai/test-suite: multi-tier
+spec:
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+---
+# The Tribune task — top of the hierarchy
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: multi-tier-tribune
+  labels:
+    hortator.ai/test-suite: multi-tier
+    hortator.ai/test-case: full-hierarchy
+  annotations:
+    hortator.ai/description: "Tribune-level task that spawns the full hierarchy"
+spec:
+  role: project-architect
+  tier: tribune
+  prompt: |
+    Build a TODO API with the following endpoints:
+      GET  /api/v1/todos        — list all todos
+      POST /api/v1/todos        — create a todo
+      GET  /api/v1/todos/:id    — get a single todo
+      PUT  /api/v1/todos/:id    — update a todo
+
+    Work breakdown:
+    1. Spawn an api-team-lead centurion to coordinate implementation
+    2. The centurion should spawn endpoint-coder legionaries for each endpoint
+    3. The centurion should spawn a test-writer legionary for integration tests
+    4. Review all results and produce a final summary
+
+    Use `hortator spawn` to create child tasks.
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  thinkingLevel: medium
+  capabilities:
+    - spawn
+    - web-fetch
+  budget:
+    maxCostUsd: "5.00"           # Budget for entire hierarchy
+    maxTokens: 500000
+  storage:
+    size: "1Gi"
+    retain: true                 # Keep tribune storage for review
+  timeout: 3600                  # 1 hour for full hierarchy
+  # Tribune gets no retry — expensive, let human decide
+  retry:
+    maxAttempts: 0
+  health:
+    stuckDetection:
+      statusStaleMinutes: 10
+      action: warn
