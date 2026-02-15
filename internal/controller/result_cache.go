@@ -61,12 +61,18 @@ func NewResultCache(cfg ResultCacheConfig) *ResultCache {
 	}
 }
 
-// CacheKey computes a SHA-256 hash of prompt+role for cache lookup.
-func CacheKey(prompt, role string) string {
+// CacheKey computes a SHA-256 hash of prompt+role+model+tier for cache lookup.
+// Including model and tier prevents false cache hits when the same prompt/role
+// is used with different models or tiers.
+func CacheKey(prompt, role, model, tier string) string {
 	h := sha256.New()
 	_, _ = h.Write([]byte(role))
 	_, _ = h.Write([]byte{0}) // separator
 	_, _ = h.Write([]byte(prompt))
+	_, _ = h.Write([]byte{0}) // separator
+	_, _ = h.Write([]byte(model))
+	_, _ = h.Write([]byte{0}) // separator
+	_, _ = h.Write([]byte(tier))
 	return hex.EncodeToString(h.Sum(nil))
 }
 

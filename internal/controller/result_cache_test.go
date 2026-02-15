@@ -15,19 +15,27 @@ import (
 )
 
 func TestCacheKey(t *testing.T) {
-	k1 := CacheKey("hello world", "researcher")
-	k2 := CacheKey("hello world", "researcher")
-	k3 := CacheKey("hello world", "tech-lead")
-	k4 := CacheKey("different prompt", "researcher")
+	k1 := CacheKey("hello world", "researcher", "claude-sonnet", "tribune")
+	k2 := CacheKey("hello world", "researcher", "claude-sonnet", "tribune")
+	k3 := CacheKey("hello world", "tech-lead", "claude-sonnet", "tribune")
+	k4 := CacheKey("different prompt", "researcher", "claude-sonnet", "tribune")
+	k5 := CacheKey("hello world", "researcher", "gpt-4o", "tribune")
+	k6 := CacheKey("hello world", "researcher", "claude-sonnet", "centurion")
 
 	if k1 != k2 {
-		t.Error("same prompt+role should produce same key")
+		t.Error("same prompt+role+model+tier should produce same key")
 	}
 	if k1 == k3 {
 		t.Error("different role should produce different key")
 	}
 	if k1 == k4 {
 		t.Error("different prompt should produce different key")
+	}
+	if k1 == k5 {
+		t.Error("different model should produce different key")
+	}
+	if k1 == k6 {
+		t.Error("different tier should produce different key")
 	}
 	if len(k1) != 64 {
 		t.Errorf("expected SHA-256 hex (64 chars), got %d chars", len(k1))
@@ -37,7 +45,7 @@ func TestCacheKey(t *testing.T) {
 func TestCacheGetPutBasic(t *testing.T) {
 	c := NewResultCache(ResultCacheConfig{Enabled: true, TTL: time.Minute, MaxEntries: 10})
 
-	key := CacheKey("test", "role")
+	key := CacheKey("test", "role", "", "")
 
 	// Miss
 	if c.Get(key) != nil {
@@ -63,7 +71,7 @@ func TestCacheGetPutBasic(t *testing.T) {
 func TestCacheDisabled(t *testing.T) {
 	c := NewResultCache(ResultCacheConfig{Enabled: false})
 
-	key := CacheKey("test", "role")
+	key := CacheKey("test", "role", "", "")
 	c.Put(key, &CacheResult{Output: "hello"})
 
 	if c.Get(key) != nil {
@@ -77,7 +85,7 @@ func TestCacheDisabled(t *testing.T) {
 func TestCacheTTLExpiry(t *testing.T) {
 	c := NewResultCache(ResultCacheConfig{Enabled: true, TTL: 10 * time.Millisecond, MaxEntries: 10})
 
-	key := CacheKey("test", "role")
+	key := CacheKey("test", "role", "", "")
 	c.Put(key, &CacheResult{Output: "hello"})
 
 	// Should hit immediately
@@ -97,7 +105,7 @@ func TestCacheLRUEviction(t *testing.T) {
 	c := NewResultCache(ResultCacheConfig{Enabled: true, TTL: time.Minute, MaxEntries: 3})
 
 	for i := 0; i < 5; i++ {
-		key := CacheKey("prompt"+string(rune('A'+i)), "role")
+		key := CacheKey("prompt"+string(rune('A'+i)), "role", "", "")
 		c.Put(key, &CacheResult{Output: "result"})
 	}
 
@@ -106,14 +114,14 @@ func TestCacheLRUEviction(t *testing.T) {
 	}
 
 	// First two should be evicted
-	if c.Get(CacheKey("promptA", "role")) != nil {
+	if c.Get(CacheKey("promptA", "role", "", "")) != nil {
 		t.Error("oldest entry should be evicted")
 	}
-	if c.Get(CacheKey("promptB", "role")) != nil {
+	if c.Get(CacheKey("promptB", "role", "", "")) != nil {
 		t.Error("second oldest entry should be evicted")
 	}
 	// Last three should remain
-	if c.Get(CacheKey("promptC", "role")) == nil {
+	if c.Get(CacheKey("promptC", "role", "", "")) == nil {
 		t.Error("entry C should still be cached")
 	}
 }
@@ -121,7 +129,7 @@ func TestCacheLRUEviction(t *testing.T) {
 func TestCacheDuplicatePut(t *testing.T) {
 	c := NewResultCache(ResultCacheConfig{Enabled: true, TTL: time.Minute, MaxEntries: 10})
 
-	key := CacheKey("test", "role")
+	key := CacheKey("test", "role", "", "")
 	c.Put(key, &CacheResult{Output: "first"})
 	c.Put(key, &CacheResult{Output: "second"})
 

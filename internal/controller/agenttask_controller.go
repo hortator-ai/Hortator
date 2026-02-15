@@ -444,7 +444,11 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 	// Cache hits return immediately without creating any K8s resources — the task
 	// transitions directly to Completed with the cached output.
 	if r.ResultCache != nil && !shouldSkipCache(task) {
-		cacheKey := CacheKey(task.Spec.Prompt, task.Spec.Role)
+		modelName := ""
+		if task.Spec.Model != nil {
+			modelName = task.Spec.Model.Name
+		}
+		cacheKey := CacheKey(task.Spec.Prompt, task.Spec.Role, modelName, task.Spec.Tier)
 		if cached := r.ResultCache.Get(cacheKey); cached != nil {
 			logger.Info("Cache hit", "task", task.Name, "key", cacheKey[:12])
 			task.Status.Phase = corev1alpha1.AgentTaskPhaseCompleted
@@ -692,7 +696,11 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 
 		// Store result in cache for deduplication of future identical tasks.
 		if r.ResultCache != nil && !shouldSkipCache(task) {
-			cacheKey := CacheKey(task.Spec.Prompt, task.Spec.Role)
+			modelName := ""
+			if task.Spec.Model != nil {
+				modelName = task.Spec.Model.Name
+			}
+			cacheKey := CacheKey(task.Spec.Prompt, task.Spec.Role, modelName, task.Spec.Tier)
 			var tokensIn, tokensOut int64
 			if task.Status.TokensUsed != nil {
 				tokensIn = task.Status.TokensUsed.Input
