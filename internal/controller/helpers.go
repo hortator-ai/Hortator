@@ -592,6 +592,40 @@ func effectiveCapabilities(tier string, specCaps []string) []string {
 	return caps
 }
 
+// removeOwnerRefFromPVC strips the controller owner reference from the task's PVC
+// so that K8s GC does not cascade-delete it when the AgentTask is removed.
+// This is called when the hortator.ai/retain-pvc annotation is detected.
+func (r *AgentTaskReconciler) removeOwnerRefFromPVC(ctx context.Context, task *corev1alpha1.AgentTask) {
+	logger := log.FromContext(ctx)
+	pvcName := fmt.Sprintf("%s-storage", task.Name)
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: task.Namespace, Name: pvcName}, pvc); err != nil {
+		return // PVC doesn't exist yet or other error — nothing to do
+	}
+
+	// Check if there's an owner reference pointing to this task
+	filtered := make([]metav1.OwnerReference, 0, len(pvc.OwnerReferences))
+	changed := false
+	for _, ref := range pvc.OwnerReferences {
+		if ref.UID == task.UID {
+			changed = true
+			continue
+		}
+		filtered = append(filtered, ref)
+	}
+	if !changed {
+		return
+	}
+
+	pvc.OwnerReferences = filtered
+	if err := r.Update(ctx, pvc); err != nil {
+		logger.V(1).Info("Failed to remove owner ref from PVC", "pvc", pvcName, "error", err)
+	} else {
+		logger.Info("Removed owner ref from retained PVC", "pvc", pvcName)
+	}
+}
+
 // extractTokenUsage parses agent logs to extract token usage from the runtime output.
 func (r *AgentTaskReconciler) extractTokenUsage(task *corev1alpha1.AgentTask) {
 	if task.Status.Output == "" {

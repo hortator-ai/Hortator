@@ -78,8 +78,12 @@ func (r *AgentTaskReconciler) ensurePVC(ctx context.Context, task *corev1alpha1.
 		pvc.Spec.StorageClassName = &task.Spec.Storage.StorageClass
 	}
 
-	if err := controllerutil.SetControllerReference(task, pvc, r.Scheme); err != nil {
-		return err
+	// Skip owner reference if the task has retain-pvc annotation, so the PVC
+	// survives cascade deletion when the AgentTask is removed.
+	if task.Annotations == nil || task.Annotations["hortator.ai/retain-pvc"] != "true" {
+		if err := controllerutil.SetControllerReference(task, pvc, r.Scheme); err != nil {
+			return err
+		}
 	}
 
 	return r.Create(ctx, pvc)

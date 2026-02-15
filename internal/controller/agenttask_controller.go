@@ -189,6 +189,12 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// If retain-pvc was set post-creation, strip owner reference from the PVC
+	// so it isn't cascade-deleted when the AgentTask is removed.
+	if task.Annotations != nil && task.Annotations["hortator.ai/retain-pvc"] == "true" {
+		r.removeOwnerRefFromPVC(ctx, task)
+	}
+
 	logger.V(1).Info("Reconciling task", "task", task.Name, "phase", task.Status.Phase)
 
 	// Periodically reconcile warm pool (piggyback on task reconciliation)
