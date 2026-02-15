@@ -27,6 +27,7 @@ import (
 
 	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
 	"github.com/hortator-ai/Hortator/internal/controller"
+	webhookpkg "github.com/hortator-ai/Hortator/internal/webhook"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -144,6 +145,14 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentTask")
 		os.Exit(1)
+	}
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&webhookpkg.AgentTaskValidator{
+			Client: mgr.GetClient(),
+		}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "AgentTask")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 

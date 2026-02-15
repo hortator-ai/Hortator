@@ -348,6 +348,18 @@ workerRbac:
   create: true
   serviceAccountName: hortator-worker
 
+# ── Webhook ─────────────────────────────────────────────────────────────────
+# Validating admission webhook for AgentTask cross-field constraints.
+
+webhook:
+  enabled: false                  # Opt-in: requires cert-manager or manual TLS
+  port: 9443
+  # cert-manager integration for automatic TLS certificate management
+  certManager:
+    enabled: true                 # If true, creates Certificate + Issuer resources
+    issuerKind: Issuer            # Issuer or ClusterIssuer
+    issuerName: ""                # Empty = auto-create a self-signed Issuer
+
 # ── Misc ────────────────────────────────────────────────────────────────────
 
 watchNamespace: ""                # Empty = all namespaces
