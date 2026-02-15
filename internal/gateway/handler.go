@@ -50,6 +50,9 @@ type Handler struct {
 	authMu   sync.RWMutex
 	authAt   time.Time
 	authTTL  time.Duration // 0 means 60s default
+
+	// RateLimiter enforces per-client request rate limits.
+	RateLimiter *RateLimiter
 }
 
 // authenticate validates the Bearer token against a cached copy of the K8s Secret.
@@ -137,6 +140,12 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.authenticate(r); err != nil {
 		writeError(w, http.StatusUnauthorized, err.Error(), "authentication_error", "invalid_api_key")
+		return
+	}
+
+	// Per-client rate limiting
+	if h.RateLimiter != nil && !h.RateLimiter.Allow(ClientKey(r)) {
+		writeError(w, http.StatusTooManyRequests, "rate limit exceeded", "rate_limit_error", "rate_limit_exceeded")
 		return
 	}
 

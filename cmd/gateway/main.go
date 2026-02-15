@@ -107,10 +107,11 @@ func main() {
 
 	// Build gateway handler
 	gw := &gateway.Handler{
-		Namespace:  *namespace,
-		Clientset:  clientset,
-		DynClient:  dynClient,
-		AuthSecret: *authSecret,
+		Namespace:   *namespace,
+		Clientset:   clientset,
+		DynClient:   dynClient,
+		AuthSecret:  *authSecret,
+		RateLimiter: gateway.DefaultRateLimiter(),
 	}
 
 	mux := http.NewServeMux()
