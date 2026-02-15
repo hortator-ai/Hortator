@@ -398,6 +398,12 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			return ctrl.Result{}, err
 		}
 
+		// Inherit model spec from parent if child doesn't specify one
+		if task.Spec.Model == nil && parent.Spec.Model != nil {
+			task.Spec.Model = parent.Spec.Model.DeepCopy()
+			logger.Info("Inherited model spec from parent", "task", task.Name, "parent", parent.Name, "model", parent.Spec.Model.Name)
+		}
+
 		// Build effective parent capabilities including auto-injected ones
 		// (e.g., "spawn" is auto-injected for tribune/centurion tiers).
 		parentEffectiveCaps := effectiveCapabilities(parent.Spec.Tier, parent.Spec.Capabilities)
