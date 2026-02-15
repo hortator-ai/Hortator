@@ -107,7 +107,9 @@ func (r *AgentTaskReconciler) discoverRetainedPVCs(ctx context.Context,
 	return matches, nil
 }
 
-// buildTaskTags extracts tags from the task's role, tier, and prompt keywords.
+// buildTaskTags extracts tags from the task's role, tier, prompt keywords,
+// and capabilities. Prompt words are included so that PVC tags like "database"
+// or "migration" can match task prompts that mention those terms.
 func buildTaskTags(task *corev1alpha1.AgentTask) map[string]bool {
 	tags := make(map[string]bool)
 
@@ -132,7 +134,53 @@ func buildTaskTags(task *corev1alpha1.AgentTask) map[string]bool {
 		tags[strings.ToLower(cap)] = true
 	}
 
+	// Extract keywords from prompt (words with length > 3 to skip noise)
+	if task.Spec.Prompt != "" {
+		for _, word := range extractPromptKeywords(task.Spec.Prompt) {
+			tags[word] = true
+		}
+	}
+
 	return tags
+}
+
+// extractPromptKeywords splits the prompt into lowercase words, filtering out
+// short words (<=3 chars) and common stop words. This enables PVC tag matching
+// against prompt content.
+func extractPromptKeywords(prompt string) []string {
+	stopWords := map[string]bool{
+		"this": true, "that": true, "with": true, "from": true,
+		"have": true, "will": true, "your": true, "they": true,
+		"been": true, "were": true, "then": true, "than": true,
+		"what": true, "when": true, "where": true, "which": true,
+		"there": true, "their": true, "about": true, "would": true,
+		"could": true, "should": true, "these": true, "those": true,
+		"into": true, "some": true, "make": true, "like": true,
+		"just": true, "also": true, "each": true, "does": true,
+	}
+
+	// Replace common separators with spaces
+	replacer := strings.NewReplacer(
+		",", " ", ".", " ", ";", " ", ":", " ",
+		"(", " ", ")", " ", "[", " ", "]", " ",
+		"{", " ", "}", " ", "/", " ", "\\", " ",
+		"\"", " ", "'", " ", "\n", " ", "\t", " ",
+	)
+	cleaned := replacer.Replace(prompt)
+
+	words := strings.Fields(cleaned)
+	keywords := make([]string, 0, len(words)/2)
+	seen := make(map[string]bool)
+
+	for _, w := range words {
+		w = strings.ToLower(strings.TrimSpace(w))
+		if len(w) <= 3 || stopWords[w] || seen[w] {
+			continue
+		}
+		seen[w] = true
+		keywords = append(keywords, w)
+	}
+	return keywords
 }
 
 // splitTags splits a comma-separated tag string into a slice.
