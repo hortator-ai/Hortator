@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/hortator-ai/Hortator/compare/v0.3.0...v0.4.0) (2026-02-15)
+
+
+### Features
+
+* add LiteLLM proxy as Helm subchart ([#44](https://github.com/hortator-ai/Hortator/issues/44)) ([ce0d5cf](https://github.com/hortator-ai/Hortator/commit/ce0d5cf54ffada7c61b4a775ebd04de37ab2f994))
+
 ## [0.3.0](https://github.com/hortator-ai/Hortator/compare/v0.2.0...v0.3.0) (2026-02-15)
 
 
