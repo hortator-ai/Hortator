@@ -45,7 +45,7 @@ data:
     Date: 2026-01-15
 ---
 # AgentRole with RAG capability for vector store access
-# AgentRole with RAG capability for vector store access
+apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: legal-analyst
@@ -57,7 +57,7 @@ spec:
     - shell
     - rag
 ---
-    - rag
+apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: file-delivery-test
