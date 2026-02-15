@@ -37,28 +37,28 @@ const (
 
 // ClusterDefaults holds defaults read from the hortator-config ConfigMap.
 type ClusterDefaults struct {
-	DefaultTimeout         int
-	DefaultImage           string
-	AgenticImage           string // Python agentic runtime for tribune/centurion tiers
-	DefaultRequestsCPU     string
-	DefaultRequestsMemory  string
-	DefaultLimitsCPU       string
-	DefaultLimitsMemory    string
-	EnforceNamespaceLabels bool
-	PresidioEnabled             bool
-	PresidioEndpoint            string
-	PresidioAnonymizerEndpoint  string
-	WarmPool               WarmPoolConfig
-	ResultCacheEnabled     bool
-	ResultCacheTTL         time.Duration
-	ResultCacheMaxEntries  int
-	Budget                 BudgetConfig
-	Health                 HealthConfig
-	StorageRetained        StorageRetainedConfig
-	CleanupTTL             CleanupTTLConfig
-	VectorStoreEnabled     bool
-	VectorStoreProvider    string
-	VectorStoreEndpoint    string
+	DefaultTimeout             int
+	DefaultImage               string
+	AgenticImage               string // Python agentic runtime for tribune/centurion tiers
+	DefaultRequestsCPU         string
+	DefaultRequestsMemory      string
+	DefaultLimitsCPU           string
+	DefaultLimitsMemory        string
+	EnforceNamespaceLabels     bool
+	PresidioEnabled            bool
+	PresidioEndpoint           string
+	PresidioAnonymizerEndpoint string
+	WarmPool                   WarmPoolConfig
+	ResultCacheEnabled         bool
+	ResultCacheTTL             time.Duration
+	ResultCacheMaxEntries      int
+	Budget                     BudgetConfig
+	Health                     HealthConfig
+	StorageRetained            StorageRetainedConfig
+	CleanupTTL                 CleanupTTLConfig
+	VectorStoreEnabled         bool
+	VectorStoreProvider        string
+	VectorStoreEndpoint        string
 }
 
 // BudgetConfig holds budget enforcement settings from the ConfigMap.

@@ -450,7 +450,7 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask, policies ..
 		anonymizerEndpoint := r.defaults.PresidioAnonymizerEndpoint
 		if anonymizerEndpoint == "" {
 			// Default: same host, port 3001
-			anonymizerEndpoint = strings.TrimSuffix(r.defaults.PresidioEndpoint, "/analyze") 
+			anonymizerEndpoint = strings.TrimSuffix(r.defaults.PresidioEndpoint, "/analyze")
 			// Replace port 3000 with 3001 if present
 			anonymizerEndpoint = strings.Replace(anonymizerEndpoint, ":3000", ":3001", 1)
 		}

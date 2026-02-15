@@ -562,7 +562,7 @@ func (h *Handler) TaskArtifacts(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error(), "server_error", "download_failed")
 			return
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(filePath)))
 		_, _ = io.Copy(w, rc)
@@ -581,7 +581,7 @@ func (h *Handler) TaskArtifacts(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error(), "server_error", "download_failed")
 			return
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 		w.Header().Set("Content-Type", "application/x-tar")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", taskName+"-artifacts.tar"))
 		_, _ = io.Copy(w, rc)
