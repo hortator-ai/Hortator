@@ -194,11 +194,14 @@ type AsyncTaskResponse struct {
 
 // ArtifactListResponse is returned by GET /api/v1/tasks/{id}/artifacts.
 type ArtifactListResponse struct {
-	TaskID    string `json:"task_id"`
-	Phase     string `json:"phase"`
-	Output    string `json:"output"`
-	PVCStatus string `json:"pvc_status"`
-	Note      string `json:"note,omitempty"`
+	TaskID string         `json:"task_id"`
+	Phase  string         `json:"phase"`
+	Files  []ArtifactFile `json:"files"`
+}
+
+// ArtifactFile describes a single artifact file.
+type ArtifactFile struct {
+	Path string `json:"path"`
 }
 
 // --- Internal types ---

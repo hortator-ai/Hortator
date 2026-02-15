@@ -8,8 +8,11 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -21,9 +24,11 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
+	"github.com/hortator-ai/Hortator/internal/artifacts"
 )
 
 var agentTaskGVR = schema.GroupVersionResource{
@@ -43,6 +48,7 @@ type Handler struct {
 	Namespace  string
 	Clientset  kubernetes.Interface
 	DynClient  dynamic.Interface
+	RestConfig *rest.Config
 	AuthSecret string
 
 	// Cached auth keys with TTL to avoid K8s API call on every HTTP request.
@@ -488,8 +494,16 @@ func (h *Handler) resolveModelConfig(ctx context.Context, roleName string) *Mode
 	return cfg
 }
 
-// TaskArtifacts handles GET /api/v1/tasks/{id}/artifacts.
-// Serves files from the completed task's PVC via /outbox/artifacts/.
+// extractor returns a lazily-initialized artifact Extractor.
+func (h *Handler) extractor() *artifacts.Extractor {
+	return &artifacts.Extractor{
+		Clientset:  h.Clientset,
+		RestConfig: h.RestConfig,
+	}
+}
+
+// TaskArtifacts handles GET /api/v1/tasks/{id}/artifacts[/{path...}].
+// Returns JSON file list, tar archive, or individual file content.
 // Returns 404 if task not found, 409 if not terminal, 410 if PVC gone.
 func (h *Handler) TaskArtifacts(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -504,13 +518,18 @@ func (h *Handler) TaskArtifacts(w http.ResponseWriter, r *http.Request) {
 
 	log := ctrl.Log.WithName("gateway.artifacts")
 
-	// Extract task ID from URL path: /api/v1/tasks/{id}/artifacts
+	// Parse path: /api/v1/tasks/{id}/artifacts[/{filePath...}]
 	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	if len(pathParts) < 5 {
 		writeError(w, http.StatusBadRequest, "invalid path: expected /api/v1/tasks/{id}/artifacts", "invalid_request_error", "bad_path")
 		return
 	}
 	taskName := pathParts[3]
+	// Everything after "artifacts" is the file path
+	var filePath string
+	if len(pathParts) > 5 {
+		filePath = strings.Join(pathParts[5:], "/")
+	}
 
 	// Fetch the task
 	task, err := h.DynClient.Resource(agentTaskGVR).Namespace(h.Namespace).Get(
@@ -528,32 +547,79 @@ func (h *Handler) TaskArtifacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// List the artifacts by executing into the PVC.
-	// For now, return artifact metadata from the task status output.
-	// Full PVC file serving is a deeper integration that requires mounting the PVC.
-	artifacts := ArtifactListResponse{
-		TaskID: taskName,
-		Phase:  state.Phase,
-		Output: state.Output,
-		Note:   "Full artifact file download requires PVC access. Use 'hortator result --artifacts' from within the cluster.",
-	}
-
-	// Try to list PVC contents via a pod exec (best effort)
 	pvcName := taskName + "-storage"
-	pvc, pvcErr := h.Clientset.CoreV1().PersistentVolumeClaims(h.Namespace).Get(
-		r.Context(), pvcName, metav1.GetOptions{},
-	)
-	if pvcErr != nil || pvc.DeletionTimestamp != nil {
-		artifacts.Note = "PVC has been cleaned up. Only status.output is available."
-		artifacts.PVCStatus = "gone"
-	} else {
-		artifacts.PVCStatus = string(pvc.Status.Phase)
+	ext := h.extractor()
+
+	// Single file download
+	if filePath != "" {
+		log.Info("audit: artifacts.get", "task", taskName, "file", filePath)
+		rc, err := ext.DownloadFile(r.Context(), h.Namespace, pvcName, filePath)
+		if err != nil {
+			if errors.Is(err, artifacts.ErrPVCNotFound) {
+				writeError(w, http.StatusGone, "PVC has been cleaned up", "gone", "pvc_gone")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, err.Error(), "server_error", "download_failed")
+			return
+		}
+		defer rc.Close()
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(filePath)))
+		_, _ = io.Copy(w, rc)
+		return
 	}
 
-	log.Info("audit: artifacts.list", "task", taskName, "pvc_status", artifacts.PVCStatus)
+	// Tar download
+	if r.URL.Query().Get("download") == "tar" {
+		log.Info("audit: artifacts.tar", "task", taskName)
+		rc, err := ext.DownloadTar(r.Context(), h.Namespace, pvcName)
+		if err != nil {
+			if errors.Is(err, artifacts.ErrPVCNotFound) {
+				writeError(w, http.StatusGone, "PVC has been cleaned up", "gone", "pvc_gone")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, err.Error(), "server_error", "download_failed")
+			return
+		}
+		defer rc.Close()
+		w.Header().Set("Content-Type", "application/x-tar")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", taskName+"-artifacts.tar"))
+		_, _ = io.Copy(w, rc)
+		return
+	}
+
+	// List files (default)
+	log.Info("audit: artifacts.list", "task", taskName)
+	files, err := ext.ListFiles(r.Context(), h.Namespace, pvcName)
+	if err != nil {
+		if errors.Is(err, artifacts.ErrPVCNotFound) {
+			writeError(w, http.StatusGone, "PVC has been cleaned up", "gone", "pvc_gone")
+			return
+		}
+		if errors.Is(err, artifacts.ErrNoFiles) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(ArtifactListResponse{
+				TaskID: taskName,
+				Phase:  state.Phase,
+				Files:  []ArtifactFile{},
+			})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error(), "server_error", "list_failed")
+		return
+	}
+
+	artifactFiles := make([]ArtifactFile, 0, len(files))
+	for _, f := range files {
+		artifactFiles = append(artifactFiles, ArtifactFile{Path: f})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(artifacts)
+	_ = json.NewEncoder(w).Encode(ArtifactListResponse{
+		TaskID: taskName,
+		Phase:  state.Phase,
+		Files:  artifactFiles,
+	})
 }
 
 // ListModels handles GET /v1/models.

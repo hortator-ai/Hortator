@@ -110,6 +110,7 @@ func main() {
 		Namespace:   *namespace,
 		Clientset:   clientset,
 		DynClient:   dynClient,
+		RestConfig:  config,
 		AuthSecret:  *authSecret,
 		RateLimiter: gateway.DefaultRateLimiter(),
 	}
