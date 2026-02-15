@@ -149,7 +149,7 @@ func downloadArtifacts(ctx context.Context, task *corev1alpha1.AgentTask) error 
 		}
 		return err
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	if err := os.MkdirAll(resultOutputDir, 0o755); err != nil {
 		return fmt.Errorf("creating output dir: %w", err)
@@ -191,10 +191,10 @@ func untarTo(r io.Reader, dir string) error {
 				return err
 			}
 			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
+				_ = f.Close()
 				return err
 			}
-			f.Close()
+			_ = f.Close()
 			fmt.Printf("  %s\n", hdr.Name)
 			count++
 		}

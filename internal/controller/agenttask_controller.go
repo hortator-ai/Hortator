@@ -37,28 +37,28 @@ const (
 
 // ClusterDefaults holds defaults read from the hortator-config ConfigMap.
 type ClusterDefaults struct {
-	DefaultTimeout         int
-	DefaultImage           string
-	AgenticImage           string // Python agentic runtime for tribune/centurion tiers
-	DefaultRequestsCPU     string
-	DefaultRequestsMemory  string
-	DefaultLimitsCPU       string
-	DefaultLimitsMemory    string
-	EnforceNamespaceLabels bool
-	PresidioEnabled             bool
-	PresidioEndpoint            string
-	PresidioAnonymizerEndpoint  string
-	WarmPool               WarmPoolConfig
-	ResultCacheEnabled     bool
-	ResultCacheTTL         time.Duration
-	ResultCacheMaxEntries  int
-	Budget                 BudgetConfig
-	Health                 HealthConfig
-	StorageRetained        StorageRetainedConfig
-	CleanupTTL             CleanupTTLConfig
-	VectorStoreEnabled     bool
-	VectorStoreProvider    string
-	VectorStoreEndpoint    string
+	DefaultTimeout             int
+	DefaultImage               string
+	AgenticImage               string // Python agentic runtime for tribune/centurion tiers
+	DefaultRequestsCPU         string
+	DefaultRequestsMemory      string
+	DefaultLimitsCPU           string
+	DefaultLimitsMemory        string
+	EnforceNamespaceLabels     bool
+	PresidioEnabled            bool
+	PresidioEndpoint           string
+	PresidioAnonymizerEndpoint string
+	WarmPool                   WarmPoolConfig
+	ResultCacheEnabled         bool
+	ResultCacheTTL             time.Duration
+	ResultCacheMaxEntries      int
+	Budget                     BudgetConfig
+	Health                     HealthConfig
+	StorageRetained            StorageRetainedConfig
+	CleanupTTL                 CleanupTTLConfig
+	VectorStoreEnabled         bool
+	VectorStoreProvider        string
+	VectorStoreEndpoint        string
 }
 
 // BudgetConfig holds budget enforcement settings from the ConfigMap.
@@ -403,6 +403,10 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 		if task.Spec.Model == nil && parent.Spec.Model != nil {
 			task.Spec.Model = parent.Spec.Model.DeepCopy()
 			logger.Info("Inherited model spec from parent", "task", task.Name, "parent", parent.Name, "model", parent.Spec.Model.Name)
+			// Persist the inherited model to the CRD spec
+			if err := r.Update(ctx, task); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to persist inherited model: %w", err)
+			}
 		}
 
 		// Build effective parent capabilities including auto-injected ones

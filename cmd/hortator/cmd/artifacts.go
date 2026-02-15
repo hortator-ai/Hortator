@@ -77,7 +77,7 @@ var artifactsDownloadCmd = &cobra.Command{
 			}
 			return err
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 
 		if err := os.MkdirAll(artifactsOutputDir, 0o755); err != nil {
 			return err
@@ -104,7 +104,7 @@ var artifactsGetCmd = &cobra.Command{
 			}
 			return err
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 		_, err = io.Copy(os.Stdout, rc)
 		return err
 	},
