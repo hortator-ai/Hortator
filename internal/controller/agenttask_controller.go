@@ -1055,6 +1055,14 @@ func isTerminalPhase(phase corev1alpha1.AgentTaskPhase) bool {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AgentTaskReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Clean up orphaned warm pool resources on startup
+	if r.defaults.WarmPool.Enabled {
+		ctx := context.Background()
+		if err := r.cleanupOrphanedWarmResources(ctx); err != nil {
+			log.FromContext(ctx).Error(err, "Failed to clean up orphaned warm resources on startup")
+		}
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.AgentTask{}).
 		Owns(&corev1.Pod{}).

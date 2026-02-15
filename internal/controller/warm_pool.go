@@ -31,7 +31,74 @@ type WarmPoolConfig struct {
 	Image   string // agent image (falls back to defaults.DefaultImage)
 }
 
-const warmPoolCooldown = 30 * time.Second
+const (
+	warmPoolCooldown = 30 * time.Second
+	// DefaultWarmPoolTTL is the default idle TTL for warm pool resources.
+	DefaultWarmPoolTTL = 30 * time.Minute
+	// WarmCreatedAtAnnotation tracks when a warm pod was created.
+	WarmCreatedAtAnnotation = "hortator.ai/warm-created-at"
+)
+
+// cleanupOrphanedWarmResources deletes warm pool Pods and PVCs that have been
+// idle longer than the configured TTL. This prevents resource accumulation
+// after operator crashes or restarts.
+func (r *AgentTaskReconciler) cleanupOrphanedWarmResources(ctx context.Context) error {
+	logger := log.FromContext(ctx)
+
+	ttl := DefaultWarmPoolTTL
+
+	// List all warm pool pods (both idle and potentially orphaned)
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList, client.InNamespace(r.Namespace),
+		client.MatchingLabels{"hortator.ai/warm-pool": "true"}); err != nil {
+		return fmt.Errorf("list warm pods for cleanup: %w", err)
+	}
+
+	now := time.Now()
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+
+		// Only clean up idle pods (claimed ones are owned by tasks)
+		if pod.Labels["hortator.ai/warm-status"] != "idle" {
+			continue
+		}
+
+		// Determine creation time from annotation or pod creation timestamp
+		createdAt := pod.CreationTimestamp.Time
+		if ann, ok := pod.Annotations[WarmCreatedAtAnnotation]; ok {
+			if t, err := time.Parse(time.RFC3339, ann); err == nil {
+				createdAt = t
+			}
+		}
+
+		if now.Sub(createdAt) < ttl {
+			continue
+		}
+
+		logger.Info("Cleaning up orphaned warm pod", "pod", pod.Name, "age", now.Sub(createdAt).Round(time.Second))
+
+		// Delete associated PVCs first
+		pvcList := &corev1.PersistentVolumeClaimList{}
+		if err := r.List(ctx, pvcList, client.InNamespace(r.Namespace),
+			client.MatchingLabels{
+				"hortator.ai/warm-pool": "true",
+				"hortator.ai/warm-pod":  pod.Name,
+			}); err == nil {
+			for j := range pvcList.Items {
+				if err := r.Delete(ctx, &pvcList.Items[j]); err != nil {
+					logger.V(1).Info("Failed to delete orphaned warm PVC", "pvc", pvcList.Items[j].Name, "error", err)
+				}
+			}
+		}
+
+		// Delete the pod
+		if err := r.Delete(ctx, pod); err != nil {
+			logger.V(1).Info("Failed to delete orphaned warm pod", "pod", pod.Name, "error", err)
+		}
+	}
+
+	return nil
+}
 
 // reconcileWarmPool ensures the warm pool has the desired number of idle pods.
 // It has a 30s cooldown to avoid excessive API calls.
@@ -208,6 +275,9 @@ func (r *AgentTaskReconciler) buildWarmPod(ctx context.Context) (*corev1.Pod, *c
 				"app.kubernetes.io/managed-by": "hortator-operator",
 				"hortator.ai/warm-pool":        "true",
 				"hortator.ai/warm-status":      "idle",
+			},
+			Annotations: map[string]string{
+				WarmCreatedAtAnnotation: time.Now().UTC().Format(time.RFC3339),
 			},
 		},
 		Spec: corev1.PodSpec{
