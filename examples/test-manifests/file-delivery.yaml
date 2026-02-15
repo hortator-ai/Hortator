@@ -45,26 +45,19 @@ data:
     Date: 2026-01-15
 ---
 # AgentRole with RAG capability for vector store access
-apiVersion: core.hortator.ai/v1alpha1
+# AgentRole with RAG capability for vector store access
 kind: ClusterAgentRole
 metadata:
   name: legal-analyst
   labels:
     hortator.ai/test-suite: file-delivery
 spec:
-  description: >-
-    Analyses contracts and legal documents against a reference corpus.
-    Has access to RAG for searching legal precedents.
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
     - rag
-  rules:
-    - "Always cite specific clauses when making observations"
-    - "Flag any unusual or missing standard clauses"
-    - "Check delivered files in /inbox/ before starting analysis"
 ---
-apiVersion: core.hortator.ai/v1alpha1
+    - rag
 kind: AgentTask
 metadata:
   name: file-delivery-test

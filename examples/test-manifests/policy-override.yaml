@@ -21,7 +21,7 @@
 #   - Anthropic API key secret
 ---
 # Restrictive namespace policy
-apiVersion: core.hortator.ai/v1alpha1
+# Restrictive namespace policy
 kind: AgentPolicy
 metadata:
   name: production-policy
@@ -58,25 +58,19 @@ spec:
     - host: "10.0.0.0/8"        # Allow internal cluster traffic
 ---
 # Role with its own defaults — some will be overridden by the task
-apiVersion: core.hortator.ai/v1alpha1
+# Role with its own defaults — some will be overridden by the task
 kind: ClusterAgentRole
 metadata:
   name: cautious-coder
   labels:
     hortator.ai/test-suite: policy
 spec:
-  description: >-
-    A conservative coding agent with restricted capabilities.
-    Used to test override precedence.
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
-  rules:
-    - "Always run tests before completing"
-    - "Never modify files outside /workspace"
 ---
 # Task that complies with the policy — should succeed
-apiVersion: core.hortator.ai/v1alpha1
+# Task that complies with the policy — should succeed
 kind: AgentTask
 metadata:
   name: policy-compliant-task
@@ -107,7 +101,7 @@ spec:
     action: hash
 ---
 # Task that VIOLATES the policy — should be rejected
-apiVersion: core.hortator.ai/v1alpha1
+# Task that VIOLATES the policy — should be rejected
 kind: AgentTask
 metadata:
   name: policy-violation-tier
@@ -134,7 +128,7 @@ spec:
   timeout: 300
 ---
 # Task that requests a denied capability — should be rejected
-apiVersion: core.hortator.ai/v1alpha1
+# Task that requests a denied capability — should be rejected
 kind: AgentTask
 metadata:
   name: policy-violation-capability
@@ -161,7 +155,7 @@ spec:
   timeout: 120
 ---
 # Task that exceeds budget policy — should be rejected
-apiVersion: core.hortator.ai/v1alpha1
+# Task that exceeds budget policy — should be rejected
 kind: AgentTask
 metadata:
   name: policy-violation-budget

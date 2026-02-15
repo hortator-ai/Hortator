@@ -21,32 +21,22 @@
 #   - presidio.enabled=true
 #   - warmPool.enabled=true (optional — graceful degradation if off)
 ---
-apiVersion: core.hortator.ai/v1alpha1
+---
 kind: ClusterAgentRole
 metadata:
   name: full-stack-reviewer
   labels:
     hortator.ai/test-suite: kitchen-sink
 spec:
-  description: >-
-    A comprehensive code review agent with all capabilities.
-    Used for kitchen sink testing of feature composition.
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
     - web-fetch
     - spawn
-  rules:
-    - "Review code for security, performance, and maintainability"
-    - "Flag any PII or secrets in code"
-    - "Produce structured output in /outbox/result.json"
-  antiPatterns:
     - "Don't approve code with hardcoded credentials"
     - "Don't skip test files"
-  references:
-    - "https://owasp.org/www-project-top-ten/"
 ---
-apiVersion: core.hortator.ai/v1alpha1
+    - "Don't skip test files"
 kind: AgentPolicy
 metadata:
   name: kitchen-sink-policy
@@ -74,7 +64,7 @@ spec:
       ports: [443]
     - host: "10.0.0.0/8"
 ---
-apiVersion: core.hortator.ai/v1alpha1
+---
 kind: AgentTask
 metadata:
   name: kitchen-sink-test

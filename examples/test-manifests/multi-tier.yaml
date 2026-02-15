@@ -21,78 +21,54 @@
 #   - spawn capability available
 ---
 # Roles for each tier
-apiVersion: core.hortator.ai/v1alpha1
+# Roles for each tier
 kind: ClusterAgentRole
 metadata:
   name: project-architect
   labels:
     hortator.ai/test-suite: multi-tier
 spec:
-  description: >-
-    Strategic planner. Analyses requirements, creates a work breakdown
-    structure, and delegates to centurion team leads. Reviews all
-    deliverables before final sign-off.
   defaultModel: claude-sonnet-4-20250514
   tools:
     - spawn
     - web-fetch
-  rules:
-    - "Decompose work into 2-4 centurion-level work packages"
-    - "Never implement anything directly — always delegate"
-    - "Review all child task results before completing"
-    - "Track budget across all spawned children"
 ---
-apiVersion: core.hortator.ai/v1alpha1
+    - web-fetch
 kind: ClusterAgentRole
 metadata:
   name: api-team-lead
   labels:
     hortator.ai/test-suite: multi-tier
 spec:
-  description: >-
-    Coordinates API implementation. Spawns legionary coders for
-    individual endpoints and a legionary for tests.
   defaultModel: claude-sonnet-4-20250514
   tools:
     - spawn
     - shell
-  rules:
-    - "Spawn one legionary per endpoint or concern"
-    - "Merge and validate legionary outputs"
-    - "Run integration tests before reporting completion"
 ---
-apiVersion: core.hortator.ai/v1alpha1
+    - shell
 kind: ClusterAgentRole
 metadata:
   name: endpoint-coder
   labels:
     hortator.ai/test-suite: multi-tier
 spec:
-  description: >-
-    Implements a single API endpoint. Writes clean, tested code.
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
-  rules:
-    - "Implement exactly one endpoint per task"
-    - "Include error handling and input validation"
-    - "Write unit tests for the endpoint"
 ---
-apiVersion: core.hortator.ai/v1alpha1
+    - shell
 kind: ClusterAgentRole
 metadata:
   name: test-writer
   labels:
     hortator.ai/test-suite: multi-tier
 spec:
-  description: >-
-    Writes integration and end-to-end tests for API endpoints.
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
 ---
 # The Tribune task — top of the hierarchy
-apiVersion: core.hortator.ai/v1alpha1
+# The Tribune task — top of the hierarchy
 kind: AgentTask
 metadata:
   name: multi-tier-tribune
