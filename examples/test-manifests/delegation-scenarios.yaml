@@ -1,0 +1,225 @@
+# Test: Delegation Decision Scenarios
+#
+# Verifies that tribunes make correct delegation decisions:
+#   Scenario A: Complex multi-part task → SHOULD spawn multiple legionaries
+#   Scenario B: Simple focused task → should NOT spawn, do it directly
+#
+# These two scenarios test the tribune's judgment about when to delegate
+# vs when to execute directly. A good system prompt produces:
+#   - Scenario A: 2-4 distinct children with non-overlapping scope
+#   - Scenario B: 0 children, tribune handles it end-to-end
+#
+# Prerequisites:
+#   - Anthropic API key: kubectl create secret generic anthropic-api-key \
+#       --from-literal=api-key=$ANTHROPIC_API_KEY -n hortator-test
+---
+# Tribune role — the orchestrator
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: project-architect
+  labels:
+    hortator.ai/test-suite: delegation
+spec:
+  description: >-
+    Strategic project lead. Decomposes tasks, delegates to specialists,
+    reviews and consolidates results. Does NOT implement unless trivial.
+  tierAffinity: tribune
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - spawn
+    - shell
+    - web-fetch
+  rules:
+    - "Write a plan before delegating"
+    - "Each child must have a distinct, non-overlapping scope"
+    - "Review all child results before consolidating"
+  antiPatterns:
+    - "Don't do implementation work yourself — delegate to specialists"
+    - "Don't spawn more than 5 children"
+    - "Don't spawn two children for the same scope"
+---
+# Roles available for delegation
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: backend-engineer
+  labels:
+    hortator.ai/test-suite: delegation
+spec:
+  description: >-
+    Implements backend services, APIs, and data models.
+    Writes production-quality code with error handling and tests.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+  rules:
+    - "Write unit tests for all public functions"
+    - "Handle errors explicitly — no silent failures"
+    - "Follow RESTful conventions"
+  antiPatterns:
+    - "Don't modify files outside your assigned scope"
+    - "Don't install dependencies without checking existing ones"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: frontend-engineer
+  labels:
+    hortator.ai/test-suite: delegation
+spec:
+  description: >-
+    Builds frontend components, pages, and client-side logic.
+    Creates clean, accessible UI with proper styling.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+  rules:
+    - "Write semantic HTML"
+    - "Include basic accessibility attributes"
+    - "Keep styling minimal and functional"
+  antiPatterns:
+    - "Don't import heavy UI frameworks for simple tasks"
+    - "Don't inline complex logic in templates"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: qa-engineer
+  labels:
+    hortator.ai/test-suite: delegation
+spec:
+  description: >-
+    Writes integration and end-to-end tests. Validates that
+    components work together correctly across boundaries.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+  rules:
+    - "Cover happy path AND error cases"
+    - "Tests must be runnable with a single command"
+    - "Test real behavior, not implementation details"
+  antiPatterns:
+    - "Don't mock what you can test directly"
+    - "Don't write tests that depend on execution order"
+---
+# ============================================================
+# SCENARIO A: Complex task — SHOULD spawn multiple legionaries
+# ============================================================
+# A full-stack feature requires backend, frontend, and tests.
+# The tribune should recognize this needs 2-3 specialists.
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: delegation-complex
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: delegation
+    hortator.ai/test-case: should-delegate
+  annotations:
+    hortator.ai/description: "Complex task that SHOULD produce 2-3 child tasks"
+spec:
+  role: project-architect
+  tier: tribune
+  prompt: |
+    Build a bookmark manager with TWO separate components:
+
+    COMPONENT 1 — Backend API (Node.js + Express):
+      POST   /api/bookmarks       — save a bookmark (url, title, tags[])
+      GET    /api/bookmarks       — list all bookmarks (supports ?tag= filter)
+      DELETE /api/bookmarks/:id   — delete a bookmark
+      Use in-memory storage. Include input validation.
+
+    COMPONENT 2 — Frontend (single HTML file):
+      - Form to add bookmarks (url, title, comma-separated tags)
+      - List view showing all bookmarks with delete buttons
+      - Tag filter dropdown
+      - Uses fetch() to call the API. No frameworks.
+
+    COMPONENT 3 — Integration tests:
+      - Test the API endpoints
+      - Test tag filtering
+      - Test error cases (missing url, invalid id)
+
+    Each component should be implemented by a specialist.
+    Deliver all files to /outbox/artifacts/.
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  thinkingLevel: medium
+  capabilities:
+    - spawn
+    - shell
+    - web-fetch
+  budget:
+    maxCostUsd: "8.00"
+    maxTokens: 800000
+  hierarchyBudget:
+    maxCostUsd: "15.00"
+    maxTokens: 1500000
+  storage:
+    size: "1Gi"
+    retain: true
+  timeout: 1800
+  health:
+    stuckDetection:
+      statusStaleMinutes: 10
+      action: warn
+---
+# ============================================================
+# SCENARIO B: Simple task — should NOT spawn legionaries
+# ============================================================
+# A single, focused task that a tribune should just do itself.
+# Spawning children for this would be wasteful over-delegation.
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: delegation-simple
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: delegation
+    hortator.ai/test-case: should-not-delegate
+  annotations:
+    hortator.ai/description: "Simple task that should NOT produce child tasks"
+spec:
+  role: project-architect
+  tier: tribune
+  prompt: |
+    Write a Python script that converts CSV files to JSON.
+
+    Requirements:
+    - Read from stdin or a file path argument
+    - Output JSON to stdout
+    - Handle common edge cases (empty fields, quoted commas, headers)
+    - Include a brief --help flag
+
+    This is a simple, single-file utility. Do it yourself —
+    it's not worth the overhead of delegation.
+
+    Deliver the script to /outbox/artifacts/csv2json.py
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  thinkingLevel: medium
+  capabilities:
+    - spawn
+    - shell
+  budget:
+    maxCostUsd: "3.00"
+    maxTokens: 300000
+  storage:
+    size: "256Mi"
+  timeout: 600
+  health:
+    stuckDetection:
+      statusStaleMinutes: 5
+      action: warn

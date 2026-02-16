@@ -208,6 +208,29 @@ kubectl apply -f examples/test-manifests/kitchen-sink.yaml
 
 ---
 
+#### 11. Delegation Scenarios (`delegation-scenarios.yaml`)
+```bash
+kubectl apply -f examples/test-manifests/delegation-scenarios.yaml -n hortator-test
+```
+**What to verify:**
+
+**Scenario A — Complex (should delegate):**
+- `delegation-complex` tribune spawns 2-3 children with **distinct** scopes
+- Look for: backend-engineer, frontend-engineer, qa-engineer legionaries
+- Each child prompt should be focused on ONE component (not the whole task)
+- **Red flag:** Two children with overlapping prompts = prompt regression
+- Check: `kubectl get agenttasks -n hortator-test -l hortator.ai/test-suite=delegation`
+
+**Scenario B — Simple (should NOT delegate):**
+- `delegation-simple` tribune completes with 0 child tasks
+- The script should be written directly by the tribune
+- Check: `kubectl get agenttasks -n hortator-test -l hortator.ai/test-case=should-not-delegate`
+- **Red flag:** Any child tasks spawned = tribune over-delegating
+
+**Expected outcome:** Complex task produces 2-3 well-scoped children. Simple task produces zero children.
+
+---
+
 ## Observability During Tests
 
 ```bash
