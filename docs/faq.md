@@ -93,7 +93,9 @@ Yes. A single `AgentTask` with `tier: legionary` works fine — it's just a mana
 
 **Open source (MIT):** Everything you need to run autonomous agents with guardrails — CRDs, operator, CLI, runtime, budget tracking, health monitoring, OTel events.
 
-**Enterprise (separate license):** Governance and compliance features — AgentPolicy CRD, LiteLLM proxy integration, retained PVC → vector storage graduation, object storage archival, cross-namespace policies, OIDC/SSO.
+**Enterprise (separate license):** Advanced governance and compliance features — LiteLLM proxy integration, retained PVC → vector storage graduation, object storage archival, cross-namespace policies, OIDC/SSO.
+
+> **Note:** AgentPolicy CRD is available in open-source. See [Enterprise Overview](enterprise/overview.md) for the full breakdown.
 
 > **Note:** Presidio PII detection is available in open-source via `presidio.enabled` Helm value. It is not an enterprise-only feature.
 

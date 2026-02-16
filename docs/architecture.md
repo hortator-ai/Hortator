@@ -23,7 +23,7 @@ graph TB
         Legionary["🗡️ Legionary Pod<br/>PVC (256Mi) + Runtime + CLI"]
     end
 
-    subgraph "Sidecars (optional)"
+    subgraph "Shared Services (optional)"
         Presidio["🛡️ Presidio<br/>PII Detection"]
     end
 
@@ -181,8 +181,11 @@ Applies to: model selection, health thresholds, Presidio config, budget limits, 
 stateDiagram-v2
     [*] --> Active: Task created
     Active --> Completed: Task succeeds
+    Active --> Waiting: Agent checkpoints (tribune/centurion)
     Active --> Failed: Task fails
     Active --> Cancelled: Task cancelled
+
+    Waiting --> Active: All children complete → reincarnate
     
     Completed --> TTL_Window: PVC annotated (expires-at)
     Failed --> TTL_Window: PVC annotated (shorter TTL)

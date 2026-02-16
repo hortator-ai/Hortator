@@ -23,6 +23,8 @@ capabilities on top of the MIT-licensed core. Enable it with
 | **Max Concurrent Tasks** | Limit active tasks per namespace. |
 | **Require Presidio** | Force PII scanning on all tasks. |
 | **Egress Allowlist** | Restrict outbound network to specific hosts/ports. |
+| **Allowed / Denied Shell Commands** | Restrict which base commands agents can execute. Denied overrides allowed. |
+| **Read-Only Workspace** | Makes `/workspace` read-only for analysis-only tasks. |
 
 See [`api/v1alpha1/agentpolicy_types.go`](../../api/v1alpha1/agentpolicy_types.go) for the full spec.
 

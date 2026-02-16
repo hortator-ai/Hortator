@@ -93,3 +93,6 @@ Namespace-scoped governance constraints. Tasks must comply with all matching pol
 | `requirePresidio` | bool | Force PII scanning on all tasks |
 | `egressAllowlist` | []EgressRule | Outbound network restrictions (host + ports) |
 | `namespaceSelector` | LabelSelector | Which namespaces this policy applies to |
+| `allowedShellCommands` | []string | Restrict which base commands agents can execute (first word checked). Empty = all allowed. |
+| `deniedShellCommands` | []string | Block specific command prefixes (applied after allow list) |
+| `readOnlyWorkspace` | bool | Makes `/workspace` read-only for analysis-only tasks |
