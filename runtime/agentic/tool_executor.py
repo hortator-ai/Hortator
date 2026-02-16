@@ -25,6 +25,8 @@ def execute_tool(name: str, args: dict, task_name: str, task_ns: str) -> dict:
                 return _exec_cancel_task(args)
             case "checkpoint_and_wait":
                 return _exec_checkpoint_and_wait(args)
+            case "list_roles":
+                return _exec_list_roles(args)
             case "run_shell":
                 return _exec_run_shell(args)
             case "read_file":
@@ -170,6 +172,31 @@ def _exec_checkpoint_and_wait(args: dict) -> dict:
         "_checkpoint_and_wait": True,
         "summary": summary,
     }
+
+
+# ── Role Listing ─────────────────────────────────────────────────────────────
+
+def _exec_list_roles(args: dict) -> dict:
+    """List available roles via `hortator roles list`."""
+    cmd = ["hortator", "roles", "list", "-o", "json"]
+
+    required_caps = args.get("requiredCapabilities", [])
+    for cap in required_caps:
+        cmd.extend(["--capability", cap])
+
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=15,
+    )
+
+    if result.returncode != 0:
+        return {"success": False, "error": result.stderr.strip()}
+
+    try:
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        output = {"raw": result.stdout.strip()}
+
+    return {"success": True, "roles": output}
 
 
 # ── Shell Execution ──────────────────────────────────────────────────────────

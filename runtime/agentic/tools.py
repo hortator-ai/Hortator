@@ -26,6 +26,10 @@ def build_tools(capabilities: list[str], task_name: str, task_ns: str) -> list[d
     if "shell" in capabilities:
         tools.append(_tool_run_shell())
 
+    # spawn capability also gates role listing
+    if "spawn" in capabilities:
+        tools.append(_tool_list_roles())
+
     return tools
 
 
@@ -185,6 +189,26 @@ def _tool_run_shell() -> dict:
                     },
                 },
                 "required": ["command"],
+            },
+        },
+    }
+
+
+def _tool_list_roles() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "list_roles",
+            "description": "List available roles for delegation. Optionally filter by required capabilities.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "requiredCapabilities": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter roles that have ALL of these tools/capabilities",
+                    },
+                },
             },
         },
     }

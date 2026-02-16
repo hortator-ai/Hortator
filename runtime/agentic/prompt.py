@@ -15,6 +15,7 @@ def build_system_prompt(
     role_rules: list[str] = None,
     role_anti_patterns: list[str] = None,
     available_roles: list[dict] = None,
+    exit_criteria: str = "",
 ) -> str:
     """Build the system prompt based on role, tier, and available tools."""
 
@@ -23,6 +24,7 @@ def build_system_prompt(
     workflow = _workflow_section(tier, tool_names)
     role_context = _role_context_section(role, role_description, role_rules, role_anti_patterns)
     delegation_section = _delegation_section(available_roles)
+    exit_criteria_section = _exit_criteria_section(exit_criteria)
 
     return f"""You are an AI agent working as a **{role}** in the Hortator orchestration system.
 
@@ -37,7 +39,7 @@ Your capabilities: {', '.join(capabilities) if capabilities else 'none (basic fi
 
 ## Workflow
 {workflow}
-{delegation_section}
+{delegation_section}{exit_criteria_section}
 ## Important Rules
 1. **Always write your final result.** When you're done, produce a clear summary of what you accomplished.
 2. **Use /outbox/artifacts/ for deliverables.** Code, patches, reports, or any files that should be returned to the caller go in /outbox/artifacts/.
@@ -182,5 +184,21 @@ def _delegation_section(available_roles: list[dict] | None) -> str:
         desc = role.get("description", "")
         parts.append(f"- **{name}** ({tier}): {desc}")
 
-    parts.append("\nPick roles based on task requirements. Match capabilities to needs.\n")
+    parts.append(
+        "\nChoose the lowest-privilege role that meets the task's needs.\n"
+        "If no role matches exactly, pick the closest fit and adapt your approach.\n"
+    )
     return "\n".join(parts)
+
+
+def _exit_criteria_section(exit_criteria: str) -> str:
+    """Build the exit criteria section when provided."""
+    if not exit_criteria:
+        return ""
+
+    return (
+        "\n## Exit Criteria\n"
+        f"You are done when: {exit_criteria}\n\n"
+        "Evaluate this criteria at the end of each iteration. If met, produce your final output.\n"
+        "If not met and you have iterations remaining, continue working.\n"
+    )

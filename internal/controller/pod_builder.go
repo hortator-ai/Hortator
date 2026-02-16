@@ -326,6 +326,13 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask, policies ..
 		}
 	}
 
+	if task.Spec.ExitCriteria != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  "HORTATOR_EXIT_CRITERIA",
+			Value: task.Spec.ExitCriteria,
+		})
+	}
+
 	// Shell command filtering from AgentPolicy
 	readOnlyWorkspace := false
 	var allAllowedCmds, allDeniedCmds []string

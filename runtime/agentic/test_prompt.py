@@ -57,6 +57,8 @@ class TestBuildSystemPrompt(unittest.TestCase):
         self.assertIn("## Available Roles for Delegation", result)
         self.assertIn("- **coder** (legionary): Writes code", result)
         self.assertIn("- **reviewer** (legionary): Reviews code", result)
+        self.assertIn("Choose the lowest-privilege role that meets the task's needs.", result)
+        self.assertIn("If no role matches exactly, pick the closest fit and adapt your approach.", result)
 
     def test_no_delegation_without_roles(self):
         result = build_system_prompt(
