@@ -10,7 +10,7 @@ CRD YAMLs are maintained in a single-source-of-truth workflow:
 |-----|--------|----------------|
 | AgentTask | `config/crd/bases/` | Go types in `api/v1alpha1/agenttask_types.go` via controller-gen |
 | AgentPolicy | `config/crd/bases/` | Go types in `api/v1alpha1/agentpolicy_types.go` via controller-gen |
-| AgentRole / ClusterAgentRole | `crds/agentrole.yaml` | Hand-maintained (no Go types yet — see backlog L7) |
+| AgentRole / ClusterAgentRole | `config/crd/bases/` | Go types in `api/v1alpha1/agentrole_types.go` via controller-gen |
 
 **`crds/`** aggregates all CRD YAMLs (generated + hand-written) and **`charts/hortator/crds/`** mirrors `crds/` for Helm installs.
 
@@ -44,31 +44,33 @@ The core workload resource. Defines a task for an agent to execute.
 | `health` | HealthSpec | | Stuck detection overrides |
 | `presidio` | PresidioSpec | | PII detection overrides |
 | `env` | []EnvVar | | Environment variables (supports secretKeyRef) |
+| `inputFiles` | []InputFile | | Files delivered to `/inbox/` via init container (base64-encoded, ~1MB total limit) |
+| `hierarchyBudget` | BudgetSpec | | Shared budget pool across the entire task tree (only meaningful on root tasks) |
 
 ### Status Phases
 
-`Pending` → `Running` → `Completed` | `Failed` | `BudgetExceeded` | `TimedOut` | `Cancelled`
+`Pending` → `Running` → `Waiting` → `Completed` | `Failed` | `BudgetExceeded` | `TimedOut` | `Cancelled`
 
 With retry enabled: `Failed` → `Retrying` → `Pending` (up to `maxAttempts`)
+
+The `Waiting` phase indicates the agent has checkpointed and is waiting for child tasks to complete (tribune/centurion reincarnation model).
 
 ## AgentRole / ClusterAgentRole (`core.hortator.ai/v1alpha1`)
 
 Behavioral archetypes for agents. `AgentRole` is namespace-scoped, `ClusterAgentRole` is cluster-wide. Namespace-local takes precedence over cluster-wide for the same name.
 
-**CRD YAML:** [`crds/agentrole.yaml`](https://github.com/hortator-ai/Hortator/blob/main/crds/agentrole.yaml) (hand-maintained — edit directly in `crds/`, then run `make sync-crds`)
-
-> **Note:** Go types for AgentRole/ClusterAgentRole are not yet generated — the gateway uses `unstructured.Unstructured`. See backlog item L7.
+**Go types:** [`api/v1alpha1/agentrole_types.go`](https://github.com/hortator-ai/Hortator/blob/main/api/v1alpha1/agentrole_types.go)
+**CRD YAML:** [`crds/agentrole.yaml`](https://github.com/hortator-ai/Hortator/blob/main/crds/agentrole.yaml) (generated — do not edit directly)
 
 ### Key Spec Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `description` | string | Human-readable role description |
-| `rules` | []string | Behavioral rules injected into agent prompt |
-| `antiPatterns` | []string | Things the agent should avoid |
+| `defaultModel` | string | Default model name (e.g. `claude-sonnet-4-20250514`) |
+| `defaultEndpoint` | string | Base URL for the LLM API |
+| `apiKeyRef` | SecretKeyRef | Reference to a K8s Secret containing the API key |
 | `tools` | []string | Default capabilities |
-| `defaultModel` | string | Default model for this role |
-| `references` | []string | URLs for reference documentation |
+| `health` | HealthSpec | Per-role health/stuck detection overrides |
 
 ## AgentPolicy (`core.hortator.ai/v1alpha1`) *(Enterprise)*
 

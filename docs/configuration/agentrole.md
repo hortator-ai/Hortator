@@ -19,30 +19,22 @@ kind: ClusterAgentRole
 metadata:
   name: backend-dev
 spec:
-  description: "Backend developer with TDD focus"
-  rules:
-    - "Always write tests before implementation"
-    - "Security best practices (input validation, auth checks)"
-    - "Proper error handling with meaningful messages"
-  antiPatterns:
-    - "Never use `any` in TypeScript"
-    - "Don't install new dependencies without checking existing ones"
   tools: [shell, web-fetch]
   defaultModel: claude-sonnet
-  references:
-    - "https://internal-docs.example.com/api-guidelines"
+  defaultEndpoint: https://api.anthropic.com/v1
+  apiKeyRef:
+    secretName: anthropic-key
+    key: api-key
 ```
 
 ## Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `description` | string | Human-readable role description |
-| `rules` | []string | Behavioral rules injected into the agent's prompt |
-| `antiPatterns` | []string | Things the agent should avoid |
+| `defaultModel` | string | Default model name (e.g. `claude-sonnet-4-20250514`) |
+| `defaultEndpoint` | string | Base URL for the LLM API |
+| `apiKeyRef` | SecretKeyRef | Reference to a K8s Secret containing the API key (`secretName` + `key`) |
 | `tools` | []string | Default capabilities granted to tasks using this role |
-| `defaultModel` | string | Default model name |
-| `references` | []string | URLs for reference documentation |
 | `health` | HealthSpec | Per-role health/stuck detection overrides (see below) |
 
 ## Per-Role Health Overrides

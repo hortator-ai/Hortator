@@ -54,13 +54,12 @@ For the full prioritized backlog, see [backlog.md](https://github.com/hortator-a
 
 ## Next Up
 
-- CRD regeneration (run `controller-gen` to pick up AgentRole health field)
 - Full end-to-end validation of Tribune orchestration flow (agentic image build, multi-agent delegation, reincarnation with `checkpoint_and_wait`)
 - Address remaining code review medium issues (see `REMAINING-WORK.md`)
 
 ## Future
 
-- Multi-tenancy (cross-namespace policies)
+- Multi-tenancy enhancements (cross-namespace policies, per-tenant egress allowlists)
 - Object storage archival
 - Webhook callbacks on task completion
 - OIDC/SSO (Enterprise)

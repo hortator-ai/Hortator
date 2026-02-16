@@ -37,7 +37,7 @@ spec:
     - name: ANTHROPIC_API_KEY
       valueFrom:
         secretKeyRef:
-          name: llm-keys
+          secretName: llm-keys
           key: anthropic
   resources:
     requests:
@@ -54,6 +54,7 @@ spec:
 |-------|---------|
 | `Pending` | Task created, waiting for Pod |
 | `Running` | Agent Pod is executing |
+| `Waiting` | Agent checkpointed, waiting for children to complete |
 | `Completed` | Agent finished successfully |
 | `Failed` | Agent reported failure or exhausted retries |
 | `BudgetExceeded` | Token or cost budget exceeded |

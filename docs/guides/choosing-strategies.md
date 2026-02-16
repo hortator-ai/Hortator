@@ -235,13 +235,13 @@ presidio:
 
 **Use when:** You don't need to keep agent work products. Most legionary tasks.
 
-PVCs auto-delete after TTL (7d completed, 2d failed, 1d cancelled).
+PVCs auto-delete after TTL (1h completed, 24h failed, 1h cancelled).
 
 ```yaml
 storage:
   cleanup:
     ttl:
-      completed: 7d
+      completed: 1h
 ```
 
 ### Retain + Tags
@@ -302,7 +302,7 @@ presidio:
 storage:
   cleanup:
     ttl:
-      completed: 7d
+      completed: 1h
 ```
 
 ### Medium Team (10-50 agents)
