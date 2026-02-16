@@ -243,10 +243,8 @@ func (r *AgentTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // period expires. Respects the hortator.ai/retain annotation and per-phase TTL
 // configuration from the ConfigMap (CleanupTTL).
 func (r *AgentTaskReconciler) handleTTLCleanup(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
-	// Skip if explicitly retained
-	if task.Spec.Storage != nil && task.Spec.Storage.Retain {
-		return ctrl.Result{}, nil
-	}
+	// Skip if explicitly retained via annotation (keeps both task CR and PVC).
+	// Note: storage.retain only preserves the PVC, not the task CR itself.
 	if ann, ok := task.Annotations["hortator.ai/retain"]; ok && ann == "true" {
 		return ctrl.Result{}, nil
 	}
@@ -291,16 +289,19 @@ func (r *AgentTaskReconciler) handleTTLCleanup(ctx context.Context, task *corev1
 	}
 
 	logger := log.FromContext(ctx)
-	logger.Info("TTL expired, cleaning up task and PVC", "task", task.Name, "retention", retention)
+	retainPVC := task.Spec.Storage != nil && task.Spec.Storage.Retain
+	logger.Info("TTL expired, cleaning up task", "task", task.Name, "retention", retention, "retainPVC", retainPVC)
 
-	// Delete the associated PVC if it exists
-	pvcName := fmt.Sprintf("%s-storage", task.Name)
-	pvc := &corev1.PersistentVolumeClaim{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: task.Namespace, Name: pvcName}, pvc); err == nil {
-		if delErr := r.Delete(ctx, pvc); delErr != nil && !errors.IsNotFound(delErr) {
-			logger.Error(delErr, "Failed to delete PVC during GC", "pvc", pvcName)
-		} else {
-			logger.V(1).Info("Deleted PVC during GC", "pvc", pvcName)
+	// Delete the associated PVC if it exists (unless storage.retain is set)
+	if !retainPVC {
+		pvcName := fmt.Sprintf("%s-storage", task.Name)
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, client.ObjectKey{Namespace: task.Namespace, Name: pvcName}, pvc); err == nil {
+			if delErr := r.Delete(ctx, pvc); delErr != nil && !errors.IsNotFound(delErr) {
+				logger.Error(delErr, "Failed to delete PVC during GC", "pvc", pvcName)
+			} else {
+				logger.V(1).Info("Deleted PVC during GC", "pvc", pvcName)
+			}
 		}
 	}
 
