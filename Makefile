@@ -103,6 +103,7 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
+	go build -ldflags "-X github.com/hortator-ai/Hortator/cmd/hortator/cmd.Version=$$(git describe --tags --always --dirty) -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.GitCommit=$$(git rev-parse HEAD) -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.BuildTime=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o bin/hortator ./cmd/hortator
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

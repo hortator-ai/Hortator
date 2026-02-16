@@ -57,7 +57,7 @@ Examples:
 
   # List all tasks
   hortator list`,
-	Version: "0.1.0",
+	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if cmd.Name() == "version" || cmd.Name() == "help" {
 			return nil
