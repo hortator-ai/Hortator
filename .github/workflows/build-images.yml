@@ -124,3 +124,24 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  push-helm-chart:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Package chart
+        run: helm package charts/hortator -d /tmp/helm-packages
+
+      - name: Push chart to GHCR
+        run: helm push /tmp/helm-packages/hortator-*.tgz oci://${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}/charts
