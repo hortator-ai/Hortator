@@ -1,6 +1,6 @@
 # Roadmap
 
-For the full prioritized backlog, see [backlog.md](https://github.com/hortator-ai/Hortator/blob/main/backlog.md).
+Track progress and upcoming features below. For bug reports and feature requests, see [GitHub Issues](https://github.com/hortator-ai/Hortator/issues).
 
 ## Recently Completed
 
