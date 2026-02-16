@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/hortator-ai/Hortator/compare/v0.5.1...v0.5.2) (2026-02-16)
+
+
+### Bug Fixes
+
+* add anti-duplication guidance to tribune delegation prompt ([#60](https://github.com/hortator-ai/Hortator/issues/60)) ([d731ffe](https://github.com/hortator-ai/Hortator/commit/d731ffe1389b66c5d0a2588675a03568f096200f))
+
 ## [0.5.1](https://github.com/hortator-ai/Hortator/compare/v0.5.0...v0.5.1) (2026-02-16)
 
 
