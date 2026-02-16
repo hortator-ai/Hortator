@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release-please:
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
