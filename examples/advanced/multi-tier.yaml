@@ -1,85 +1,154 @@
-# Multi-tier example: Tribune → Centurion → Legionary
+# Advanced: Autonomous Research Team
 #
-# A Tribune plans the work, a Centurion coordinates execution,
-# and Legionaries do the actual tasks.
+# Demonstrates autonomous agent awareness at scale:
+#   - Tribune discovers roles and plans a research project
+#   - Multiple specialist roles with detailed rules/anti-patterns
+#   - No scripted delegation — the tribune decides the approach
+#   - Hierarchy budget tracks cost across the entire tree
 #
-# Prerequisites:
-#   - Anthropic API key secret: kubectl create secret generic anthropic-api-key \
-#       --namespace hortator-demo --from-literal=api-key=sk-ant-...
-#
-# Apply with: kubectl apply -f multi-tier.yaml
+# This is a more complex version of the demo/multi-tier.yaml example,
+# showing how role descriptions guide autonomous delegation decisions.
 ---
 apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
-  name: tech-lead
+  name: research-director
+  labels:
+    hortator.ai/example: advanced-research
 spec:
   description: >-
-    High-level planner. Decomposes a project goal into work packages
-    and delegates to centurions. Reviews final deliverables.
+    Leads research projects. Decomposes research questions into
+    focused investigations, assigns specialists, synthesizes
+    findings into a coherent report with citations.
+  tierAffinity: tribune
   defaultModel: claude-sonnet-4-20250514
   tools:
     - spawn
+    - shell
     - web-fetch
   rules:
-    - "Always review final deliverables before completing"
-    - "Delegate implementation, never code directly"
+    - "Define clear research questions before delegating"
+    - "Assign each question to the most relevant specialist"
+    - "Cross-reference findings from multiple sources"
+    - "Produce a structured report with executive summary"
+  antiPatterns:
+    - "Don't do primary research yourself — delegate to specialists"
+    - "Don't accept findings without checking for contradictions"
 ---
 apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
-  name: backend-lead
+  name: literature-analyst
+  labels:
+    hortator.ai/example: advanced-research
 spec:
   description: >-
-    Coordinates backend implementation. Spawns legionary coders
-    and reviewers, merges their output.
+    Analyzes published research, papers, and documentation.
+    Extracts key findings, methodology, and limitations.
+    Produces structured summaries with proper citations.
+  tierAffinity: legionary
   defaultModel: claude-sonnet-4-20250514
   tools:
-    - spawn
     - shell
+    - web-fetch
+  rules:
+    - "Always cite sources with URLs or DOIs"
+    - "Distinguish between findings, opinions, and speculation"
+    - "Note methodology limitations and potential biases"
+    - "Output structured JSON with sections: summary, findings, limitations, sources"
+  antiPatterns:
+    - "Don't present opinions as findings"
+    - "Don't cite sources you haven't actually read"
 ---
 apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
-  name: impl-coder
+  name: data-analyst
+  labels:
+    hortator.ai/example: advanced-research
 spec:
   description: >-
-    Implements a single, well-scoped coding task. Writes code and
-    tests, outputs results to /outbox/result.json.
+    Analyzes quantitative data, statistics, and metrics.
+    Produces tables, comparisons, and trend analysis.
+  tierAffinity: legionary
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
+  rules:
+    - "Show your calculations and methodology"
+    - "Include confidence intervals or error margins where applicable"
+    - "Present data in tables for easy comparison"
+  antiPatterns:
+    - "Don't extrapolate beyond the available data"
+    - "Don't present averages without noting variance"
 ---
-# The top-level task — kicked off by a human or CI pipeline.
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: competitive-analyst
+  labels:
+    hortator.ai/example: advanced-research
+spec:
+  description: >-
+    Researches competitive landscape, market positioning,
+    and product comparisons. Produces SWOT-style analysis.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+    - web-fetch
+  rules:
+    - "Compare on objective criteria (features, pricing, performance)"
+    - "Note each competitor's unique strengths"
+    - "Include market share or adoption signals where available"
+  antiPatterns:
+    - "Don't rely on marketing claims — verify with third-party sources"
+    - "Don't ignore smaller competitors that may be emerging threats"
+---
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
-  name: build-rest-api
-  namespace: hortator-demo
+  name: autonomous-research
+  labels:
+    hortator.ai/example: advanced-research
+  annotations:
+    hortator.ai/description: "Tribune autonomously researches a topic using discovered specialist roles"
 spec:
-  role: tech-lead
+  role: research-director
   tier: tribune
   prompt: |
-    Build a simple REST API in Go with the following endpoints:
-      GET  /healthz        — returns 200
-      GET  /api/v1/items   — returns a JSON list of items
-      POST /api/v1/items   — creates an item
+    Research the current state of AI agent orchestration frameworks.
 
-    Delegate implementation to a backend-lead centurion.
-    The centurion should spawn impl-coder legionaries for:
-      1. HTTP handler code
-      2. Unit tests
+    Cover:
+    - What frameworks exist (LangGraph, CrewAI, AutoGen, etc.)
+    - How they handle multi-agent coordination
+    - Their approach to isolation, security, and governance
+    - Adoption signals (GitHub stars, enterprise usage, funding)
+    - Gaps and unmet needs in the market
 
-    Review the final output before completing.
+    Produce a structured research report suitable for informing
+    product strategy decisions. Delegate to specialists as needed.
   model:
     name: claude-sonnet-4-20250514
     endpoint: https://api.anthropic.com/v1
     apiKeyRef:
       secretName: anthropic-api-key
       key: api-key
+  thinkingLevel: medium
   capabilities:
     - spawn
+    - shell
     - web-fetch
   budget:
+    maxCostUsd: "3.00"
+  hierarchyBudget:
     maxCostUsd: "8.00"
-  timeout: 5400
+    maxTokens: 800000
+  storage:
+    size: "1Gi"
+    retain: true
+  timeout: 3600
+  health:
+    stuckDetection:
+      statusStaleMinutes: 10
+      action: warn

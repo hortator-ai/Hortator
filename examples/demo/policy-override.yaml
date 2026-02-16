@@ -1,87 +1,83 @@
-# Test: AgentPolicy & Role Override Precedence
+# Demo: Policy Enforcement with Role Awareness
 #
-# Validates the three-tier override model:
-#   1. Helm values (cluster-wide defaults)
-#   2. AgentRole (per-role overrides)
-#   3. AgentTask spec (per-task overrides — most specific wins)
+# Shows how policies constrain autonomous agents:
+#   - Roles describe what agents CAN do (rules, tools, tier affinity)
+#   - Policies describe what agents MUST NOT do (budget caps, denied capabilities)
+#   - The operator injects a constraint summary so agents know their limits
+#   - Policy violations are caught at task creation, not at runtime
 #
-# Also tests AgentPolicy enforcement:
-#   - Tasks must comply with all matching policies
-#   - Policy restricts capabilities, budget, tier, images
-#   - DeniedCapabilities overrides AllowedCapabilities
-#
-# Expected behavior:
-#   - Task inherits defaults from Helm values
-#   - Role overrides applicable defaults
-#   - Task-level spec overrides role defaults
-#   - Policy violations cause task rejection (Pending → Failed)
-#   - Denied capabilities block even if task requests them
+# Includes:
+#   - A compliant task that succeeds within policy bounds
+#   - A tier violation (tribune in centurion-max namespace)
+#   - A capability violation (requesting denied capability)
+#   - A budget violation (exceeding policy ceiling)
 #
 # Prerequisites:
 #   - Anthropic API key secret
 ---
-# Restrictive namespace policy
+# Policy: restrictive namespace rules
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentPolicy
 metadata:
   name: production-policy
   labels:
-    hortator.ai/test-suite: policy
+    hortator.ai/demo: policy
 spec:
-  # Only allow specific capabilities
   allowedCapabilities:
     - shell
-    - web-fetch
     - spawn
-  # Explicitly deny dangerous capabilities (overrides allowed)
   deniedCapabilities:
-    - web-fetch                  # Even though it's in allowed, denied wins
-  # Restrict container images
+    - web-fetch
   allowedImages:
     - "ghcr.io/hortator-ai/hortator/*"
-    - "ghcr.io/hortator-ai/hortator/*"
-  # Budget ceiling
   maxBudget:
     maxCostUsd: "2.00"
     maxTokens: 200000
-  # Only legionary and centurion — no tribunes in this namespace
   maxTier: centurion
-  # Concurrency limit
   maxConcurrentTasks: 10
-  # Force PII scanning
   requirePresidio: true
-  # Network egress restrictions
   egressAllowlist:
     - host: "api.anthropic.com"
       ports: [443]
-    - host: "10.0.0.0/8"        # Allow internal cluster traffic
+    - host: "10.0.0.0/8"
 ---
-# Role with its own defaults — some will be overridden by the task
+# Role with rules and anti-patterns
 apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
   name: cautious-coder
   labels:
-    hortator.ai/test-suite: policy
+    hortator.ai/demo: policy
 spec:
+  description: >-
+    A security-conscious coder that operates within strict policy
+    constraints. No external network access, no unnecessary deps.
+  tierAffinity: legionary
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
+  rules:
+    - "Validate all inputs before processing"
+    - "Never hardcode secrets or credentials"
+    - "Use only standard library when possible"
+  antiPatterns:
+    - "Don't install packages from untrusted sources"
+    - "Don't write to paths outside /workspace and /outbox"
 ---
-# Task that complies with the policy — should succeed
+# ✅ Compliant task — should succeed
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-compliant-task
   labels:
-    hortator.ai/test-suite: policy
+    hortator.ai/demo: policy
     hortator.ai/test-case: compliant
   annotations:
     hortator.ai/description: "Task within policy bounds — should succeed"
 spec:
   role: cautious-coder
-  tier: legionary                # Within maxTier:centurion
-  prompt: "Write a hello world program. Save to /outbox/result.json."
+  tier: legionary
+  prompt: "Write a hello world program in Python. Save to /outbox/artifacts/hello.py."
   model:
     name: claude-sonnet-4-20250514
     endpoint: https://api.anthropic.com/v1
@@ -89,28 +85,27 @@ spec:
       secretName: anthropic-api-key
       key: api-key
   capabilities:
-    - shell                      # Allowed by policy
+    - shell
   budget:
-    maxCostUsd: "0.50"           # Under policy maxBudget
+    maxCostUsd: "0.50"
   timeout: 180
-  # Task-level Presidio override — stricter than policy default
   presidio:
     scoreThreshold: 0.3
     action: hash
 ---
-# Task that VIOLATES the policy — should be rejected
+# ❌ Tier violation — tribune in centurion-max namespace
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-violation-tier
   labels:
-    hortator.ai/test-suite: policy
+    hortator.ai/demo: policy
     hortator.ai/test-case: violation-tier
   annotations:
     hortator.ai/description: "Tribune tier in centurion-max namespace — should be rejected"
 spec:
   role: cautious-coder
-  tier: tribune                  # VIOLATION: policy maxTier is centurion
+  tier: tribune
   prompt: "This task should never run — it violates the tier policy."
   model:
     name: claude-sonnet-4-20250514
@@ -124,16 +119,16 @@ spec:
     maxCostUsd: "1.00"
   timeout: 300
 ---
-# Task that requests a denied capability — should be rejected
+# ❌ Capability violation — web-fetch is denied
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-violation-capability
   labels:
-    hortator.ai/test-suite: policy
+    hortator.ai/demo: policy
     hortator.ai/test-case: violation-capability
   annotations:
-    hortator.ai/description: "Requests web-fetch which is in deniedCapabilities — should be rejected"
+    hortator.ai/description: "Requests denied capability web-fetch — should be rejected"
 spec:
   tier: legionary
   prompt: "This task requests a denied capability."
@@ -145,21 +140,21 @@ spec:
       key: api-key
   capabilities:
     - shell
-    - web-fetch                  # VIOLATION: in deniedCapabilities
+    - web-fetch
   budget:
     maxCostUsd: "0.25"
   timeout: 120
 ---
-# Task that exceeds budget policy — should be rejected
+# ❌ Budget violation — exceeds policy ceiling
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
   name: policy-violation-budget
   labels:
-    hortator.ai/test-suite: policy
+    hortator.ai/demo: policy
     hortator.ai/test-case: violation-budget
   annotations:
-    hortator.ai/description: "Budget exceeds policy maxBudget — should be rejected"
+    hortator.ai/description: "Budget exceeds policy ceiling — should be rejected"
 spec:
   tier: legionary
   prompt: "This task requests too much budget."
@@ -170,6 +165,6 @@ spec:
       secretName: anthropic-api-key
       key: api-key
   budget:
-    maxCostUsd: "10.00"          # VIOLATION: policy max is $2.00
-    maxTokens: 500000            # VIOLATION: policy max is 200000
+    maxCostUsd: "10.00"
+    maxTokens: 500000
   timeout: 300
