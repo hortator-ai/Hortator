@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.5](https://github.com/hortator-ai/Hortator/compare/v0.5.4...v0.5.5) (2026-02-16)
+
+
+### Bug Fixes
+
+* operator crashloop when webhook.enabled=false (quickstart blocker) ([#80](https://github.com/hortator-ai/Hortator/issues/80)) ([46d4a98](https://github.com/hortator-ai/Hortator/commit/46d4a983962efdb1778241a27637c1a91abc8be8))
+
 ## [0.5.4](https://github.com/hortator-ai/Hortator/compare/v0.5.3...v0.5.4) (2026-02-16)
 
 
