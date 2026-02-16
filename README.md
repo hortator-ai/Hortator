@@ -131,6 +131,21 @@ Each agent Pod gets four mount points:
 
 When an agent's context window fills up, it doesn't crash - it **checkpoints** its state to `/memory/`, gets killed, and respawns with a fresh context window and its checkpoint. The agent picks up where it left off. We call this reincarnation.
 
+### Install the CLI
+
+The CLI is pre-installed in all agent container images. For local use or custom runtimes:
+
+```bash
+# Download a binary (macOS / Linux)
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+curl -sSL "https://github.com/hortator-ai/Hortator/releases/latest/download/hortator_${OS}_${ARCH}.tar.gz" | tar xz
+sudo mv hortator /usr/local/bin/
+
+# Or via Go
+go install github.com/hortator-ai/Hortator/cmd/hortator@latest
+```
+
 ### The CLI
 
 Agents interact with Hortator through a CLI, not YAML:
