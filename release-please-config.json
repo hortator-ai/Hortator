@@ -6,7 +6,16 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false,
       "extra-files": [
-        "charts/hortator/Chart.yaml"
+        {
+          "type": "yaml",
+          "path": "charts/hortator/Chart.yaml",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "yaml",
+          "path": "charts/hortator/Chart.yaml",
+          "jsonpath": "$.appVersion"
+        }
       ]
     }
   }

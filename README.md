@@ -75,7 +75,7 @@ helm install hortator oci://ghcr.io/hortator-ai/hortator/charts/hortator \
 
 # Create a namespace and API key secret
 kubectl create namespace hortator-demo
-kubectl create secret generic llm-api-key \
+kubectl create secret generic anthropic-api-key \
   --namespace hortator-demo \
   --from-literal=api-key=sk-ant-...
 
