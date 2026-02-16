@@ -120,10 +120,13 @@ kubectl get pvc -n hortator-test -l hortator.ai/retained=true
 ---
 
 #### 6. Result Cache (`result-cache.yaml`)
+
+⚠️ **This test requires sequential application.** Do NOT apply the whole file at once — the cache-hit task must be created *after* the cache-miss task completes.
+
 ```bash
-# Step 1: Cache miss (first run)
-kubectl apply -f examples/test-manifests/result-cache.yaml
-# Wait for first task
+# Step 1: Apply ONLY the cache-miss task (first resource in the file)
+kubectl apply -f examples/test-manifests/result-cache.yaml -l hortator.ai/test-case=cache-miss
+# Wait for it to complete (populates the cache)
 kubectl wait --for=jsonpath='{.status.phase}'=Completed agenttask/result-cache-miss -n hortator-test --timeout=300s
 
 # Step 2: Check cache hit and skip tasks
