@@ -130,9 +130,19 @@ def presidio_redact(text: str) -> str:
     endpoint = os.environ.get("PRESIDIO_ENDPOINT", "")
     if not endpoint:
         return text
+
+    # Score threshold: only redact high-confidence PII detections.
+    # Default 0.7 filters out most false positives (e.g. URL paths
+    # matching US_DRIVER_LICENSE patterns). Configurable via env var.
+    score_threshold = float(os.environ.get("PRESIDIO_SCORE_THRESHOLD", "0.7"))
+
     try:
         # Step 1: Analyze
-        analyze_payload = json.dumps({"text": text, "language": "en"}).encode()
+        analyze_payload = json.dumps({
+            "text": text,
+            "language": "en",
+            "score_threshold": score_threshold,
+        }).encode()
         req = urllib.request.Request(
             f"{endpoint}/analyze",
             data=analyze_payload,
@@ -145,14 +155,18 @@ def presidio_redact(text: str) -> str:
         if not analyzer_results:
             return text
 
-        print(f"[hortator-agentic] Redacting {len(analyzer_results)} PII entities...")
+        entities = [r.get("entity_type", "?") for r in analyzer_results]
+        print(f"[hortator-agentic] Redacting {len(analyzer_results)} PII entities "
+              f"(threshold={score_threshold}): {entities}")
 
         # Step 2: Anonymize (may be on a separate endpoint)
+        # Use a generic placeholder so entity type names don't leak into
+        # agent prompts (which could confuse the LLM).
         anonymizer_endpoint = os.environ.get("PRESIDIO_ANONYMIZER_ENDPOINT", endpoint)
         anon_payload = json.dumps({
             "text": text,
             "analyzer_results": analyzer_results,
-            "anonymizers": {"DEFAULT": {"type": "replace"}},
+            "anonymizers": {"DEFAULT": {"type": "replace", "new_value": "<----->"}},
         }).encode()
         req = urllib.request.Request(
             f"{anonymizer_endpoint}/anonymize",
