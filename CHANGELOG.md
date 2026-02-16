@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.7](https://github.com/hortator-ai/Hortator/compare/v0.5.6...v0.5.7) (2026-02-16)
+
+
+### Bug Fixes
+
+* add v prefix to semver image tags to match Helm chart expectations ([#84](https://github.com/hortator-ai/Hortator/issues/84)) ([0f084da](https://github.com/hortator-ai/Hortator/commit/0f084dabddf42106ad66fc985062393da37254d7))
+
 ## [0.5.6](https://github.com/hortator-ai/Hortator/compare/v0.5.5...v0.5.6) (2026-02-16)
 
 
