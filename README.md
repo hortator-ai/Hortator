@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://github.com/hortator-ai/Hortator/actions/workflows/ci.yaml"><img src="https://github.com/hortator-ai/Hortator/actions/workflows/ci.yaml/badge.svg?branch=main" alt="CI"></a>
-  <img src="https://img.shields.io/badge/release-v0.1.2-blue?style=flat-square" alt="Release v0.1.2">
+  <img src="https://img.shields.io/badge/release-v0.5.2-blue?style=flat-square" alt="Release v0.5.2">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT">
   <img src="https://img.shields.io/badge/language-Go-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/kubernetes-1.28+-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Kubernetes 1.28+">
@@ -299,6 +299,24 @@ See [`charts/hortator/values.yaml`](charts/hortator/values.yaml) for the full re
 | **Agents** | `hortator` CLI | Spawn sub-agents, check status, report results |
 
 **SDKs:** [Python](sdk/python/) (sync/async, LangChain + CrewAI integrations) and [TypeScript](sdk/typescript/) (zero deps, LangChain.js integration).
+
+### Bring Your Own Agent
+
+Hortator ships with a **reference runtime** (`runtime/agentic/`) — a Python-based agent that demonstrates multi-tier delegation, planning loops, and tool usage. It's a starting point, not the only option.
+
+**Hortator is runtime-agnostic.** Any agent that can run in a container and call the `hortator` CLI works:
+
+```bash
+# Inside your agent's container — that's the entire integration surface
+hortator spawn --prompt "Analyse this dataset" --role data-analyst --wait
+hortator result child-task-id
+hortator progress --status "Phase 2 complete"
+hortator budget-remaining
+```
+
+The operator doesn't care what language your agent is written in, what LLM it calls, or how it makes decisions. It cares that your agent stays within its budget, capabilities, and network boundary. Write your agent in Python, Go, TypeScript, Rust, or bash — as long as it reads from `/inbox/`, writes to `/outbox/artifacts/`, and uses the CLI to spawn children, Hortator handles the rest.
+
+The reference runtime is there to get you started and to demonstrate what's possible. Replace it whenever you're ready.
 
 ## FAQ
 
