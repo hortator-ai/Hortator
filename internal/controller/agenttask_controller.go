@@ -559,7 +559,7 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 	}
 
 	// Create the pod
-	pod, err := r.buildPod(task, policyList.Items...)
+	pod, err := r.buildPod(ctx, task, policyList.Items...)
 	if err != nil {
 		logger.Error(err, "Failed to build pod spec")
 		task.Status.Phase = corev1alpha1.AgentTaskPhaseFailed

@@ -15,6 +15,13 @@ spec:
   scope: Cluster
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.description
+      name: Description
+      priority: 1
+      type: string
+    - jsonPath: .spec.tierAffinity
+      name: Tier
+      type: string
     - jsonPath: .spec.defaultModel
       name: Model
       type: string
@@ -50,6 +57,13 @@ spec:
             description: AgentRoleSpec defines the desired state of AgentRole and
               ClusterAgentRole.
             properties:
+              antiPatterns:
+                description: |-
+                  AntiPatterns is a list of things agents in this role should avoid.
+                  Injected into the agent's system prompt.
+                items:
+                  type: string
+                type: array
               apiKeyRef:
                 description: ApiKeyRef is a reference to a K8s Secret containing the
                   API key.
@@ -69,6 +83,11 @@ spec:
                 type: string
               defaultModel:
                 description: DefaultModel is the model name (e.g. claude-sonnet-4-20250514).
+                type: string
+              description:
+                description: |-
+                  Description is a human-readable description of what this role does.
+                  Used for role discovery by agents and in CLI output.
                 type: string
               health:
                 description: |-
@@ -93,6 +112,18 @@ spec:
                         type: number
                     type: object
                 type: object
+              rules:
+                description: |-
+                  Rules is a list of behavioral instructions for agents in this role.
+                  Injected into the agent's system prompt.
+                items:
+                  type: string
+                type: array
+              tierAffinity:
+                description: |-
+                  TierAffinity is the suggested tier when this role is used (e.g. "centurion", "legionary").
+                  Helps agents choose appropriate delegation targets.
+                type: string
               tools:
                 description: Tools is a list of tool names available to this role.
                 items:

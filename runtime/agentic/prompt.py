@@ -11,18 +11,24 @@ def build_system_prompt(
     tier: str,
     capabilities: list[str],
     tool_names: list[str],
+    role_description: str = "",
+    role_rules: list[str] = None,
+    role_anti_patterns: list[str] = None,
+    available_roles: list[dict] = None,
 ) -> str:
     """Build the system prompt based on role, tier, and available tools."""
 
     tier_instruction = _tier_instruction(tier)
     tool_section = _tool_section(tool_names)
     workflow = _workflow_section(tier, tool_names)
+    role_context = _role_context_section(role, role_description, role_rules, role_anti_patterns)
+    delegation_section = _delegation_section(available_roles)
 
     return f"""You are an AI agent working as a **{role}** in the Hortator orchestration system.
 
 ## Your Tier: {tier.title()}
 {tier_instruction}
-
+{role_context}
 ## Available Tools
 {tool_section}
 
@@ -31,7 +37,7 @@ Your capabilities: {', '.join(capabilities) if capabilities else 'none (basic fi
 
 ## Workflow
 {workflow}
-
+{delegation_section}
 ## Important Rules
 1. **Always write your final result.** When you're done, produce a clear summary of what you accomplished.
 2. **Use /outbox/artifacts/ for deliverables.** Code, patches, reports, or any files that should be returned to the caller go in /outbox/artifacts/.
@@ -131,3 +137,50 @@ def _workflow_section(tier: str, tool_names: list[str]) -> str:
             "3. **Write**: Produce your output and save to /outbox/artifacts/ if applicable.\n"
             "4. **Summarize**: Provide a clear summary of what you produced."
         )
+
+
+def _role_context_section(
+    role: str,
+    description: str,
+    rules: list[str] | None,
+    anti_patterns: list[str] | None,
+) -> str:
+    """Build the role context section with rules and anti-patterns."""
+    if not rules and not anti_patterns and not description:
+        return ""
+
+    parts = [f"\n## Role: {role}"]
+    if description:
+        parts.append(description)
+
+    if rules:
+        parts.append("\n### Rules")
+        for rule in rules:
+            parts.append(f"- {rule}")
+
+    if anti_patterns:
+        parts.append("\n### Anti-Patterns (avoid these)")
+        for ap in anti_patterns:
+            parts.append(f"- {ap}")
+
+    parts.append("")
+    return "\n".join(parts)
+
+
+def _delegation_section(available_roles: list[dict] | None) -> str:
+    """Build the delegation section listing available roles."""
+    if not available_roles:
+        return ""
+
+    parts = [
+        "\n## Available Roles for Delegation",
+        "When spawning child tasks, choose from these roles:",
+    ]
+    for role in available_roles:
+        name = role.get("name", "unknown")
+        tier = role.get("tierAffinity", "")
+        desc = role.get("description", "")
+        parts.append(f"- **{name}** ({tier}): {desc}")
+
+    parts.append("\nPick roles based on task requirements. Match capabilities to needs.\n")
+    return "\n".join(parts)

@@ -6,6 +6,7 @@ spec:
   description: >-
     Gathers information from the web, APIs, and documents.
     Produces structured summaries in /outbox/result.json.
+  tierAffinity: legionary
   defaultModel: gpt-4o-mini
   tools:
     - web-fetch
@@ -13,6 +14,9 @@ spec:
   rules:
     - "Always cite sources in your output"
     - "Produce structured JSON summaries"
+  antiPatterns:
+    - "Do not hallucinate URLs or references"
+    - "Do not produce unstructured free-text when JSON is requested"
 ---
 apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
@@ -22,6 +26,7 @@ spec:
   description: >-
     Writes, tests, and fixes code. Has shell access for running
     build tools and test suites.
+  tierAffinity: centurion
   defaultModel: claude-sonnet-4-20250514
   tools:
     - shell
@@ -29,3 +34,6 @@ spec:
   rules:
     - "Write tests for all new code"
     - "Run tests before completing"
+  antiPatterns:
+    - "Do not commit without running tests first"
+    - "Do not modify files outside the task scope"

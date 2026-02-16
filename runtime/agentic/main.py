@@ -248,12 +248,40 @@ def main():
     # Build tools based on capabilities
     tools = build_tools(capabilities, task_name, task_ns)
 
+    # Read role context from env vars (injected by operator from AgentRole CRD)
+    role_description = os.environ.get("HORTATOR_ROLE_DESCRIPTION", "")
+    role_rules = None
+    role_anti_patterns = None
+    available_roles = None
+    try:
+        raw = os.environ.get("HORTATOR_ROLE_RULES", "")
+        if raw:
+            role_rules = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        raw = os.environ.get("HORTATOR_ROLE_ANTIPATTERNS", "")
+        if raw:
+            role_anti_patterns = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        raw = os.environ.get("HORTATOR_AVAILABLE_ROLES", "")
+        if raw:
+            available_roles = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
     # Build system prompt
     system_prompt = build_system_prompt(
         role=role,
         tier=tier,
         capabilities=capabilities,
         tool_names=[t["function"]["name"] for t in tools],
+        role_description=role_description,
+        role_rules=role_rules,
+        role_anti_patterns=role_anti_patterns,
+        available_roles=available_roles,
     )
 
     # Redact system prompt if it may contain user-provided content
