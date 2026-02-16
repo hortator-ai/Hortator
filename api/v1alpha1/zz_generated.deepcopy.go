@@ -210,6 +210,16 @@ func (in *AgentRoleSpec) DeepCopyInto(out *AgentRoleSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.Rules != nil {
+		in, out := &in.Rules, &out.Rules
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.AntiPatterns != nil {
+		in, out := &in.AntiPatterns, &out.AntiPatterns
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Health != nil {
 		in, out := &in.Health, &out.Health
 		*out = new(HealthSpec)
@@ -344,6 +354,11 @@ func (in *AgentTaskSpec) DeepCopyInto(out *AgentTaskSpec) {
 	if in.Retry != nil {
 		in, out := &in.Retry, &out.Retry
 		*out = new(RetrySpec)
+		**out = **in
+	}
+	if in.MaxIterations != nil {
+		in, out := &in.MaxIterations, &out.MaxIterations
+		*out = new(int)
 		**out = **in
 	}
 	if in.InputFiles != nil {

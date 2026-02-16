@@ -812,6 +812,79 @@ func envToMap(envs []corev1.EnvVar) map[string]string {
 	return m
 }
 
+func TestBuildPodMaxIterations(t *testing.T) {
+	scheme := newTestScheme()
+
+	t.Run("tribune without maxIterations defaults to 5", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "plan", Tier: "tribune"},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_MAX_ITERATIONS"] != "5" {
+			t.Errorf("HORTATOR_MAX_ITERATIONS = %q, want 5", envMap["HORTATOR_MAX_ITERATIONS"])
+		}
+		if envMap["HORTATOR_ITERATION"] != "1" {
+			t.Errorf("HORTATOR_ITERATION = %q, want 1", envMap["HORTATOR_ITERATION"])
+		}
+	})
+
+	t.Run("tribune with maxIterations=2 uses explicit value", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		maxIter := 2
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "plan", Tier: "tribune", MaxIterations: &maxIter},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_MAX_ITERATIONS"] != "2" {
+			t.Errorf("HORTATOR_MAX_ITERATIONS = %q, want 2", envMap["HORTATOR_MAX_ITERATIONS"])
+		}
+	})
+
+	t.Run("legionary defaults to 1", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "work", Tier: "legionary"},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_MAX_ITERATIONS"] != "1" {
+			t.Errorf("HORTATOR_MAX_ITERATIONS = %q, want 1", envMap["HORTATOR_MAX_ITERATIONS"])
+		}
+	})
+
+	t.Run("reincarnated task has correct iteration count", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "plan", Tier: "tribune"},
+			Status:     corev1alpha1.AgentTaskStatus{Attempts: 2},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_ITERATION"] != "3" {
+			t.Errorf("HORTATOR_ITERATION = %q, want 3", envMap["HORTATOR_ITERATION"])
+		}
+	})
+}
+
 func client_key(ns, name string) types.NamespacedName {
 	return types.NamespacedName{Namespace: ns, Name: name}
 }

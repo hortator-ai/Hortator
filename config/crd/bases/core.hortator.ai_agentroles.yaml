@@ -50,6 +50,12 @@ spec:
             description: AgentRoleSpec defines the desired state of AgentRole and
               ClusterAgentRole.
             properties:
+              antiPatterns:
+                description: AntiPatterns is a list of things the role should avoid
+                  doing.
+                items:
+                  type: string
+                type: array
               apiKeyRef:
                 description: ApiKeyRef is a reference to a K8s Secret containing the
                   API key.
@@ -69,6 +75,10 @@ spec:
                 type: string
               defaultModel:
                 description: DefaultModel is the model name (e.g. claude-sonnet-4-20250514).
+                type: string
+              description:
+                description: Description is a human-readable description of the role's
+                  purpose.
                 type: string
               health:
                 description: |-
@@ -93,6 +103,16 @@ spec:
                         type: number
                     type: object
                 type: object
+              rules:
+                description: Rules is a list of behavioral rules/guidelines for this
+                  role.
+                items:
+                  type: string
+                type: array
+              tierAffinity:
+                description: TierAffinity is the hierarchy tier this role is designed
+                  for (e.g. centurion, legionary).
+                type: string
               tools:
                 description: Tools is a list of tool names available to this role.
                 items:
