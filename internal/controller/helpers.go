@@ -664,3 +664,13 @@ func (r *AgentTaskReconciler) extractResult(task *corev1alpha1.AgentTask) {
 		task.Status.Output = strings.TrimSpace(result)
 	}
 }
+
+// containsString checks if a string slice contains a given string.
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
