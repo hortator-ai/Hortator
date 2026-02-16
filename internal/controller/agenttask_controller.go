@@ -401,6 +401,22 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 			return ctrl.Result{}, err
 		}
 
+		// Register this child in the parent's PendingChildren if not already tracked.
+		// This is critical for reincarnation: when a reincarnated parent spawns new
+		// children, the operator must track them so the Waiting → Pending transition
+		// fires after all children complete.
+		if !containsString(parent.Status.PendingChildren, task.Name) {
+			parent.Status.PendingChildren = append(parent.Status.PendingChildren, task.Name)
+			if err := r.updateStatusWithRetry(ctx, parent); err != nil {
+				logger.V(1).Info("Failed to register child in parent PendingChildren",
+					"child", task.Name, "parent", parent.Name, "error", err)
+			} else {
+				logger.Info("Registered child in parent PendingChildren",
+					"child", task.Name, "parent", parent.Name,
+					"pendingCount", len(parent.Status.PendingChildren))
+			}
+		}
+
 		// Inherit model spec from parent if child doesn't specify one
 		if task.Spec.Model == nil && parent.Spec.Model != nil {
 			task.Spec.Model = parent.Spec.Model.DeepCopy()
