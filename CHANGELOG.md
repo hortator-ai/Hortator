@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/hortator-ai/Hortator/compare/v0.4.0...v0.5.0) (2026-02-16)
+
+
+### Features
+
+* add maxIterations and planning loop prompt for iterative agents ([#55](https://github.com/hortator-ai/Hortator/issues/55)) ([479b4b0](https://github.com/hortator-ai/Hortator/commit/479b4b0f18c74da7c986e25dc8abb01a59aa31d5))
+* add role metadata fields and context injection for agent awareness ([#50](https://github.com/hortator-ai/Hortator/issues/50)) ([c58dd02](https://github.com/hortator-ai/Hortator/commit/c58dd02366504a760dee2f998c82b8ad385c034f))
+
 ## [0.4.0](https://github.com/hortator-ai/Hortator/compare/v0.3.0...v0.4.0) (2026-02-15)
 
 
