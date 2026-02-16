@@ -272,7 +272,7 @@ presidio:
   imagePullPolicy: IfNotPresent
   replicas: 1                     # Scale up for high-throughput clusters
   model: en_core_web_sm
-  scoreThreshold: 0.5
+  scoreThreshold: 0.7
   action: redact                  # redact | detect | hash | mask
 
   recognizers:

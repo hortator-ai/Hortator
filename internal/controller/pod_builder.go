@@ -558,6 +558,14 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 			Name:  "PRESIDIO_ANONYMIZER_ENDPOINT",
 			Value: anonymizerEndpoint,
 		})
+		// Score threshold for PII detection confidence (0.0-1.0).
+		// Higher = fewer false positives. Default 0.7 in runtime.
+		if r.defaults.PresidioScoreThreshold != "" {
+			env = append(env, corev1.EnvVar{
+				Name:  "PRESIDIO_SCORE_THRESHOLD",
+				Value: r.defaults.PresidioScoreThreshold,
+			})
+		}
 	}
 
 	// Build capability labels for NetworkPolicy matching
