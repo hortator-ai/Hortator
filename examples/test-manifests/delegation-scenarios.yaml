@@ -109,8 +109,8 @@ spec:
 # ============================================================
 # SCENARIO A: Complex task — SHOULD spawn multiple legionaries
 # ============================================================
-# A full-stack feature requires backend, frontend, and tests.
-# The tribune should recognize this needs 2-3 specialists.
+# A full-stack feature with distinct concerns (API, UI, tests).
+# The tribune should analyze and decompose without being told to.
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
@@ -125,27 +125,16 @@ spec:
   role: project-architect
   tier: tribune
   prompt: |
-    Build a bookmark manager with TWO separate components:
+    Build a working bookmark manager. Users should be able to save
+    bookmarks with URLs, titles, and tags, browse their collection,
+    filter by tag, and delete bookmarks they no longer need.
 
-    COMPONENT 1 — Backend API (Node.js + Express):
-      POST   /api/bookmarks       — save a bookmark (url, title, tags[])
-      GET    /api/bookmarks       — list all bookmarks (supports ?tag= filter)
-      DELETE /api/bookmarks/:id   — delete a bookmark
-      Use in-memory storage. Include input validation.
+    The backend should be a Node.js/Express REST API with in-memory
+    storage and input validation. The frontend should be a single
+    HTML file using fetch() — no frameworks. Include integration tests
+    that cover the API endpoints, filtering, and error cases.
 
-    COMPONENT 2 — Frontend (single HTML file):
-      - Form to add bookmarks (url, title, comma-separated tags)
-      - List view showing all bookmarks with delete buttons
-      - Tag filter dropdown
-      - Uses fetch() to call the API. No frameworks.
-
-    COMPONENT 3 — Integration tests:
-      - Test the API endpoints
-      - Test tag filtering
-      - Test error cases (missing url, invalid id)
-
-    Each component should be implemented by a specialist.
-    Deliver all files to /outbox/artifacts/.
+    Deliver everything to /outbox/artifacts/.
   model:
     name: claude-sonnet-4-20250514
     endpoint: https://api.anthropic.com/v1
@@ -175,8 +164,8 @@ spec:
 # ============================================================
 # SCENARIO B: Simple task — should NOT spawn legionaries
 # ============================================================
-# A single, focused task that a tribune should just do itself.
-# Spawning children for this would be wasteful over-delegation.
+# A single-file utility — no natural decomposition points.
+# A good tribune recognizes this isn't worth delegating.
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
@@ -198,9 +187,6 @@ spec:
     - Output JSON to stdout
     - Handle common edge cases (empty fields, quoted commas, headers)
     - Include a brief --help flag
-
-    This is a simple, single-file utility. Do it yourself —
-    it's not worth the overhead of delegation.
 
     Deliver the script to /outbox/artifacts/csv2json.py
   model:
