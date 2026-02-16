@@ -1,8 +1,20 @@
 """
 System prompt builder for the agentic runtime.
 
-Constructs the system message that tells the LLM who it is, what tools
-it has, and what workflow to follow.
+Constructs the system message from composable sections, inspired by
+OpenClaw's layered prompt architecture:
+
+  1. Identity + tier (who you are)
+  2. Constraints (budget, time, iterations) — front-loaded
+  3. Filesystem contract (workspace, inbox, outbox)
+  4. Safety (always present)
+  5. Tools (what you can call)
+  6. Delegation guide (tribunes/centurions only)
+  7. Role context (rules, anti-patterns) — at the END for recency bias
+
+Two modes:
+  - "full" for tribunes/centurions (delegation, role registry, planning)
+  - "focused" for legionaries (just execute, no delegation noise)
 """
 
 
@@ -12,138 +24,207 @@ def build_system_prompt(
     capabilities: list[str],
     tool_names: list[str],
     role_description: str = "",
-    role_rules: list[str] = None,
-    role_anti_patterns: list[str] = None,
-    available_roles: list[dict] = None,
+    role_rules: list[str] | None = None,
+    role_anti_patterns: list[str] | None = None,
+    available_roles: list[dict] | None = None,
     exit_criteria: str = "",
     iteration: int = 1,
     max_iterations: int = 1,
+    budget_tokens: int | None = None,
+    budget_usd: str | None = None,
+    timeout_seconds: int | None = None,
 ) -> str:
     """Build the system prompt based on role, tier, and available tools."""
 
-    tier_instruction = _tier_instruction(tier)
-    tool_section = _tool_section(tool_names)
-    workflow = _workflow_section(tier, tool_names)
-    role_context = _role_context_section(role, role_description, role_rules, role_anti_patterns)
-    delegation_section = _delegation_section(available_roles)
-    exit_criteria_section = _exit_criteria_section(exit_criteria)
-    iteration_section = _iteration_section(iteration, max_iterations)
+    is_spawner = tier in ("tribune", "centurion") and "spawn_task" in tool_names
+    is_focused = tier == "legionary" or not is_spawner
 
-    return f"""You are an AI agent working as a **{role}** in the Hortator orchestration system.
+    sections = [
+        _identity_section(role, tier),
+        _constraints_section(budget_tokens, budget_usd, timeout_seconds, iteration, max_iterations),
+        _filesystem_section(is_spawner),
+        _safety_section(),
+        _tool_section(tool_names),
+        _delegation_section(tier, available_roles) if is_spawner else "",
+        _iteration_section(iteration, max_iterations) if not is_focused else "",
+        _exit_criteria_section(exit_criteria),
+        # Role context goes LAST — recency bias means the LLM weights
+        # the end of the prompt more heavily. Role-specific rules and
+        # anti-patterns are the most important behavioral constraints.
+        _role_context_section(role, role_description, role_rules, role_anti_patterns),
+        _rules_section(tier, is_spawner),
+    ]
 
-## Your Tier: {tier.title()}
-{tier_instruction}
-{role_context}
-## Available Tools
-{tool_section}
-
-## Capabilities
-Your capabilities: {', '.join(capabilities) if capabilities else 'none (basic file I/O only)'}
-
-## Workflow
-{workflow}
-{delegation_section}{exit_criteria_section}{iteration_section}
-## Important Rules
-1. **Always write your final result.** When you're done, produce a clear summary of what you accomplished.
-2. **Use /outbox/artifacts/ for deliverables.** Code, patches, reports, or any files that should be returned to the caller go in /outbox/artifacts/.
-3. **Use /workspace/ for scratch work.** Temporary files, intermediate builds, test runs — use /workspace/.
-4. **Be specific when spawning children.** Give each child a clear, focused prompt. One task per child.
-5. **Don't repeat failed approaches.** If something doesn't work, try a different approach or report the failure.
-6. **Report progress honestly.** If you cannot complete the task, say so and explain what was accomplished and what remains.
-"""
+    return "\n".join(s for s in sections if s)
 
 
-def _tier_instruction(tier: str) -> str:
-    """Return tier-specific behavioral instructions."""
-    match tier:
-        case "tribune":
-            return (
-                "You are a **Tribune** — a strategic leader. Your job is to:\n"
-                "1. **Understand** the high-level goal\n"
-                "2. **Plan** how to decompose it into manageable subtasks\n"
-                "3. **Delegate** subtasks to Centurions or Legionaries via spawn_task\n"
-                "4. **Collect** their results and consolidate into a final answer\n\n"
-                "You should NOT do the work yourself unless it's trivial. "
-                "Your value is in orchestration, not execution."
-            )
-        case "centurion":
-            return (
-                "You are a **Centurion** — a team lead. Your job is to:\n"
-                "1. **Break down** your assigned task into focused subtasks\n"
-                "2. **Delegate** leaf tasks to Legionaries via spawn_task\n"
-                "3. **Do work directly** when it's faster than delegating\n"
-                "4. **Consolidate** results from your Legionaries into a coherent output\n\n"
-                "Balance delegation with direct execution. Small tasks are faster done yourself."
-            )
-        case "legionary":
-            return (
-                "You are a **Legionary** — a focused executor. Your job is to:\n"
-                "1. **Execute** the specific task assigned to you\n"
-                "2. **Write results** to /outbox/artifacts/ and provide a clear summary\n\n"
-                "You work alone. Focus, execute, report."
-            )
-        case _:
-            return "Execute the task assigned to you."
+def _identity_section(role: str, tier: str) -> str:
+    """Who you are and how you operate."""
+    tier_desc = {
+        "tribune": (
+            "You are a **Tribune** — a strategic orchestrator.\n"
+            "You decompose complex goals into subtasks and delegate to specialists.\n"
+            "You do NOT implement — your value is planning, delegation, and quality review.\n"
+            "Only do work yourself if it's truly trivial (< 1 minute of thought)."
+        ),
+        "centurion": (
+            "You are a **Centurion** — a team lead.\n"
+            "You balance direct execution with delegation.\n"
+            "Do small tasks yourself. Delegate focused leaf tasks to Legionaries.\n"
+            "Consolidate results into a coherent output."
+        ),
+        "legionary": (
+            "You are a **Legionary** — a focused executor.\n"
+            "You receive a specific task and execute it thoroughly.\n"
+            "Focus, execute, deliver. No delegation."
+        ),
+    }.get(tier, "Execute the task assigned to you.")
+
+    return f"You are **{role}** ({tier}) in the Hortator orchestration system.\n\n{tier_desc}"
+
+
+def _constraints_section(
+    budget_tokens: int | None,
+    budget_usd: str | None,
+    timeout_seconds: int | None,
+    iteration: int,
+    max_iterations: int,
+) -> str:
+    """Front-load constraints so the agent plans around them."""
+    lines = ["\n## Constraints"]
+    if budget_usd:
+        lines.append(f"- **Budget:** ${budget_usd} USD. Each child task and tool call costs tokens. Be efficient.")
+    if budget_tokens:
+        lines.append(f"- **Token limit:** {budget_tokens:,} tokens.")
+    if timeout_seconds:
+        minutes = timeout_seconds // 60
+        lines.append(f"- **Timeout:** {minutes}m. Plan accordingly.")
+    if max_iterations > 1:
+        lines.append(f"- **Iterations:** {iteration}/{max_iterations}.")
+    if len(lines) == 1:
+        return ""  # No constraints to show
+    return "\n".join(lines)
+
+
+def _filesystem_section(is_spawner: bool) -> str:
+    """Explicit filesystem contract — where things live."""
+    lines = [
+        "\n## Filesystem",
+        "- `/workspace/` — your scratch space. Plans, intermediate files, builds.",
+        "- `/outbox/artifacts/` — **deliverables go here.** Code, reports, anything returned to the caller.",
+        "- `/outbox/result.json` — structured result summary (optional).",
+    ]
+    if is_spawner:
+        lines.append(
+            "- `/inbox/` — child task results appear here automatically when children complete."
+        )
+    return "\n".join(lines)
+
+
+def _safety_section() -> str:
+    """Always present, brief."""
+    return (
+        "\n## Safety\n"
+        "- Operate within your assigned tier and capabilities. Do not attempt to escalate.\n"
+        "- Report failures and blockers honestly — do not fabricate results.\n"
+        "- Do not exfiltrate data outside your task scope."
+    )
 
 
 def _tool_section(tool_names: list[str]) -> str:
     """List available tools with brief descriptions."""
     descriptions = {
-        "spawn_task": "Create a child agent task. Use `wait: true` for synchronous results.",
-        "check_status": "Check if a child task is still running, completed, or failed.",
+        "spawn_task": "Create a child agent task. Specify role, tier, and a focused prompt.",
+        "check_status": "Check if a child task is running, completed, or failed.",
         "get_result": "Retrieve the output of a completed child task.",
         "cancel_task": "Cancel a running child task.",
         "run_shell": "Execute a shell command in /workspace/.",
         "read_file": "Read a file from the filesystem.",
-        "write_file": "Write a file to /outbox/artifacts/ or /workspace/.",
+        "write_file": "Write a file to the filesystem.",
     }
 
-    lines = []
+    lines = ["\n## Tools"]
     for name in tool_names:
         desc = descriptions.get(name, "No description available.")
         lines.append(f"- **{name}**: {desc}")
 
-    return "\n".join(lines) if lines else "No tools available."
+    if not tool_names:
+        lines.append("No tools available.")
+
+    return "\n".join(lines)
 
 
-def _workflow_section(tier: str, tool_names: list[str]) -> str:
-    """Return tier-specific workflow guidance."""
-    has_spawn = "spawn_task" in tool_names
-    has_shell = "run_shell" in tool_names
+def _delegation_section(tier: str, available_roles: list[dict] | None) -> str:
+    """Delegation guidance for tribunes and centurions."""
+    lines = ["\n## Delegation"]
 
-    if tier == "tribune" and has_spawn:
-        return (
-            "1. **Plan**: Analyze the task and create a decomposition plan. Write it to /workspace/plan.md.\n"
-            "2. **Delegate**: Use spawn_task to create child tasks for each subtask.\n"
-            "   - For quick tasks, use `wait: true` to get results inline.\n"
-            "   - For longer tasks, spawn without wait and check_status/get_result later.\n"
-            "   - **Each child must have a DISTINCT scope.** Never spawn two children with the same role and overlapping work.\n"
-            "   - Before spawning, review what you already delegated. If a role is already handling a scope, don't duplicate it.\n"
-            "3. **Collect**: Once all children complete, review their results.\n"
-            "4. **Consolidate**: Synthesize results into a comprehensive final answer.\n"
-            "5. **Deliver**: Write deliverables to /outbox/artifacts/ and provide your summary."
-        )
-    elif tier == "centurion" and has_spawn:
-        return (
-            "1. **Analyze**: Understand your assigned subtask.\n"
-            "2. **Execute or Delegate**: Do small tasks yourself; spawn Legionaries for focused work.\n"
-            "3. **Collect**: Gather results from any children you spawned.\n"
-            "4. **Report**: Write your consolidated output and any artifacts."
-        )
-    elif has_shell:
-        return (
-            "1. **Understand**: Read the task carefully.\n"
-            "2. **Execute**: Use run_shell to execute commands, write code, run tests.\n"
-            "3. **Iterate**: Fix issues, re-run, until the task is complete.\n"
-            "4. **Deliver**: Write results to /outbox/artifacts/ and summarize."
-        )
+    if tier == "tribune":
+        lines.extend([
+            "Before spawning ANY children, write a plan to `/workspace/plan.md` that maps each subtask to a role.",
+            "",
+            "**Delegation rules:**",
+            "- Each child gets ONE clearly scoped piece of work. Never give a child the entire task.",
+            "- Never spawn two children with overlapping scope. If you need the same role twice, each must own a distinct deliverable.",
+            "- Give each child a specific prompt: what to build, what file paths to use, what constraints apply.",
+            "- Wait for children to complete, then review quality before consolidating.",
+        ])
+    else:  # centurion
+        lines.extend([
+            "**When to delegate vs execute directly:**",
+            "- Tasks you can finish in a few tool calls → do it yourself.",
+            "- Tasks requiring focused, independent work → spawn a Legionary.",
+            "- When delegating, give each child a precise scope and expected output path.",
+        ])
+
+    if available_roles:
+        lines.append("\n**Available roles:**")
+        for r in available_roles:
+            name = r.get("name", "unknown")
+            t = r.get("tierAffinity", "")
+            desc = r.get("description", "")
+            lines.append(f"- **{name}** ({t}): {desc}")
+        lines.append("\nChoose the lowest-privilege role that fits. Don't over-delegate simple work.")
+
+    return "\n".join(lines)
+
+
+def _exit_criteria_section(exit_criteria: str) -> str:
+    """When the agent should consider itself done."""
+    if not exit_criteria:
+        return ""
+
+    return (
+        f"\n## Exit Criteria\n"
+        f"You are done when: {exit_criteria}\n"
+        f"Evaluate this after each major step. If met, produce your final output."
+    )
+
+
+def _iteration_section(iteration: int, max_iterations: int) -> str:
+    """Planning loop iteration guidance."""
+    if max_iterations <= 1:
+        return ""
+
+    lines = [f"\n## Iteration {iteration}/{max_iterations}"]
+
+    if iteration == 1:
+        lines.extend([
+            "First iteration. Write your plan to `/workspace/plan.md` before acting.",
+            "Checkpoint progress to `/workspace/state.json` before finishing."
+        ])
+    elif iteration >= max_iterations:
+        lines.extend([
+            "**FINAL iteration.** Produce your best output now.",
+            "Check `/inbox/` for child results. Consolidate into final deliverables.",
+        ])
     else:
-        return (
-            "1. **Read**: Understand the task and any provided context.\n"
-            "2. **Think**: Reason about the solution.\n"
-            "3. **Write**: Produce your output and save to /outbox/artifacts/ if applicable.\n"
-            "4. **Summarize**: Provide a clear summary of what you produced."
-        )
+        lines.extend([
+            "Continuing from previous iteration.",
+            "Check `/inbox/` for child results. Review `/workspace/plan.md`.",
+            "Adapt plan if needed. Checkpoint to `/workspace/state.json`.",
+        ])
+
+    return "\n".join(lines)
 
 
 def _role_context_section(
@@ -152,90 +233,47 @@ def _role_context_section(
     rules: list[str] | None,
     anti_patterns: list[str] | None,
 ) -> str:
-    """Build the role context section with rules and anti-patterns."""
+    """Role context at the END of the prompt for recency bias."""
     if not rules and not anti_patterns and not description:
         return ""
 
-    parts = [f"\n## Role: {role}"]
+    parts = [f"\n## Your Role: {role}"]
     if description:
         parts.append(description)
 
     if rules:
-        parts.append("\n### Rules")
+        parts.append("\n**Rules:**")
         for rule in rules:
             parts.append(f"- {rule}")
 
     if anti_patterns:
-        parts.append("\n### Anti-Patterns (avoid these)")
+        parts.append("\n**Avoid:**")
         for ap in anti_patterns:
             parts.append(f"- {ap}")
 
-    parts.append("")
     return "\n".join(parts)
 
 
-def _delegation_section(available_roles: list[dict] | None) -> str:
-    """Build the delegation section listing available roles."""
-    if not available_roles:
-        return ""
+def _rules_section(tier: str, is_spawner: bool) -> str:
+    """Hard rules at the very end — highest recency weight."""
+    lines = ["\n## Rules"]
 
-    parts = [
-        "\n## Available Roles for Delegation",
-        "When spawning child tasks, choose from these roles:",
-    ]
-    for role in available_roles:
-        name = role.get("name", "unknown")
-        tier = role.get("tierAffinity", "")
-        desc = role.get("description", "")
-        parts.append(f"- **{name}** ({tier}): {desc}")
+    # Universal rules
+    lines.extend([
+        "1. **Always deliver.** Write your final result to `/outbox/artifacts/`. No silent exits.",
+        "2. **Be honest.** If you can't complete the task, say what you accomplished and what remains.",
+    ])
 
-    parts.append(
-        "\nChoose the lowest-privilege role that meets the task's needs.\n"
-        "If no role matches exactly, pick the closest fit and adapt your approach.\n"
-        "**Never spawn the same role twice for the same scope.** "
-        "If you need multiple children with the same role, each must own a clearly distinct piece of work.\n"
-    )
-    return "\n".join(parts)
-
-
-def _exit_criteria_section(exit_criteria: str) -> str:
-    """Build the exit criteria section when provided."""
-    if not exit_criteria:
-        return ""
-
-    return (
-        "\n## Exit Criteria\n"
-        f"You are done when: {exit_criteria}\n\n"
-        "Evaluate this criteria at the end of each iteration. If met, produce your final output.\n"
-        "If not met and you have iterations remaining, continue working.\n"
-    )
-
-
-def _iteration_section(iteration: int, max_iterations: int) -> str:
-    """Return planning loop iteration guidance."""
-    if max_iterations <= 1:
-        return ""
-
-    parts = [f"\n## Planning Loop (Iteration {iteration}/{max_iterations})"]
-
-    if iteration == 1:
-        parts.append("This is your first iteration. Plan your approach:")
-        parts.append("1. **Assess**: Analyze the task and available resources")
-        parts.append("2. **Plan**: Create a work breakdown and write it to /workspace/plan.md")
-        parts.append("3. **Act**: Delegate subtasks or execute directly")
-        parts.append("4. **Checkpoint**: Write progress to /workspace/state.json before finishing")
-    elif iteration >= max_iterations:
-        parts.append("**This is your FINAL iteration.** Produce your best output now.")
-        parts.append("1. Check /inbox/ for completed child results")
-        parts.append("2. Review /workspace/plan.md for your original plan")
-        parts.append("3. Consolidate all results into final deliverables")
-        parts.append("4. Write final output — no more iterations after this")
+    if is_spawner:
+        lines.extend([
+            "3. **Plan before acting.** No spawn calls before you have a written plan.",
+            "4. **One scope per child.** Overlapping delegation wastes budget and causes conflicts.",
+            "5. **Review before consolidating.** Check child results for quality.",
+        ])
     else:
-        parts.append("You are continuing from a previous iteration.")
-        parts.append("1. **Review**: Check /inbox/ for child results and /workspace/plan.md")
-        parts.append("2. **Evaluate**: What succeeded? What failed? What's left?")
-        parts.append("3. **Adapt**: Re-plan if needed, spawn new children for remaining work")
-        parts.append("4. **Checkpoint**: Update /workspace/state.json with current progress")
+        lines.extend([
+            "3. **Stay focused.** Execute your specific task. Don't expand scope.",
+            "4. **Iterate on failures.** If something breaks, try a different approach before giving up.",
+        ])
 
-    parts.append("")
-    return "\n".join(parts)
+    return "\n".join(lines)
