@@ -286,6 +286,12 @@ type AgentTaskSpec struct {
 	// +optional
 	Retry *RetrySpec `json:"retry,omitempty"`
 
+	// ExitCriteria is a human-readable description of when this task is complete.
+	// Injected into the agent's system prompt to guide self-assessment.
+	// E.g. "All tests pass with exit code 0" or "Report contains all 5 sections".
+	// +optional
+	ExitCriteria string `json:"exitCriteria,omitempty"`
+
 	// InputFiles are files delivered to /inbox when the task starts.
 	// Files are base64-encoded and written by the init container.
 	// Size limit: ~1MB total (etcd constraint).

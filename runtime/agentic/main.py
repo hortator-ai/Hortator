@@ -272,6 +272,9 @@ def main():
     except (json.JSONDecodeError, TypeError):
         pass
 
+    # Exit criteria (injected by operator from spec.exitCriteria)
+    exit_criteria = os.environ.get("HORTATOR_EXIT_CRITERIA", "")
+
     # Build system prompt
     system_prompt = build_system_prompt(
         role=role,
@@ -282,6 +285,7 @@ def main():
         role_rules=role_rules,
         role_anti_patterns=role_anti_patterns,
         available_roles=available_roles,
+        exit_criteria=exit_criteria,
     )
 
     # Redact system prompt if it may contain user-provided content

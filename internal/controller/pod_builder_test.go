@@ -445,6 +445,38 @@ func TestBuildPod(t *testing.T) {
 			t.Errorf("restart policy = %v", pod.Spec.RestartPolicy)
 		}
 	})
+
+	t.Run("exitCriteria sets env var", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", ExitCriteria: "All tests pass with exit code 0"},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_EXIT_CRITERIA"] != "All tests pass with exit code 0" {
+			t.Errorf("HORTATOR_EXIT_CRITERIA = %q, want 'All tests pass with exit code 0'", envMap["HORTATOR_EXIT_CRITERIA"])
+		}
+	})
+
+	t.Run("no exitCriteria omits env var", func(t *testing.T) {
+		r := defaultReconciler(scheme)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
+		}
+		pod, err := r.buildPod(task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if _, ok := envMap["HORTATOR_EXIT_CRITERIA"]; ok {
+			t.Errorf("HORTATOR_EXIT_CRITERIA should not be set when exitCriteria is empty")
+		}
+	})
 }
 
 func TestEnsurePVC(t *testing.T) {

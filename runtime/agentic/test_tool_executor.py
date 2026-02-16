@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from tool_executor import _check_shell_command_policy, _exec_run_shell
+from tool_executor import _check_shell_command_policy, _exec_run_shell, _exec_list_roles
 
 
 class TestShellCommandPolicy(unittest.TestCase):
@@ -54,6 +54,33 @@ class TestShellCommandPolicy(unittest.TestCase):
             result = _exec_run_shell({"command": "echo hello"})
             self.assertTrue(result["success"])
             self.assertIn("hello", result["stdout"])
+
+
+class TestListRoles(unittest.TestCase):
+
+    @patch("tool_executor.subprocess.run")
+    def test_list_roles_no_capabilities(self, mock_run):
+        mock_run.return_value = unittest.mock.Mock(
+            returncode=0, stdout='[{"name":"coder"}]', stderr=""
+        )
+        result = _exec_list_roles({})
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        self.assertEqual(cmd, ["hortator", "roles", "list", "-o", "json"])
+        self.assertTrue(result["success"])
+
+    @patch("tool_executor.subprocess.run")
+    def test_list_roles_with_capabilities(self, mock_run):
+        mock_run.return_value = unittest.mock.Mock(
+            returncode=0, stdout='[{"name":"coder"}]', stderr=""
+        )
+        result = _exec_list_roles({"requiredCapabilities": ["shell", "web-fetch"]})
+        cmd = mock_run.call_args[0][0]
+        self.assertEqual(cmd, [
+            "hortator", "roles", "list", "-o", "json",
+            "--capability", "shell", "--capability", "web-fetch",
+        ])
+        self.assertTrue(result["success"])
 
 
 if __name__ == "__main__":
