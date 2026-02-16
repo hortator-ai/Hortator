@@ -12,11 +12,17 @@ RUN go mod download
 # Copy source
 COPY . .
 
+# Version info
+ARG VERSION=dev
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+ENV LDFLAGS="-s -w -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.Version=${VERSION} -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.GitCommit=${GIT_COMMIT} -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.BuildTime=${BUILD_TIME}"
+
 # Build operator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager cmd/main.go
 
 # Build CLI
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o hortator ./cmd/hortator
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags "${LDFLAGS}" -o hortator ./cmd/hortator
 
 # Build gateway
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o gateway ./cmd/gateway

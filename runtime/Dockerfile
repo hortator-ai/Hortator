@@ -3,7 +3,10 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /hortator ./cmd/hortator
+ARG VERSION=dev
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+RUN CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.Version=${VERSION} -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.GitCommit=${GIT_COMMIT} -X github.com/hortator-ai/Hortator/cmd/hortator/cmd.BuildTime=${BUILD_TIME}" -o /hortator ./cmd/hortator
 
 FROM debian:bookworm-slim
 
