@@ -113,10 +113,12 @@ def _workflow_section(tier: str, tool_names: list[str]) -> str:
 
     if tier == "tribune" and has_spawn:
         return (
-            "1. **Plan**: Analyze the task and create a decomposition plan.\n"
+            "1. **Plan**: Analyze the task and create a decomposition plan. Write it to /workspace/plan.md.\n"
             "2. **Delegate**: Use spawn_task to create child tasks for each subtask.\n"
             "   - For quick tasks, use `wait: true` to get results inline.\n"
             "   - For longer tasks, spawn without wait and check_status/get_result later.\n"
+            "   - **Each child must have a DISTINCT scope.** Never spawn two children with the same role and overlapping work.\n"
+            "   - Before spawning, review what you already delegated. If a role is already handling a scope, don't duplicate it.\n"
             "3. **Collect**: Once all children complete, review their results.\n"
             "4. **Consolidate**: Synthesize results into a comprehensive final answer.\n"
             "5. **Deliver**: Write deliverables to /outbox/artifacts/ and provide your summary."
@@ -190,6 +192,8 @@ def _delegation_section(available_roles: list[dict] | None) -> str:
     parts.append(
         "\nChoose the lowest-privilege role that meets the task's needs.\n"
         "If no role matches exactly, pick the closest fit and adapt your approach.\n"
+        "**Never spawn the same role twice for the same scope.** "
+        "If you need multiple children with the same role, each must own a clearly distinct piece of work.\n"
     )
     return "\n".join(parts)
 
