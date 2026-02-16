@@ -11,6 +11,14 @@ import (
 
 // AgentRoleSpec defines the desired state of AgentRole and ClusterAgentRole.
 type AgentRoleSpec struct {
+	// TierAffinity is the hierarchy tier this role is designed for (e.g. centurion, legionary).
+	// +optional
+	TierAffinity string `json:"tierAffinity,omitempty"`
+
+	// Description is a human-readable description of the role's purpose.
+	// +optional
+	Description string `json:"description,omitempty"`
+
 	// DefaultModel is the model name (e.g. claude-sonnet-4-20250514).
 	// +optional
 	DefaultModel string `json:"defaultModel,omitempty"`
@@ -26,6 +34,14 @@ type AgentRoleSpec struct {
 	// Tools is a list of tool names available to this role.
 	// +optional
 	Tools []string `json:"tools,omitempty"`
+
+	// Rules is a list of behavioral rules/guidelines for this role.
+	// +optional
+	Rules []string `json:"rules,omitempty"`
+
+	// AntiPatterns is a list of things the role should avoid doing.
+	// +optional
+	AntiPatterns []string `json:"antiPatterns,omitempty"`
 
 	// Health defines per-role health/stuck detection overrides.
 	// These sit between the cluster defaults and per-task overrides in the cascade:

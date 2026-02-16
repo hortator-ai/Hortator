@@ -286,6 +286,12 @@ type AgentTaskSpec struct {
 	// +optional
 	Retry *RetrySpec `json:"retry,omitempty"`
 
+	// MaxIterations is the maximum number of planning loop iterations.
+	// Tribunes default to 5, centurions to 3, legionaries to 1.
+	// Set to 1 to disable the planning loop (single-shot execution).
+	// +optional
+	MaxIterations *int `json:"maxIterations,omitempty"`
+
 	// InputFiles are files delivered to /inbox when the task starts.
 	// Files are base64-encoded and written by the init container.
 	// Size limit: ~1MB total (etcd constraint).

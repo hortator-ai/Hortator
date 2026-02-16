@@ -25,6 +25,10 @@ def execute_tool(name: str, args: dict, task_name: str, task_ns: str) -> dict:
                 return _exec_cancel_task(args)
             case "checkpoint_and_wait":
                 return _exec_checkpoint_and_wait(args)
+            case "list_roles":
+                return _exec_list_roles(args)
+            case "describe_role":
+                return _exec_describe_role(args)
             case "run_shell":
                 return _exec_run_shell(args)
             case "read_file":
@@ -170,6 +174,46 @@ def _exec_checkpoint_and_wait(args: dict) -> dict:
         "_checkpoint_and_wait": True,
         "summary": summary,
     }
+
+
+# ── Role Discovery ───────────────────────────────────────────────────────────
+
+def _exec_list_roles(args: dict) -> dict:
+    """List available roles via `hortator roles list --json`."""
+    result = subprocess.run(
+        ["hortator", "roles", "list", "-o", "json"],
+        capture_output=True, text=True, timeout=15,
+    )
+    if result.returncode != 0:
+        return {"success": False, "error": result.stderr.strip()}
+
+    try:
+        roles = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {"success": False, "error": "Failed to parse roles output"}
+
+    return {"success": True, "roles": roles}
+
+
+def _exec_describe_role(args: dict) -> dict:
+    """Describe a specific role via `hortator roles describe <name> --json`."""
+    name = args.get("name", "")
+    if not name:
+        return {"success": False, "error": "name is required"}
+
+    result = subprocess.run(
+        ["hortator", "roles", "describe", name, "-o", "json"],
+        capture_output=True, text=True, timeout=15,
+    )
+    if result.returncode != 0:
+        return {"success": False, "error": result.stderr.strip()}
+
+    try:
+        role = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {"success": False, "error": "Failed to parse role output"}
+
+    return {"success": True, "role": role}
 
 
 # ── Shell Execution ──────────────────────────────────────────────────────────

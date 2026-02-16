@@ -21,6 +21,8 @@ def build_tools(capabilities: list[str], task_name: str, task_ns: str) -> list[d
         tools.append(_tool_get_result())
         tools.append(_tool_cancel_task())
         tools.append(_tool_checkpoint_and_wait())
+        tools.append(_tool_list_roles())
+        tools.append(_tool_describe_role())
 
     # shell capability gates command execution
     if "shell" in capabilities:
@@ -185,6 +187,47 @@ def _tool_run_shell() -> dict:
                     },
                 },
                 "required": ["command"],
+            },
+        },
+    }
+
+
+def _tool_list_roles() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "list_roles",
+            "description": (
+                "List all available AgentRoles (cluster and namespace-scoped). "
+                "Returns a JSON array of role objects with name, tierAffinity, description, tools, rules, and antiPatterns. "
+                "Use this to discover what roles are available before spawning child tasks."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    }
+
+
+def _tool_describe_role() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "describe_role",
+            "description": (
+                "Get full details for a specific AgentRole by name. "
+                "Returns a JSON object with all role fields including tools, rules, and antiPatterns."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the role to describe.",
+                    },
+                },
+                "required": ["name"],
             },
         },
     }

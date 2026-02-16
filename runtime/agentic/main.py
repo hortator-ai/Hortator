@@ -248,12 +248,18 @@ def main():
     # Build tools based on capabilities
     tools = build_tools(capabilities, task_name, task_ns)
 
+    # Read iteration metadata (injected by operator)
+    iteration = int(os.environ.get("HORTATOR_ITERATION", "1"))
+    max_iterations = int(os.environ.get("HORTATOR_MAX_ITERATIONS", "1"))
+
     # Build system prompt
     system_prompt = build_system_prompt(
         role=role,
         tier=tier,
         capabilities=capabilities,
         tool_names=[t["function"]["name"] for t in tools],
+        iteration=iteration,
+        max_iterations=max_iterations,
     )
 
     # Redact system prompt if it may contain user-provided content
