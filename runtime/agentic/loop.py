@@ -9,6 +9,7 @@ decides to checkpoint and wait for children.
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import litellm
@@ -41,8 +42,8 @@ def agentic_loop(
     task_ns: str,
     budget: dict,
     state_file: str,
-    is_killed: callable,
-    presidio_redact_fn: callable | None = None,
+    is_killed: Callable,
+    presidio_redact_fn: Callable | None = None,
 ) -> LoopResult:
     """
     Run the tool-calling loop until the LLM produces a final answer,
