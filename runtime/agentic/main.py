@@ -292,6 +292,11 @@ def main():
     max_iterations = int(os.environ.get("HORTATOR_MAX_ITERATIONS", "1"))
 
     # Build system prompt
+    # Extract budget/timeout for prompt constraints section
+    budget_usd = budget.get("maxCostUsd") or os.environ.get("HORTATOR_BUDGET_USD")
+    budget_tokens = budget.get("maxTokens") or os.environ.get("HORTATOR_BUDGET_TOKENS")
+    timeout_str = task.get("timeout") or os.environ.get("HORTATOR_TIMEOUT")
+
     system_prompt = build_system_prompt(
         role=role,
         tier=tier,
@@ -304,6 +309,9 @@ def main():
         exit_criteria=exit_criteria,
         iteration=iteration,
         max_iterations=max_iterations,
+        budget_tokens=int(budget_tokens) if budget_tokens else None,
+        budget_usd=str(budget_usd) if budget_usd else None,
+        timeout_seconds=int(timeout_str) if timeout_str else None,
     )
 
     # Redact system prompt if it may contain user-provided content
