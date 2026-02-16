@@ -7,6 +7,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -44,7 +45,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "hello"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -59,7 +60,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "hello", Image: "myimage:v1"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -74,7 +75,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "my-task", Namespace: "test-ns"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "do stuff"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -96,7 +97,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Capabilities: []string{"shell", "web-fetch"}},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -119,7 +120,7 @@ func TestBuildPod(t *testing.T) {
 				},
 			},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -148,7 +149,7 @@ func TestBuildPod(t *testing.T) {
 				},
 			},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -175,7 +176,7 @@ func TestBuildPod(t *testing.T) {
 				},
 			},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -204,7 +205,7 @@ func TestBuildPod(t *testing.T) {
 				},
 			},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -230,7 +231,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -260,7 +261,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -276,7 +277,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -298,7 +299,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -319,7 +320,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Capabilities: []string{"shell", "web-fetch"}},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -334,7 +335,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Capabilities: []string{"shell", "spawn"}},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -350,7 +351,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Tier: "tribune"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -365,7 +366,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -387,7 +388,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task, policy)
+		pod, err := r.buildPod(context.Background(), task, policy)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -412,7 +413,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task, policy)
+		pod, err := r.buildPod(context.Background(), task, policy)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -433,7 +434,7 @@ func TestBuildPod(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -738,7 +739,7 @@ func TestBuildPodShellCommandPolicy(t *testing.T) {
 				DeniedShellCommands:  []string{"rm", "curl"},
 			},
 		}
-		pod, err := r.buildPod(task, policy)
+		pod, err := r.buildPod(context.Background(), task, policy)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -762,7 +763,7 @@ func TestBuildPodShellCommandPolicy(t *testing.T) {
 				ReadOnlyWorkspace: true,
 			},
 		}
-		pod, err := r.buildPod(task, policy)
+		pod, err := r.buildPod(context.Background(), task, policy)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -786,7 +787,7 @@ func TestBuildPodShellCommandPolicy(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "t-nopol", Namespace: "default"},
 			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test"},
 		}
-		pod, err := r.buildPod(task)
+		pod, err := r.buildPod(context.Background(), task)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -796,6 +797,167 @@ func TestBuildPodShellCommandPolicy(t *testing.T) {
 		}
 		if _, ok := envMap["HORTATOR_DENIED_COMMANDS"]; ok {
 			t.Error("unexpected HORTATOR_DENIED_COMMANDS without policy")
+		}
+	})
+}
+
+func TestBuildPodRoleResolution(t *testing.T) {
+	scheme := newTestScheme()
+	ctx := context.Background()
+
+	t.Run("role env vars from ClusterAgentRole", func(t *testing.T) {
+		clusterRole := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-role"},
+			Spec: corev1alpha1.AgentRoleSpec{
+				Description:  "A test role for code review",
+				TierAffinity: "legionary",
+				Rules:        []string{"Be thorough", "Check edge cases"},
+				AntiPatterns: []string{"Don't skip tests"},
+			},
+		}
+		r := defaultReconciler(scheme, clusterRole)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t1", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "review code", Role: "test-role"},
+		}
+		pod, err := r.buildPod(ctx, task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_ROLE_DESCRIPTION"] != "A test role for code review" {
+			t.Errorf("HORTATOR_ROLE_DESCRIPTION = %q", envMap["HORTATOR_ROLE_DESCRIPTION"])
+		}
+		if envMap["HORTATOR_ROLE_RULES"] != `["Be thorough","Check edge cases"]` {
+			t.Errorf("HORTATOR_ROLE_RULES = %q", envMap["HORTATOR_ROLE_RULES"])
+		}
+		if envMap["HORTATOR_ROLE_ANTIPATTERNS"] != `["Don't skip tests"]` {
+			t.Errorf("HORTATOR_ROLE_ANTIPATTERNS = %q", envMap["HORTATOR_ROLE_ANTIPATTERNS"])
+		}
+	})
+
+	t.Run("namespace AgentRole takes precedence over ClusterAgentRole", func(t *testing.T) {
+		clusterRole := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-role"},
+			Spec:       corev1alpha1.AgentRoleSpec{Description: "cluster description"},
+		}
+		nsRole := &corev1alpha1.AgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-role", Namespace: "default"},
+			Spec:       corev1alpha1.AgentRoleSpec{Description: "namespace description"},
+		}
+		r := defaultReconciler(scheme, clusterRole, nsRole)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t2", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "test", Role: "test-role"},
+		}
+		pod, err := r.buildPod(ctx, task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if envMap["HORTATOR_ROLE_DESCRIPTION"] != "namespace description" {
+			t.Errorf("HORTATOR_ROLE_DESCRIPTION = %q, want namespace description", envMap["HORTATOR_ROLE_DESCRIPTION"])
+		}
+	})
+
+	t.Run("tribune gets HORTATOR_AVAILABLE_ROLES", func(t *testing.T) {
+		legionaryRole := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "coder"},
+			Spec: corev1alpha1.AgentRoleSpec{
+				Description:  "Writes code",
+				TierAffinity: "legionary",
+			},
+		}
+		centurionRole := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "reviewer"},
+			Spec: corev1alpha1.AgentRoleSpec{
+				Description:  "Reviews code",
+				TierAffinity: "centurion",
+			},
+		}
+		tribuneRole := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "architect"},
+			Spec: corev1alpha1.AgentRoleSpec{
+				Description:  "Designs systems",
+				TierAffinity: "tribune",
+			},
+		}
+		r := defaultReconciler(scheme, legionaryRole, centurionRole, tribuneRole)
+		r.defaults.AgenticImage = "ghcr.io/hortator-ai/hortator/agentic:latest"
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t3", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "design", Tier: "tribune", Role: "architect"},
+		}
+		pod, err := r.buildPod(ctx, task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		rolesJSON := envMap["HORTATOR_AVAILABLE_ROLES"]
+		if rolesJSON == "" {
+			t.Fatal("HORTATOR_AVAILABLE_ROLES not set for tribune")
+		}
+		// Tribune can delegate to centurion + legionary but NOT tribune
+		if !strings.Contains(rolesJSON, "coder") {
+			t.Error("expected coder in available roles")
+		}
+		if !strings.Contains(rolesJSON, "reviewer") {
+			t.Error("expected reviewer in available roles")
+		}
+		if strings.Contains(rolesJSON, "architect") {
+			t.Error("tribune role should not be in available roles for tribune")
+		}
+	})
+
+	t.Run("centurion only gets legionary roles", func(t *testing.T) {
+		legionaryRole := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "coder"},
+			Spec:       corev1alpha1.AgentRoleSpec{TierAffinity: "legionary"},
+		}
+		centurionRole := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "reviewer"},
+			Spec:       corev1alpha1.AgentRoleSpec{TierAffinity: "centurion"},
+		}
+		r := defaultReconciler(scheme, legionaryRole, centurionRole)
+		r.defaults.AgenticImage = "ghcr.io/hortator-ai/hortator/agentic:latest"
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t4", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "review", Tier: "centurion"},
+		}
+		pod, err := r.buildPod(ctx, task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		rolesJSON := envMap["HORTATOR_AVAILABLE_ROLES"]
+		if rolesJSON == "" {
+			t.Fatal("HORTATOR_AVAILABLE_ROLES not set for centurion")
+		}
+		if !strings.Contains(rolesJSON, "coder") {
+			t.Error("expected coder in available roles")
+		}
+		if strings.Contains(rolesJSON, "reviewer") {
+			t.Error("centurion role should not be delegatable by centurion")
+		}
+	})
+
+	t.Run("legionary does NOT get HORTATOR_AVAILABLE_ROLES", func(t *testing.T) {
+		role := &corev1alpha1.ClusterAgentRole{
+			ObjectMeta: metav1.ObjectMeta{Name: "coder"},
+			Spec:       corev1alpha1.AgentRoleSpec{TierAffinity: "legionary"},
+		}
+		r := defaultReconciler(scheme, role)
+		task := &corev1alpha1.AgentTask{
+			ObjectMeta: metav1.ObjectMeta{Name: "t5", Namespace: "default"},
+			Spec:       corev1alpha1.AgentTaskSpec{Prompt: "code", Tier: "legionary"},
+		}
+		pod, err := r.buildPod(ctx, task)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		envMap := envToMap(pod.Spec.Containers[0].Env)
+		if _, ok := envMap["HORTATOR_AVAILABLE_ROLES"]; ok {
+			t.Error("legionary should NOT get HORTATOR_AVAILABLE_ROLES")
 		}
 	})
 }

@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -231,7 +232,7 @@ func workerSAForCaps(caps []string) string {
 }
 
 // buildPod creates a pod spec for the agent task.
-func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask, policies ...corev1alpha1.AgentPolicy) (*corev1.Pod, error) {
+func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.AgentTask, policies ...corev1alpha1.AgentPolicy) (*corev1.Pod, error) {
 	image := task.Spec.Image
 	if image == "" {
 		if isAgenticTier(task.Spec.Tier) {
@@ -351,6 +352,75 @@ func (r *AgentTaskReconciler) buildPod(task *corev1alpha1.AgentTask, policies ..
 			Name:  "HORTATOR_DENIED_COMMANDS",
 			Value: strings.Join(allDeniedCmds, ","),
 		})
+	}
+
+	// Resolve role CRD and inject role context
+	if task.Spec.Role != "" {
+		var roleSpec *corev1alpha1.AgentRoleSpec
+
+		agentRole := &corev1alpha1.AgentRole{}
+		err := r.Get(ctx, types.NamespacedName{Name: task.Spec.Role, Namespace: task.Namespace}, agentRole)
+		if err == nil {
+			roleSpec = &agentRole.Spec
+		} else {
+			clusterRole := &corev1alpha1.ClusterAgentRole{}
+			err = r.Get(ctx, types.NamespacedName{Name: task.Spec.Role}, clusterRole)
+			if err == nil {
+				roleSpec = &clusterRole.Spec
+			}
+		}
+
+		if roleSpec != nil {
+			if roleSpec.Description != "" {
+				env = append(env, corev1.EnvVar{Name: "HORTATOR_ROLE_DESCRIPTION", Value: roleSpec.Description})
+			}
+			if len(roleSpec.Rules) > 0 {
+				rulesJSON, _ := json.Marshal(roleSpec.Rules)
+				env = append(env, corev1.EnvVar{Name: "HORTATOR_ROLE_RULES", Value: string(rulesJSON)})
+			}
+			if len(roleSpec.AntiPatterns) > 0 {
+				apJSON, _ := json.Marshal(roleSpec.AntiPatterns)
+				env = append(env, corev1.EnvVar{Name: "HORTATOR_ROLE_ANTIPATTERNS", Value: string(apJSON)})
+			}
+		}
+	}
+
+	// For agentic tiers, generate the available roles registry
+	if isAgenticTier(task.Spec.Tier) {
+		var allRoleSpecs []availableRoleEntry
+
+		var clusterRoles corev1alpha1.ClusterAgentRoleList
+		if err := r.List(ctx, &clusterRoles); err == nil {
+			for _, cr := range clusterRoles.Items {
+				if canDelegate(task.Spec.Tier, cr.Spec.TierAffinity) {
+					allRoleSpecs = append(allRoleSpecs, availableRoleEntry{
+						Name:         cr.Name,
+						Description:  cr.Spec.Description,
+						TierAffinity: cr.Spec.TierAffinity,
+						Scope:        "cluster",
+					})
+				}
+			}
+		}
+
+		var nsRoles corev1alpha1.AgentRoleList
+		if err := r.List(ctx, &nsRoles, client.InNamespace(task.Namespace)); err == nil {
+			for _, nr := range nsRoles.Items {
+				if canDelegate(task.Spec.Tier, nr.Spec.TierAffinity) {
+					allRoleSpecs = append(allRoleSpecs, availableRoleEntry{
+						Name:         nr.Name,
+						Description:  nr.Spec.Description,
+						TierAffinity: nr.Spec.TierAffinity,
+						Scope:        "namespace",
+					})
+				}
+			}
+		}
+
+		if len(allRoleSpecs) > 0 {
+			rolesJSON, _ := json.Marshal(allRoleSpecs)
+			env = append(env, corev1.EnvVar{Name: "HORTATOR_AVAILABLE_ROLES", Value: string(rolesJSON)})
+		}
 	}
 
 	resources, err := r.buildResources(task)
@@ -630,6 +700,30 @@ func parseQuantity(value, label string) (resource.Quantity, error) {
 		return resource.Quantity{}, fmt.Errorf("invalid %s %q: %w", label, value, err)
 	}
 	return qty, nil
+}
+
+// availableRoleEntry is serialized into HORTATOR_AVAILABLE_ROLES for agentic tiers.
+type availableRoleEntry struct {
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+	TierAffinity string `json:"tierAffinity,omitempty"`
+	Scope        string `json:"scope"`
+}
+
+// canDelegate returns true if the given parent tier can delegate to a role with the given tierAffinity.
+// Tribune can delegate to centurion + legionary; centurion can delegate to legionary only.
+// Roles with no tierAffinity are available to all agentic tiers.
+func canDelegate(parentTier, roleTierAffinity string) bool {
+	if roleTierAffinity == "" {
+		return true
+	}
+	switch parentTier {
+	case "tribune":
+		return roleTierAffinity == "centurion" || roleTierAffinity == "legionary"
+	case "centurion":
+		return roleTierAffinity == "legionary"
+	}
+	return false
 }
 
 // buildResources constructs resource requirements from the task spec or cluster defaults.

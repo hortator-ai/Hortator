@@ -27,6 +27,26 @@ type AgentRoleSpec struct {
 	// +optional
 	Tools []string `json:"tools,omitempty"`
 
+	// Description is a human-readable description of what this role does.
+	// Used for role discovery by agents and in CLI output.
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// TierAffinity is the suggested tier when this role is used (e.g. "centurion", "legionary").
+	// Helps agents choose appropriate delegation targets.
+	// +optional
+	TierAffinity string `json:"tierAffinity,omitempty"`
+
+	// Rules is a list of behavioral instructions for agents in this role.
+	// Injected into the agent's system prompt.
+	// +optional
+	Rules []string `json:"rules,omitempty"`
+
+	// AntiPatterns is a list of things agents in this role should avoid.
+	// Injected into the agent's system prompt.
+	// +optional
+	AntiPatterns []string `json:"antiPatterns,omitempty"`
+
 	// Health defines per-role health/stuck detection overrides.
 	// These sit between the cluster defaults and per-task overrides in the cascade:
 	// ConfigMap defaults -> AgentRole -> AgentTask (most specific wins).
@@ -35,6 +55,8 @@ type AgentRoleSpec struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:printcolumn:name="Description",type=string,JSONPath=`.spec.description`,priority=1
+// +kubebuilder:printcolumn:name="Tier",type=string,JSONPath=`.spec.tierAffinity`
 // +kubebuilder:printcolumn:name="Model",type=string,JSONPath=`.spec.defaultModel`
 // +kubebuilder:printcolumn:name="Endpoint",type=string,JSONPath=`.spec.defaultEndpoint`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
@@ -58,6 +80,8 @@ type AgentRoleList struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Description",type=string,JSONPath=`.spec.description`,priority=1
+// +kubebuilder:printcolumn:name="Tier",type=string,JSONPath=`.spec.tierAffinity`
 // +kubebuilder:printcolumn:name="Model",type=string,JSONPath=`.spec.defaultModel`
 // +kubebuilder:printcolumn:name="Endpoint",type=string,JSONPath=`.spec.defaultEndpoint`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
