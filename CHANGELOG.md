@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.3](https://github.com/hortator-ai/Hortator/compare/v0.5.2...v0.5.3) (2026-02-16)
+
+
+### Bug Fixes
+
+* register children in parent PendingChildren on creation ([#71](https://github.com/hortator-ai/Hortator/issues/71)) ([01fbbe3](https://github.com/hortator-ai/Hortator/commit/01fbbe385f4b14f362a1d52183b42b625eecdca9))
+* rewrite delegation test to not spoon-feed decomposition ([#65](https://github.com/hortator-ai/Hortator/issues/65)) ([819111b](https://github.com/hortator-ai/Hortator/commit/819111b3a393d5ba28e63c1a877ec8947f2eb418))
+* storage.retain should only preserve PVC, not block task GC ([#64](https://github.com/hortator-ai/Hortator/issues/64)) ([01e982e](https://github.com/hortator-ai/Hortator/commit/01e982e9d2508417ad30cc99d0b9082a084d3f37))
+* use TCP probe for LiteLLM instead of HTTP /health ([#66](https://github.com/hortator-ai/Hortator/issues/66)) ([e52f51c](https://github.com/hortator-ai/Hortator/commit/e52f51ca88a669de3976f77742df9c1bb1c0728d))
+
 ## [0.5.2](https://github.com/hortator-ai/Hortator/compare/v0.5.1...v0.5.2) (2026-02-16)
 
 
