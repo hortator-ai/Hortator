@@ -25,7 +25,7 @@ class TestBuildSystemPrompt(unittest.TestCase):
         )
         self.assertIn("**architect** (tribune)", result)
         self.assertIn("strategic orchestrator", result)
-        self.assertIn("do NOT implement", result)
+        self.assertIn("judgement", result)
 
     def test_centurion_identity(self):
         result = build_system_prompt(
@@ -113,6 +113,22 @@ class TestBuildSystemPrompt(unittest.TestCase):
         self.assertIn("plan to `/workspace/plan.md`", result)
         self.assertIn("Never spawn two children with overlapping scope", result)
         self.assertIn("**coder** (legionary): Writes code", result)
+
+    def test_tribune_parallel_spawning_guidance(self):
+        result = build_system_prompt(
+            role="architect", tier="tribune",
+            capabilities=["spawn"], tool_names=["spawn_task"],
+        )
+        self.assertIn("parallel", result)
+        self.assertIn("data dependency", result)
+
+    def test_tribune_dont_over_delegate(self):
+        result = build_system_prompt(
+            role="architect", tier="tribune",
+            capabilities=["spawn"], tool_names=["spawn_task"],
+        )
+        self.assertIn("single focused deliverable", result)
+        self.assertIn("overhead", result)
 
     def test_centurion_delegation_guidance(self):
         result = build_system_prompt(

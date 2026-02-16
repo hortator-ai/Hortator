@@ -51,9 +51,11 @@ spec:
     - "Write a plan before delegating"
     - "Each child must have a distinct, non-overlapping scope"
     - "Review all child results before consolidating"
+    - "Prefer spawning independent children in parallel over sequential"
   antiPatterns:
     - "Don't spawn more than 5 children"
     - "Don't spawn two children for the same scope"
+    - "Don't delegate work you can finish in a single pass"
 ---
 # Coding specialists
 apiVersion: core.hortator.ai/v1alpha1
