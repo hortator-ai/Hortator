@@ -16,6 +16,8 @@ def build_system_prompt(
     role_anti_patterns: list[str] = None,
     available_roles: list[dict] = None,
     exit_criteria: str = "",
+    iteration: int = 1,
+    max_iterations: int = 1,
 ) -> str:
     """Build the system prompt based on role, tier, and available tools."""
 
@@ -25,6 +27,7 @@ def build_system_prompt(
     role_context = _role_context_section(role, role_description, role_rules, role_anti_patterns)
     delegation_section = _delegation_section(available_roles)
     exit_criteria_section = _exit_criteria_section(exit_criteria)
+    iteration_section = _iteration_section(iteration, max_iterations)
 
     return f"""You are an AI agent working as a **{role}** in the Hortator orchestration system.
 
@@ -39,7 +42,7 @@ Your capabilities: {', '.join(capabilities) if capabilities else 'none (basic fi
 
 ## Workflow
 {workflow}
-{delegation_section}{exit_criteria_section}
+{delegation_section}{exit_criteria_section}{iteration_section}
 ## Important Rules
 1. **Always write your final result.** When you're done, produce a clear summary of what you accomplished.
 2. **Use /outbox/artifacts/ for deliverables.** Code, patches, reports, or any files that should be returned to the caller go in /outbox/artifacts/.
@@ -202,3 +205,33 @@ def _exit_criteria_section(exit_criteria: str) -> str:
         "Evaluate this criteria at the end of each iteration. If met, produce your final output.\n"
         "If not met and you have iterations remaining, continue working.\n"
     )
+
+
+def _iteration_section(iteration: int, max_iterations: int) -> str:
+    """Return planning loop iteration guidance."""
+    if max_iterations <= 1:
+        return ""
+
+    parts = [f"\n## Planning Loop (Iteration {iteration}/{max_iterations})"]
+
+    if iteration == 1:
+        parts.append("This is your first iteration. Plan your approach:")
+        parts.append("1. **Assess**: Analyze the task and available resources")
+        parts.append("2. **Plan**: Create a work breakdown and write it to /workspace/plan.md")
+        parts.append("3. **Act**: Delegate subtasks or execute directly")
+        parts.append("4. **Checkpoint**: Write progress to /workspace/state.json before finishing")
+    elif iteration >= max_iterations:
+        parts.append("**This is your FINAL iteration.** Produce your best output now.")
+        parts.append("1. Check /inbox/ for completed child results")
+        parts.append("2. Review /workspace/plan.md for your original plan")
+        parts.append("3. Consolidate all results into final deliverables")
+        parts.append("4. Write final output — no more iterations after this")
+    else:
+        parts.append("You are continuing from a previous iteration.")
+        parts.append("1. **Review**: Check /inbox/ for child results and /workspace/plan.md")
+        parts.append("2. **Evaluate**: What succeeded? What failed? What's left?")
+        parts.append("3. **Adapt**: Re-plan if needed, spawn new children for remaining work")
+        parts.append("4. **Checkpoint**: Update /workspace/state.json with current progress")
+
+    parts.append("")
+    return "\n".join(parts)

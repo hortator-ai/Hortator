@@ -356,6 +356,11 @@ func (in *AgentTaskSpec) DeepCopyInto(out *AgentTaskSpec) {
 		*out = new(RetrySpec)
 		**out = **in
 	}
+	if in.MaxIterations != nil {
+		in, out := &in.MaxIterations, &out.MaxIterations
+		*out = new(int)
+		**out = **in
+	}
 	if in.InputFiles != nil {
 		in, out := &in.InputFiles, &out.InputFiles
 		*out = make([]InputFile, len(*in))

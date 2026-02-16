@@ -274,6 +274,8 @@ def main():
 
     # Exit criteria (injected by operator from spec.exitCriteria)
     exit_criteria = os.environ.get("HORTATOR_EXIT_CRITERIA", "")
+    iteration = int(os.environ.get("HORTATOR_ITERATION", "1"))
+    max_iterations = int(os.environ.get("HORTATOR_MAX_ITERATIONS", "1"))
 
     # Build system prompt
     system_prompt = build_system_prompt(
@@ -286,6 +288,8 @@ def main():
         role_anti_patterns=role_anti_patterns,
         available_roles=available_roles,
         exit_criteria=exit_criteria,
+        iteration=iteration,
+        max_iterations=max_iterations,
     )
 
     # Redact system prompt if it may contain user-provided content

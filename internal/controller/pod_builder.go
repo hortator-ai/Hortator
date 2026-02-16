@@ -274,6 +274,29 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 		})
 	}
 
+	// Determine effective maxIterations (task spec > tier default)
+	maxIter := 1 // legionary default
+	if task.Spec.MaxIterations != nil {
+		maxIter = *task.Spec.MaxIterations
+	} else {
+		switch task.Spec.Tier {
+		case "tribune":
+			maxIter = 5
+		case "centurion":
+			maxIter = 3
+		}
+	}
+	env = append(env, corev1.EnvVar{
+		Name:  "HORTATOR_MAX_ITERATIONS",
+		Value: fmt.Sprintf("%d", maxIter),
+	})
+
+	// Inject iteration count for reincarnated agents
+	env = append(env, corev1.EnvVar{
+		Name:  "HORTATOR_ITERATION",
+		Value: fmt.Sprintf("%d", task.Status.Attempts+1),
+	})
+
 	if task.Spec.Model != nil && task.Spec.Model.Name != "" {
 		env = append(env, corev1.EnvVar{
 			Name:  "HORTATOR_MODEL",

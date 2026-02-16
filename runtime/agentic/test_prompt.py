@@ -81,6 +81,54 @@ class TestBuildSystemPrompt(unittest.TestCase):
         )
         self.assertNotIn("## Exit Criteria", result)
 
+    def test_iteration_section_first_iteration(self):
+        result = build_system_prompt(
+            role="architect",
+            tier="tribune",
+            capabilities=["spawn"],
+            tool_names=["spawn_task"],
+            iteration=1,
+            max_iterations=5,
+        )
+        self.assertIn("## Planning Loop (Iteration 1/5)", result)
+        self.assertIn("first iteration", result)
+        self.assertIn("/workspace/plan.md", result)
+
+    def test_iteration_section_middle(self):
+        result = build_system_prompt(
+            role="architect",
+            tier="tribune",
+            capabilities=["spawn"],
+            tool_names=["spawn_task"],
+            iteration=3,
+            max_iterations=5,
+        )
+        self.assertIn("## Planning Loop (Iteration 3/5)", result)
+        self.assertIn("continuing from a previous iteration", result)
+
+    def test_iteration_section_final(self):
+        result = build_system_prompt(
+            role="architect",
+            tier="tribune",
+            capabilities=["spawn"],
+            tool_names=["spawn_task"],
+            iteration=5,
+            max_iterations=5,
+        )
+        self.assertIn("## Planning Loop (Iteration 5/5)", result)
+        self.assertIn("FINAL iteration", result)
+
+    def test_no_iteration_section_for_single_shot(self):
+        result = build_system_prompt(
+            role="worker",
+            tier="legionary",
+            capabilities=["shell"],
+            tool_names=["run_shell"],
+            iteration=1,
+            max_iterations=1,
+        )
+        self.assertNotIn("Planning Loop", result)
+
     def test_no_delegation_without_roles(self):
         result = build_system_prompt(
             role="worker",
