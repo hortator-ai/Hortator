@@ -278,10 +278,10 @@ See [`charts/hortator/values.yaml`](charts/hortator/values.yaml) for the full re
 │  └──────┬───────┘              │  AgentPolicy CRDs  │   │
 │         │ creates Pods         └────────────────────┘   │
 │         ▼                                               │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐                 │
-│  │ Tribune │  │Centurion│  │Legionary│  (each a Pod)   │
-│  │ + PVC   │  │ + PVC   │  │ + PVC   │                 │
-│  └─────────┘  └─────────┘  └─────────┘                 │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐                  │
+│  │ Tribune │  │Centurion│  │Legionary│  (each a Pod)    │
+│  │ + PVC   │  │ + PVC   │  │ + PVC   │                  │
+│  └─────────┘  └─────────┘  └─────────┘                  │
 │                                                         │
 │  ┌───────────────────────────────────────────────────┐  │
 │  │ Optional: Presidio · OTel Collector · Qdrant      │  │
