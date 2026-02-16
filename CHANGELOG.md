@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/hortator-ai/Hortator/compare/v0.5.3...v0.5.4) (2026-02-16)
+
+
+### Bug Fixes
+
+* use static release badge (shields.io can't read private repos) ([968388f](https://github.com/hortator-ai/Hortator/commit/968388f24f2dfe5e9c76d87b23cf82aa15af1366))
+
 ## [0.5.3](https://github.com/hortator-ai/Hortator/compare/v0.5.2...v0.5.3) (2026-02-16)
 
 
