@@ -1,139 +1,103 @@
-# =============================================================================
-# Multi-Tenant Example: Two teams sharing one Hortator cluster
-# =============================================================================
+# Advanced: Multi-Tenant Role Isolation
 #
-# Prerequisites:
-#   1. Hortator operator installed in hortator-system namespace
-#   2. helm install hortator hortator/hortator -n hortator-system --create-namespace
+# Shows namespace-scoped AgentRoles overriding ClusterAgentRoles:
+#   - ClusterAgentRole "coder" exists globally
+#   - Namespace "team-alpha" has its own "coder" with stricter rules
+#   - Tasks in team-alpha use the namespace role (more restrictive)
+#   - Tasks in other namespaces use the cluster role (default)
 #
-# This example shows two tenants with different resource budgets:
-#   - team-alpha: Large quota (ML/research workloads, many concurrent tasks)
-#   - team-beta:  Small quota (dev/testing, fewer tasks)
-
+# This mirrors the Issuer/ClusterIssuer pattern from cert-manager.
 ---
-# =============================================================================
-# Tenant: team-alpha (large team, heavy workloads)
-# =============================================================================
-
-# Step 1: Create namespace
-apiVersion: v1
-kind: Namespace
+# Global role — available to all namespaces
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
 metadata:
-  name: team-alpha
+  name: coder
   labels:
-    hortator.ai/tenant: team-alpha
-
+    hortator.ai/example: multi-tenant
+spec:
+  description: >-
+    General-purpose coder. Writes and tests code with shell access.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+  rules:
+    - "Write tests for new code"
+    - "Follow language idioms and best practices"
+  antiPatterns:
+    - "Don't install unnecessary dependencies"
 ---
-# Step 2: Install tenant resources
-# helm install hortator-tenant-alpha hortator/hortator -n team-alpha \
-#   --set tenant.enabled=true \
-#   --set tenant.resourceQuota.enabled=true \
-#   --set tenant.resourceQuota.cpu=16 \
-#   --set tenant.resourceQuota.memory=32Gi \
-#   --set tenant.resourceQuota.pods=50 \
-#   --set tenant.resourceQuota.maxTasks=200 \
-#   --set tenant.limitRange.enabled=true \
-#   --set tenant.limitRange.maxCpu=8 \
-#   --set tenant.limitRange.maxMemory=16Gi
-
-# Step 3: API key for gateway auth
-apiVersion: v1
-kind: Secret
-metadata:
-  name: hortator-gateway-auth
-  namespace: team-alpha
-type: Opaque
-stringData:
-  alpha-key-1: "sk-alpha-CHANGE-ME"
-
----
-# Step 4: AgentRole for team-alpha
+# Namespace-scoped override — stricter rules for team-alpha
+# When a task in namespace "team-alpha" references role "coder",
+# this takes precedence over the ClusterAgentRole above.
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentRole
 metadata:
-  name: senior-developer
+  name: coder
   namespace: team-alpha
-spec:
-  tier: centurion
-  model:
-    endpoint: https://api.anthropic.com/v1
-    name: claude-sonnet-4-20250514
-    apiKeyRef:
-      secretName: anthropic-key
-      key: api-key
-  capabilities:
-    - shell
-    - spawn
-  budget:
-    maxCostUsd: "5.00"
-
----
-# =============================================================================
-# Tenant: team-beta (small team, lighter workloads)
-# =============================================================================
-
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: team-beta
   labels:
-    hortator.ai/tenant: team-beta
-
----
-# helm install hortator-tenant-beta hortator/hortator -n team-beta \
-#   --set tenant.enabled=true \
-#   --set tenant.resourceQuota.enabled=true \
-#   --set tenant.resourceQuota.cpu=4 \
-#   --set tenant.resourceQuota.memory=8Gi \
-#   --set tenant.resourceQuota.pods=10 \
-#   --set tenant.resourceQuota.maxTasks=25 \
-#   --set tenant.limitRange.enabled=true \
-#   --set tenant.limitRange.maxCpu=2 \
-#   --set tenant.limitRange.maxMemory=4Gi
-
-apiVersion: v1
-kind: Secret
-metadata:
-  name: hortator-gateway-auth
-  namespace: team-beta
-type: Opaque
-stringData:
-  beta-key-1: "sk-beta-CHANGE-ME"
-
----
-apiVersion: core.hortator.ai/v1alpha1
-kind: AgentRole
-metadata:
-  name: developer
-  namespace: team-beta
+    hortator.ai/example: multi-tenant
 spec:
-  tier: legionary
-  model:
-    endpoint: https://api.anthropic.com/v1
-    name: claude-sonnet-4-20250514
-    apiKeyRef:
-      secretName: anthropic-key
-      key: api-key
-  capabilities:
+  description: >-
+    Team Alpha coder. Must follow internal Go style guide
+    and use approved dependencies only. Security-hardened.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
     - shell
-  budget:
+  rules:
+    - "Use Go 1.22+ features (range-over-func, etc.)"
+    - "Follow internal style guide: no global state, context-first params"
+    - "Only use dependencies from the approved list in go.mod"
+    - "All exported functions must have godoc comments"
+    - "Run golangci-lint before completing"
+  antiPatterns:
+    - "Don't add new dependencies without checking existing ones"
+    - "Don't use init() functions"
+    - "Don't use panic() for error handling"
+---
+# Policy for team-alpha namespace
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentPolicy
+metadata:
+  name: team-alpha-policy
+  namespace: team-alpha
+  labels:
+    hortator.ai/example: multi-tenant
+spec:
+  allowedCapabilities:
+    - shell
+  deniedCapabilities:
+    - web-fetch
+  maxBudget:
     maxCostUsd: "1.00"
-
+  maxTier: legionary
+  maxConcurrentTasks: 5
 ---
-# =============================================================================
-# Example: team-alpha submits a task
-# =============================================================================
-# Workers in team-alpha can only see/create AgentTasks in team-alpha.
-# They cannot access team-beta resources (enforced by RBAC + NetworkPolicy).
-
+# Task in team-alpha — uses the namespace-scoped "coder" role
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
-  name: refactor-auth-module
+  name: team-alpha-task
   namespace: team-alpha
+  labels:
+    hortator.ai/example: multi-tenant
 spec:
-  role: senior-developer
+  role: coder
+  tier: legionary
   prompt: |
-    Refactor the authentication module to use JWT tokens.
-    Write tests for all new code paths.
-  timeout: 30m
+    Write a Go HTTP handler that accepts JSON POST requests
+    with a "message" field and returns it uppercased.
+    Include unit tests. Follow the team style guide.
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  capabilities:
+    - shell
+  budget:
+    maxCostUsd: "0.50"
+  timeout: 300
