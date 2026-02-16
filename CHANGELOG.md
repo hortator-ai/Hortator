@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/hortator-ai/Hortator/compare/v0.5.0...v0.5.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* use Callable type instead of callable builtin in loop.py ([#56](https://github.com/hortator-ai/Hortator/issues/56)) ([c416c88](https://github.com/hortator-ai/Hortator/commit/c416c88a9008a1485c7ebbec901aafa19730a3bb))
+
 ## [0.5.0](https://github.com/hortator-ai/Hortator/compare/v0.4.0...v0.5.0) (2026-02-16)
 
 
