@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/hortator-ai/Hortator/compare/v0.5.7...v0.6.0) (2026-02-16)
+
+
+### Features
+
+* add goreleaser for cross-platform CLI binaries ([93cb71a](https://github.com/hortator-ai/Hortator/commit/93cb71a5464bfedf3d1ffb7f5dd7647356493f28))
+
+
+### Bug Fixes
+
+* use dynamic release badge instead of hardcoded version ([ab886db](https://github.com/hortator-ai/Hortator/commit/ab886db080ac77f8b7847e0b60a145de3ea7409c))
+
 ## [0.5.7](https://github.com/hortator-ai/Hortator/compare/v0.5.6...v0.5.7) (2026-02-16)
 
 
