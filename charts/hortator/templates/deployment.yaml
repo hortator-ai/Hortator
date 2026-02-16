@@ -63,6 +63,10 @@ spec:
           resources:
             {{- toYaml .Values.operator.resources | nindent 12 }}
           env:
+            {{- if not (and .Values.webhook .Values.webhook.enabled) }}
+            - name: ENABLE_WEBHOOKS
+              value: "false"
+            {{- end }}
             - name: HORTATOR_DEFAULT_AGENT_IMAGE
               value: {{ include "hortator.agentImage" . }}
             - name: HORTATOR_AGENTIC_IMAGE
