@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.6](https://github.com/hortator-ai/Hortator/compare/v0.5.5...v0.5.6) (2026-02-16)
+
+
+### Bug Fixes
+
+* set appVersion to match chart version, fix quickstart secret name ([#82](https://github.com/hortator-ai/Hortator/issues/82)) ([8dfd33b](https://github.com/hortator-ai/Hortator/commit/8dfd33b530a3b148dd9b0e8b8f6cefe9b1b76cda))
+
 ## [0.5.5](https://github.com/hortator-ai/Hortator/compare/v0.5.4...v0.5.5) (2026-02-16)
 
 
