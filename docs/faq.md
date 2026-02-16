@@ -14,7 +14,7 @@ Think of it this way: Argo is a conveyor belt (fixed path, known steps). Hortato
 
 ## Isn't this just Kubernetes Jobs with extra steps?
 
-At the lowest level, yes — Hortator creates Jobs. But the value isn't in creating the Job. It's everything the operator does around it:
+At the lowest level, yes — Hortator creates Pods. But the value isn't in creating the Pod. It's everything the operator does around it:
 
 - **Result brokering** — automatically copies child results to parent agent's `/inbox/`
 - **PVC lifecycle** — TTL cleanup, retention labels, tag-based knowledge discovery, vector storage graduation
@@ -83,7 +83,7 @@ The operator itself is lightweight:
 - **Memory:** ~128Mi request, ~256Mi limit
 - **One Pod** for the operator (+ optional OTel Collector and Presidio service)
 
-Each agent task runs as a standard K8s Job. Resource usage depends on your agent workload, not Hortator.
+Each agent task runs as a standard K8s Pod. Resource usage depends on your agent workload, not Hortator.
 
 ## Can I use Hortator with a single agent (no hierarchy)?
 
@@ -93,7 +93,9 @@ Yes. A single `AgentTask` with `tier: legionary` works fine — it's just a mana
 
 **Open source (MIT):** Everything you need to run autonomous agents with guardrails — CRDs, operator, CLI, runtime, budget tracking, health monitoring, OTel events.
 
-**Enterprise (separate license):** Governance and compliance features — AgentPolicy CRD, Presidio PII detection (centralized service), LiteLLM proxy integration, retained PVC → vector storage graduation, object storage archival, cross-namespace policies, OIDC/SSO.
+**Enterprise (separate license):** Governance and compliance features — AgentPolicy CRD, LiteLLM proxy integration, retained PVC → vector storage graduation, object storage archival, cross-namespace policies, OIDC/SSO.
+
+> **Note:** Presidio PII detection is available in open-source via `presidio.enabled` Helm value. It is not an enterprise-only feature.
 
 See [Enterprise Overview](enterprise/overview.md) for details.
 

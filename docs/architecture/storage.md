@@ -39,9 +39,9 @@ TTL-based cleanup is configured in Helm values:
 storage:
   cleanup:
     ttl:
-      completed: 7d
-      failed: 2d
-      cancelled: 1d
+      completed: 1h
+      failed: 24h
+      cancelled: 1h
 ```
 
 ### Retention

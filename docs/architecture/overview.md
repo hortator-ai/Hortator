@@ -23,7 +23,7 @@ graph TB
         Legionary["🗡️ Legionary Pod<br/>PVC (256Mi) + Runtime + CLI"]
     end
 
-    subgraph "Sidecars (optional)"
+    subgraph "Shared Services (optional)"
         Presidio["🛡️ Presidio<br/>PII Detection"]
     end
 
@@ -99,7 +99,7 @@ graph TB
 | **API Gateway** | OpenAI-compatible HTTP API (`/v1/chat/completions`, `/v1/models`). Translates chat requests into AgentTask CRDs. Optional, opt-in via `gateway.enabled`. |
 | **Warm Pod Pool** | Pre-provisioned idle Pods that accept tasks immediately (<1s vs 5-30s cold start). Optional, opt-in via `warmPool.enabled`. See [warm-pool.md](warm-pool.md). |
 | **Result Cache** | Content-addressable cache keyed on SHA-256(prompt+role). Identical tasks return instantly without spawning Pods. In-memory LRU with TTL. Optional, opt-in via `resultCache.enabled`. |
-| **Presidio Service** | Centralized PII detection Deployment+Service (not a sidecar). Agent pods call via cluster DNS. Enterprise feature. |
+| **Presidio Service** | Centralized PII detection Deployment+Service (not a sidecar). Agent pods call via cluster DNS. Available in open-source via `presidio.enabled` Helm value. |
 | **Agentic Runtime** | Python tool-calling loop for tribune/centurion tiers. Uses `litellm` for provider-agnostic LLM calls, supports checkpoint/restore for the reincarnation model. Located at `runtime/agentic/`. |
 
 ## Task Lifecycle
@@ -246,6 +246,7 @@ The operator is split into focused files under `internal/controller/`:
 | `knowledge.go` | Retained PVC discovery, tag matching, context.json generation |
 | `policy.go` | AgentPolicy enforcement |
 | `warm_pool.go` | Warm Pod pool management |
+| `hierarchy_budget.go` | Hierarchy-wide budget tracking and enforcement across task trees |
 | `result_cache.go` | Content-addressable result cache |
 
 ## Worker RBAC

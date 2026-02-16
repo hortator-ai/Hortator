@@ -126,13 +126,11 @@ This is a deployment decision — Hortator works identically in both patterns.
      name: developer
      namespace: <tenant-name>
    spec:
-     tier: centurion
-     model:
-       endpoint: https://api.anthropic.com/v1
-       name: claude-sonnet-4-20250514
-       apiKeyRef:
-         secretName: anthropic-key
-         key: api-key
+     defaultModel: claude-sonnet-4-20250514
+     defaultEndpoint: https://api.anthropic.com/v1
+     apiKeyRef:
+       secretName: anthropic-key
+       key: api-key
    ```
 
 5. **Done** — tenant can submit tasks via the gateway.
