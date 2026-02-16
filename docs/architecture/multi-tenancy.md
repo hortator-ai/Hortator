@@ -8,25 +8,25 @@
 Hortator uses **namespace-per-tenant** isolation. Each tenant (team, department, or company) operates in its own Kubernetes namespace. The Hortator operator runs in `hortator-system` and watches all namespaces.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────────────┐
 │                    Kubernetes Cluster                         │
-│                                                              │
-│  ┌──────────────────┐                                        │
-│  │  hortator-system  │  Operator, Gateway, Presidio          │
-│  └──────────────────┘                                        │
-│                                                              │
-│  ┌──────────────────┐  ┌──────────────────┐                  │
+│                                                               │
+│  ┌───────────────────┐                                        │
+│  │  hortator-system  │  Operator, Gateway, Presidio           │
+│  └───────────────────┘                                        │
+│                                                               │
+│  ┌───────────────────┐  ┌───────────────────┐                 │
 │  │  tenant-alpha     │  │  tenant-beta      │  ...            │
-│  │  ┌──────────────┐ │  │  ┌──────────────┐ │                │
-│  │  │ AgentTasks   │ │  │  │ AgentTasks   │ │                │
-│  │  │ AgentRoles   │ │  │  │ AgentRoles   │ │                │
-│  │  │ Worker SA    │ │  │  │ Worker SA    │ │                │
-│  │  │ NetworkPol   │ │  │  │ NetworkPol   │ │                │
-│  │  │ ResourceQuota│ │  │  │ ResourceQuota│ │                │
-│  │  │ LimitRange   │ │  │  │ LimitRange   │ │                │
-│  │  └──────────────┘ │  │  └──────────────┘ │                │
-│  └──────────────────┘  └──────────────────┘                  │
-└─────────────────────────────────────────────────────────────┘
+│  │  ┌──────────────┐ │  │  ┌──────────────┐ │                 │
+│  │  │ AgentTasks   │ │  │  │ AgentTasks   │ │                 │
+│  │  │ AgentRoles   │ │  │  │ AgentRoles   │ │                 │
+│  │  │ Worker SA    │ │  │  │ Worker SA    │ │                 │
+│  │  │ NetworkPol   │ │  │  │ NetworkPol   │ │                 │
+│  │  │ ResourceQuota│ │  │  │ ResourceQuota│ │                 │
+│  │  │ LimitRange   │ │  │  │ LimitRange   │ │                 │
+│  │  └──────────────┘ │  │  └──────────────┘ │                 │
+│  └───────────────────┘  └───────────────────┘                 │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ## Isolation Layers
