@@ -286,6 +286,12 @@ type AgentTaskSpec struct {
 	// +optional
 	Retry *RetrySpec `json:"retry,omitempty"`
 
+	// MaxIterations is the maximum number of planning loop iterations.
+	// Tribunes default to 5, centurions to 3, legionaries to 1.
+	// Set to 1 to disable the planning loop (single-shot execution).
+	// +optional
+	MaxIterations *int `json:"maxIterations,omitempty"`
+
 	// ExitCriteria is a human-readable description of when this task is complete.
 	// Injected into the agent's system prompt to guide self-assessment.
 	// E.g. "All tests pass with exit code 0" or "Report contains all 5 sections".

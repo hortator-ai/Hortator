@@ -175,6 +175,12 @@ spec:
                   - filename
                   type: object
                 type: array
+              maxIterations:
+                description: |-
+                  MaxIterations is the maximum number of planning loop iterations.
+                  Tribunes default to 5, centurions to 3, legionaries to 1.
+                  Set to 1 to disable the planning loop (single-shot execution).
+                type: integer
               model:
                 description: Model defines the LLM endpoint configuration.
                 properties:
