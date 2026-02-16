@@ -107,6 +107,12 @@ spec:
                   - name
                   type: object
                 type: array
+              exitCriteria:
+                description: |-
+                  ExitCriteria is a human-readable description of when this task is complete.
+                  Injected into the agent's system prompt to guide self-assessment.
+                  E.g. "All tests pass with exit code 0" or "Report contains all 5 sections".
+                type: string
               flavor:
                 description: Flavor is a free-form addendum appended to the role's
                   rules.

@@ -60,6 +60,27 @@ class TestBuildSystemPrompt(unittest.TestCase):
         self.assertIn("Choose the lowest-privilege role that meets the task's needs.", result)
         self.assertIn("If no role matches exactly, pick the closest fit and adapt your approach.", result)
 
+    def test_exit_criteria_section_present(self):
+        result = build_system_prompt(
+            role="worker",
+            tier="legionary",
+            capabilities=["shell"],
+            tool_names=["run_shell"],
+            exit_criteria="All tests pass with exit code 0",
+        )
+        self.assertIn("## Exit Criteria", result)
+        self.assertIn("You are done when: All tests pass with exit code 0", result)
+        self.assertIn("Evaluate this criteria", result)
+
+    def test_exit_criteria_absent_when_empty(self):
+        result = build_system_prompt(
+            role="worker",
+            tier="legionary",
+            capabilities=["shell"],
+            tool_names=["run_shell"],
+        )
+        self.assertNotIn("## Exit Criteria", result)
+
     def test_no_delegation_without_roles(self):
         result = build_system_prompt(
             role="worker",
