@@ -1,18 +1,34 @@
 # Test: Delegation Decision Scenarios
 #
-# Verifies that tribunes make correct delegation decisions:
-#   Scenario A: Complex multi-part task → SHOULD spawn multiple legionaries
-#   Scenario B: Simple focused task → should NOT spawn, do it directly
+# Verifies that tribunes make correct delegation decisions across domains:
+#   Scenario A (coding):     Complex multi-part task → SHOULD delegate
+#   Scenario B (coding):     Simple focused task → should NOT delegate
+#   Scenario C (research):   Complex multi-part task → SHOULD delegate
+#   Scenario D (research):   Simple focused task → should NOT delegate
+#   Scenario E (multi-iter): Tribune reviews child results and acts on them
 #
-# These two scenarios test the tribune's judgment about when to delegate
-# vs when to execute directly. A good system prompt produces:
-#   - Scenario A: 2-4 distinct children with non-overlapping scope
-#   - Scenario B: 0 children, tribune handles it end-to-end
+# Expected outcomes:
+#   A: 2-4 children with non-overlapping scope, parallel where possible
+#   B: 0 children, tribune handles it end-to-end
+#   C: 2-3 children (analysis, synthesis, critique), parallel where possible
+#   D: 0 children, tribune handles it end-to-end
+#   E: Iteration 1 spawns researchers, iteration 2 reviews + spawns writer
+#
+# Verification (after each task completes):
+#   kubectl exec <task>-agent -n hortator-test -- ls /outbox/artifacts/
+#   kubectl exec <task>-agent -n hortator-test -- cat /outbox/artifacts/<file>
+#   kubectl get agenttask -n hortator-test -o custom-columns=\
+#     'NAME:.metadata.name,STATUS:.status.phase,ROLE:.spec.role,DURATION:.status.duration'
 #
 # Prerequisites:
-#   - Anthropic API key: kubectl create secret generic anthropic-api-key \
-#       --from-literal=api-key=$ANTHROPIC_API_KEY -n hortator-test
+#   kubectl create ns hortator-test
+#   kubectl create secret generic anthropic-api-key \
+#     --from-literal=api-key=$ANTHROPIC_API_KEY -n hortator-test
 ---
+# ============================================================
+# ROLES
+# ============================================================
+
 # Tribune role — the orchestrator
 apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
@@ -22,8 +38,9 @@ metadata:
     hortator.ai/test-suite: delegation
 spec:
   description: >-
-    Strategic project lead. Decomposes tasks, delegates to specialists,
-    reviews and consolidates results. Does NOT implement unless trivial.
+    Strategic project lead. Analyses tasks, decomposes when beneficial,
+    delegates to specialists, reviews and consolidates results.
+    Handles simple tasks directly when delegation overhead isn't justified.
   tierAffinity: tribune
   defaultModel: claude-sonnet-4-20250514
   tools:
@@ -34,12 +51,13 @@ spec:
     - "Write a plan before delegating"
     - "Each child must have a distinct, non-overlapping scope"
     - "Review all child results before consolidating"
+    - "Prefer spawning independent children in parallel over sequential"
   antiPatterns:
-    - "Don't do implementation work yourself — delegate to specialists"
     - "Don't spawn more than 5 children"
     - "Don't spawn two children for the same scope"
+    - "Don't delegate work you can finish in a single pass"
 ---
-# Roles available for delegation
+# Coding specialists
 apiVersion: core.hortator.ai/v1alpha1
 kind: ClusterAgentRole
 metadata:
@@ -106,21 +124,68 @@ spec:
     - "Don't mock what you can test directly"
     - "Don't write tests that depend on execution order"
 ---
+# Research/analysis specialists
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: research-analyst
+  labels:
+    hortator.ai/test-suite: delegation
+spec:
+  description: >-
+    Conducts focused research and analysis on a specific topic or question.
+    Produces structured findings with sources and evidence.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+    - web-fetch
+  rules:
+    - "Cite sources for all claims"
+    - "Distinguish facts from interpretations"
+    - "Structure findings with clear headings and summaries"
+  antiPatterns:
+    - "Don't present speculation as fact"
+    - "Don't omit contradictory evidence"
+---
+apiVersion: core.hortator.ai/v1alpha1
+kind: ClusterAgentRole
+metadata:
+  name: technical-writer
+  labels:
+    hortator.ai/test-suite: delegation
+spec:
+  description: >-
+    Synthesises research and analysis into polished, reader-friendly
+    documents. Focuses on clarity, structure, and appropriate tone.
+  tierAffinity: legionary
+  defaultModel: claude-sonnet-4-20250514
+  tools:
+    - shell
+  rules:
+    - "Write for the target audience — adjust jargon and depth accordingly"
+    - "Use clear structure: executive summary, sections, conclusion"
+    - "Keep prose concise — remove filler"
+  antiPatterns:
+    - "Don't pad with generic statements"
+    - "Don't change the meaning of source material"
+
+---
 # ============================================================
-# SCENARIO A: Complex task — SHOULD spawn multiple legionaries
+# SCENARIO A: Complex coding task — SHOULD delegate
 # ============================================================
 # A full-stack feature with distinct concerns (API, UI, tests).
 # The tribune should analyze and decompose without being told to.
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
-  name: delegation-complex
+  name: delegation-code-complex
   namespace: hortator-test
   labels:
     hortator.ai/test-suite: delegation
     hortator.ai/test-case: should-delegate
   annotations:
-    hortator.ai/description: "Complex task that SHOULD produce 2-3 child tasks"
+    hortator.ai/description: "Complex coding task — expects 2-3 child tasks"
 spec:
   role: project-architect
   tier: tribune
@@ -162,20 +227,20 @@ spec:
       action: warn
 ---
 # ============================================================
-# SCENARIO B: Simple task — should NOT spawn legionaries
+# SCENARIO B: Simple coding task — should NOT delegate
 # ============================================================
 # A single-file utility — no natural decomposition points.
 # A good tribune recognizes this isn't worth delegating.
 apiVersion: core.hortator.ai/v1alpha1
 kind: AgentTask
 metadata:
-  name: delegation-simple
+  name: delegation-code-simple
   namespace: hortator-test
   labels:
     hortator.ai/test-suite: delegation
     hortator.ai/test-case: should-not-delegate
   annotations:
-    hortator.ai/description: "Simple task that should NOT produce child tasks"
+    hortator.ai/description: "Simple coding task — expects 0 child tasks"
 spec:
   role: project-architect
   tier: tribune
@@ -208,4 +273,178 @@ spec:
   health:
     stuckDetection:
       statusStaleMinutes: 5
+      action: warn
+---
+# ============================================================
+# SCENARIO C: Complex research task — SHOULD delegate
+# ============================================================
+# A multi-faceted analysis requiring different perspectives.
+# The tribune should decompose into parallel research tracks.
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: delegation-research-complex
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: delegation
+    hortator.ai/test-case: should-delegate
+  annotations:
+    hortator.ai/description: "Complex research task — expects 2-3 child tasks"
+spec:
+  role: project-architect
+  tier: tribune
+  prompt: |
+    Prepare a briefing document on the current state of carbon capture
+    technology for a non-technical executive audience.
+
+    The briefing should cover: the main technological approaches and
+    their maturity levels, the economic viability compared to carbon
+    taxes and offsets, and the key policy frameworks in the EU and US
+    that affect adoption.
+
+    The final deliverable should be a single Markdown document with
+    an executive summary, detailed sections, and a recommendations
+    section. Aim for ~2000 words.
+
+    Deliver to /outbox/artifacts/carbon-capture-briefing.md
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  thinkingLevel: medium
+  capabilities:
+    - spawn
+    - shell
+    - web-fetch
+  budget:
+    maxCostUsd: "8.00"
+    maxTokens: 800000
+  hierarchyBudget:
+    maxCostUsd: "15.00"
+    maxTokens: 1500000
+  storage:
+    size: "1Gi"
+    retain: true
+  timeout: 1800
+  health:
+    stuckDetection:
+      statusStaleMinutes: 10
+      action: warn
+---
+# ============================================================
+# SCENARIO D: Simple research task — should NOT delegate
+# ============================================================
+# A focused summary task — one topic, one output.
+# Not worth the overhead of spawning specialists.
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: delegation-research-simple
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: delegation
+    hortator.ai/test-case: should-not-delegate
+  annotations:
+    hortator.ai/description: "Simple research task — expects 0 child tasks"
+spec:
+  role: project-architect
+  tier: tribune
+  prompt: |
+    Write a one-page summary of the EU AI Act's risk classification
+    system. Cover the four risk tiers (unacceptable, high, limited,
+    minimal), give one example for each tier, and note the key
+    compliance deadlines.
+
+    Target audience: a software engineer who hasn't read the Act.
+    Keep it under 500 words.
+
+    Deliver to /outbox/artifacts/eu-ai-act-summary.md
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  thinkingLevel: medium
+  capabilities:
+    - spawn
+    - shell
+  budget:
+    maxCostUsd: "3.00"
+    maxTokens: 300000
+  storage:
+    size: "256Mi"
+  timeout: 600
+  health:
+    stuckDetection:
+      statusStaleMinutes: 5
+      action: warn
+---
+# ============================================================
+# SCENARIO E: Multi-iteration — tribune reviews and re-delegates
+# ============================================================
+# Tests the full reincarnation cycle:
+#   Iteration 1: Tribune analyses task, spawns research analysts
+#   Iteration 2: Tribune reviews research results from /inbox/,
+#                 then spawns a writer to produce the final document
+#   Iteration 3: Tribune reviews the final document and delivers
+#
+# This validates the spawn → wait → reincarnate → review → spawn loop.
+apiVersion: core.hortator.ai/v1alpha1
+kind: AgentTask
+metadata:
+  name: delegation-multi-iter
+  namespace: hortator-test
+  labels:
+    hortator.ai/test-suite: delegation
+    hortator.ai/test-case: multi-iteration
+  annotations:
+    hortator.ai/description: "Multi-iteration: research → review → write → deliver"
+spec:
+  role: project-architect
+  tier: tribune
+  prompt: |
+    Produce a comparison report on three container orchestration
+    platforms: Kubernetes, Nomad, and Docker Swarm.
+
+    Your process:
+    1. First, have specialists research each platform independently
+       (strengths, weaknesses, ideal use cases, community/ecosystem).
+    2. Once you have the research, have a writer synthesise it into
+       a structured comparison report with a recommendation matrix.
+    3. Review the final document for quality and deliver it.
+
+    The final deliverable should be a Markdown document at
+    /outbox/artifacts/orchestration-comparison.md with:
+    - Executive summary
+    - Per-platform analysis
+    - Comparison matrix (feature × platform)
+    - Recommendation by use case
+  model:
+    name: claude-sonnet-4-20250514
+    endpoint: https://api.anthropic.com/v1
+    apiKeyRef:
+      secretName: anthropic-api-key
+      key: api-key
+  thinkingLevel: medium
+  maxIterations: 3
+  capabilities:
+    - spawn
+    - shell
+    - web-fetch
+  budget:
+    maxCostUsd: "10.00"
+    maxTokens: 1000000
+  hierarchyBudget:
+    maxCostUsd: "20.00"
+    maxTokens: 2000000
+  storage:
+    size: "1Gi"
+    retain: true
+  timeout: 3600
+  health:
+    stuckDetection:
+      statusStaleMinutes: 15
       action: warn

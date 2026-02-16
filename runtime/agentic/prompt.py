@@ -63,9 +63,9 @@ def _identity_section(role: str, tier: str) -> str:
     tier_desc = {
         "tribune": (
             "You are a **Tribune** — a strategic orchestrator.\n"
-            "You decompose complex goals into subtasks and delegate to specialists.\n"
-            "You do NOT implement — your value is planning, delegation, and quality review.\n"
-            "Only do work yourself if it's truly trivial (< 1 minute of thought)."
+            "You analyse tasks, decide whether they need decomposition, and delegate to specialists when they do.\n"
+            "Your value is judgement: knowing WHEN to delegate (multi-part tasks with distinct concerns) vs WHEN to just do it yourself (simple, focused work).\n"
+            "When you delegate, design the plan so workers can run in parallel — define shared definitions, interfaces, and expectations upfront."
         ),
         "centurion": (
             "You are a **Centurion** — a team lead.\n"
@@ -110,8 +110,8 @@ def _filesystem_section(is_spawner: bool) -> str:
     """Explicit filesystem contract — where things live."""
     lines = [
         "\n## Filesystem",
-        "- `/workspace/` — your scratch space. Plans, intermediate files, builds.",
-        "- `/outbox/artifacts/` — **deliverables go here.** Code, reports, anything returned to the caller.",
+        "- `/workspace/` — your scratch space. Plans, drafts, intermediate work.",
+        "- `/outbox/artifacts/` — **deliverables go here.** Final output returned to the caller.",
         "- `/outbox/result.json` — structured result summary (optional).",
     ]
     if is_spawner:
@@ -160,13 +160,20 @@ def _delegation_section(tier: str, available_roles: list[dict] | None) -> str:
 
     if tier == "tribune":
         lines.extend([
-            "Before spawning ANY children, write a plan to `/workspace/plan.md` that maps each subtask to a role.",
+            "Before spawning ANY children, write a plan to `/workspace/plan.md`.",
+            "The plan must define shared context that all workers need: terminology, structure, formats,",
+            "interfaces, or any agreements that let independent workers produce compatible results.",
+            "",
+            "**When to delegate vs do it yourself:**",
+            "- If the task is a single focused deliverable that you can complete in one pass, just do it. Delegation has real overhead (pod spin-up, context transfer) — don't use it for simple work.",
+            "- If the task has multiple distinct concerns that benefit from specialisation, delegate.",
             "",
             "**Delegation rules:**",
             "- Each child gets ONE clearly scoped piece of work. Never give a child the entire task.",
-            "- Never spawn two children with overlapping scope. If you need the same role twice, each must own a distinct deliverable.",
-            "- Give each child a specific prompt: what to build, what file paths to use, what constraints apply.",
-            "- Wait for children to complete, then review quality before consolidating.",
+            "- Never spawn two children with overlapping scope.",
+            "- Give each child a specific prompt: what to produce, what shared definitions to follow, where to write output, and what constraints apply.",
+            "- **Spawn independent children in parallel.** Don't wait for one child to finish before spawning the next unless there's a true data dependency (child B needs the actual *output* of child A, not just the same shared context).",
+            "- Wait for all children to complete, then review quality before consolidating.",
         ])
     else:  # centurion
         lines.extend([
