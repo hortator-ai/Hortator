@@ -436,6 +436,12 @@ spec:
                   - startTime
                   type: object
                 type: array
+              lastReincarnatedAt:
+                description: |-
+                  LastReincarnatedAt records when the task was last reincarnated.
+                  Used to filter out stale children from prior iterations during child discovery.
+                format: date-time
+                type: string
               message:
                 description: Message provides human-readable status information.
                 type: string
