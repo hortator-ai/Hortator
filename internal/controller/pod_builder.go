@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/hortator-ai/Hortator/api/v1alpha1"
+	"k8s.io/utils/ptr"
 )
 
 // ensurePVC creates a PVC for the task if it doesn't already exist.
@@ -566,6 +567,12 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 				Value: r.defaults.PresidioScoreThreshold,
 			})
 		}
+		if r.defaults.PresidioRequire {
+			env = append(env, corev1.EnvVar{
+				Name:  "HORTATOR_REQUIRE_PRESIDIO",
+				Value: "true",
+			})
+		}
 	}
 
 	// Build capability labels for NetworkPolicy matching
@@ -597,7 +604,15 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 					Image:        image,
 					Env:          env,
 					Resources:    resources,
-					VolumeMounts: volumeMounts,
+					VolumeMounts: append(volumeMounts, corev1.VolumeMount{Name: "tmp", MountPath: "/tmp"}),
+					SecurityContext: &corev1.SecurityContext{
+						RunAsNonRoot:             ptr.To(true),
+						ReadOnlyRootFilesystem:   ptr.To(true),
+						AllowPrivilegeEscalation: ptr.To(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+					},
 				},
 			},
 			Volumes: volumes,
@@ -614,6 +629,7 @@ func (r *AgentTaskReconciler) buildVolumes(task *corev1alpha1.AgentTask) ([]core
 	pvcName := fmt.Sprintf("%s-storage", task.Name)
 
 	volumes := []corev1.Volume{
+		{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		{Name: "inbox-ephemeral", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		{Name: "storage", VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},

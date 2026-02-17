@@ -268,7 +268,7 @@ presidio:
   # Deploy Presidio as a centralized Deployment+Service in the operator namespace.
   # Agent pods call this service via cluster DNS — no sidecar needed.
   enabled: true
-  image: mcr.microsoft.com/presidio-analyzer:latest
+  image: mcr.microsoft.com/presidio-analyzer:2.2.355
   imagePullPolicy: IfNotPresent
   replicas: 1                     # Scale up for high-throughput clusters
   model: en_core_web_sm
