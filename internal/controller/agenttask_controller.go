@@ -999,6 +999,32 @@ func (r *AgentTaskReconciler) recordAttempt(task *corev1alpha1.AgentTask, exitCo
 func (r *AgentTaskReconciler) handleWaiting(ctx context.Context, task *corev1alpha1.AgentTask) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// If PendingChildren is empty (e.g., after reincarnation), discover children
+	// by scanning for tasks with parentTaskID pointing to us.
+	// NOTE: BUG-112 also identified that Presidio can redact task IDs resembling
+	// US driver license numbers (e.g., task-1771266168), corrupting PendingChildren.
+	// That issue should be addressed separately in the agentic runtime.
+	if len(task.Status.PendingChildren) == 0 {
+		childList := &corev1alpha1.AgentTaskList{}
+		if err := r.List(ctx, childList, client.InNamespace(task.Namespace)); err == nil {
+			for i := range childList.Items {
+				child := &childList.Items[i]
+				if child.Spec.ParentTaskID == task.Name && child.Name != task.Name {
+					task.Status.PendingChildren = append(task.Status.PendingChildren, child.Name)
+				}
+			}
+			if len(task.Status.PendingChildren) > 0 {
+				logger.Info("Discovered children for waiting parent",
+					"task", task.Name,
+					"childCount", len(task.Status.PendingChildren))
+				if err := r.updateStatusWithRetry(ctx, task); err != nil {
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{Requeue: true}, nil
+			}
+		}
+	}
+
 	// Check if all pending children have reached a terminal phase
 	allDone := true
 	for _, childName := range task.Status.PendingChildren {
