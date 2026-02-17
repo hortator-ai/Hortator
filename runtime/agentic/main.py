@@ -245,6 +245,12 @@ def main():
     # Wait for Presidio to become ready (if configured)
     presidio_ready = wait_for_presidio()
 
+    # Fail-closed mode: abort if Presidio is required but unavailable
+    require_presidio = os.environ.get("HORTATOR_REQUIRE_PRESIDIO", "false").lower() == "true"
+    if require_presidio and not presidio_ready:
+        print("[hortator-agentic] FATAL: Presidio is required (HORTATOR_REQUIRE_PRESIDIO=true) but not reachable. Aborting.")
+        sys.exit(1)
+
     # PII redaction on input — controlled by HORTATOR_REDACT_INPUT (default: true).
     # When enabled, prompts are redacted via Presidio before LLM submission to
     # prevent PII from being sent to third-party LLM APIs.

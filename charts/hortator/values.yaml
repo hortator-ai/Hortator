@@ -274,6 +274,7 @@ presidio:
   model: en_core_web_sm
   scoreThreshold: 0.7
   action: redact                  # redact | detect | hash | mask
+  requirePresidio: false          # If true, tasks fail when Presidio is unreachable
 
   recognizers:
     disabled:

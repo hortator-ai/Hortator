@@ -10,6 +10,7 @@ data:
   presidioEnabled: {{ .Values.presidio.enabled | quote }}
   presidioEndpoint: {{ if .Values.presidio.enabled }}"http://{{ include "hortator.fullname" . }}-presidio.{{ .Release.Namespace }}.svc:3000"{{ else }}""{{ end }}
   presidioScoreThreshold: {{ .Values.presidio.scoreThreshold | quote }}
+  requirePresidio: {{ .Values.presidio.requirePresidio | quote }}
   warmPoolEnabled: {{ .Values.warmPool.enabled | quote }}
   warmPoolSize: {{ .Values.warmPool.size | quote }}
   resultCacheEnabled: {{ .Values.resultCache.enabled | quote }}

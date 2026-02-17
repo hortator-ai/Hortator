@@ -49,6 +49,7 @@ type ClusterDefaults struct {
 	PresidioEndpoint           string
 	PresidioAnonymizerEndpoint string
 	PresidioScoreThreshold     string
+	PresidioRequire            bool
 	WarmPool                   WarmPoolConfig
 	ResultCacheEnabled         bool
 	ResultCacheTTL             time.Duration

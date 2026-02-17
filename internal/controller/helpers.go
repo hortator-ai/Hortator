@@ -159,6 +159,9 @@ func (r *AgentTaskReconciler) loadClusterDefaults(ctx context.Context) {
 	if v, ok := cm.Data["presidioScoreThreshold"]; ok && v != "" {
 		d.PresidioScoreThreshold = v
 	}
+	if v, ok := cm.Data["requirePresidio"]; ok {
+		d.PresidioRequire = v == "true"
+	}
 	if v, ok := cm.Data["warmPoolEnabled"]; ok {
 		d.WarmPool.Enabled = v == "true"
 	}
