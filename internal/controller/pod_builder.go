@@ -606,7 +606,8 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 					Resources:    resources,
 					VolumeMounts: append(volumeMounts, corev1.VolumeMount{Name: "tmp", MountPath: "/tmp"}),
 					SecurityContext: &corev1.SecurityContext{
-						RunAsNonRoot:             ptr.To(true),
+						// NOTE: RunAsNonRoot omitted — runtime images don't yet have a
+						// non-root USER. Add back once Dockerfiles are updated (post-launch).
 						ReadOnlyRootFilesystem:   ptr.To(true),
 						AllowPrivilegeEscalation: ptr.To(false),
 						Capabilities: &corev1.Capabilities{
