@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.1](https://github.com/hortator-ai/Hortator/compare/v0.6.0...v0.6.1) (2026-02-17)
+
+
+### Bug Fixes
+
+* add fail-closed Presidio mode (BUG-113) ([#88](https://github.com/hortator-ai/Hortator/issues/88)) ([cd192c9](https://github.com/hortator-ai/Hortator/commit/cd192c90b115100ad0b3a077b13cc3c02e0a4154))
+* harden agent pod defaults and pin Presidio image (BUG-115, BUG-116) ([#87](https://github.com/hortator-ai/Hortator/issues/87)) ([3118f88](https://github.com/hortator-ai/Hortator/commit/3118f8845645d414320b2fb9df5455732c2f34ee))
+* make webhook model validation conditional (BUG-114) ([#89](https://github.com/hortator-ai/Hortator/issues/89)) ([93919f9](https://github.com/hortator-ai/Hortator/commit/93919f9594d8e52dbe4d21fff077c0d0b872a13c))
+
 ## [0.6.0](https://github.com/hortator-ai/Hortator/compare/v0.5.7...v0.6.0) (2026-02-16)
 
 
