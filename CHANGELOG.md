@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.3](https://github.com/hortator-ai/Hortator/compare/v0.6.2...v0.6.3) (2026-02-17)
+
+
+### Bug Fixes
+
+* add non-root user to runtime images and re-enable runAsNonRoot ([#95](https://github.com/hortator-ai/Hortator/issues/95)) ([27ed1ce](https://github.com/hortator-ai/Hortator/commit/27ed1cee8106b993490bb214c96e45648249bb7c))
+* remove runAsNonRoot until runtime images support non-root user ([#93](https://github.com/hortator-ai/Hortator/issues/93)) ([d769768](https://github.com/hortator-ai/Hortator/commit/d76976844a4f3c4a8ed4531df9c5770c239eb128))
+
 ## [0.6.2](https://github.com/hortator-ai/Hortator/compare/v0.6.1...v0.6.2) (2026-02-17)
 
 
