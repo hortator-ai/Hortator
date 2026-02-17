@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/hortator-ai/Hortator/compare/v0.6.3...v0.6.4) (2026-02-17)
+
+
+### Bug Fixes
+
+* prevent reincarnation infinite loop (BUG-112) ([#96](https://github.com/hortator-ai/Hortator/issues/96)) ([f6ad161](https://github.com/hortator-ai/Hortator/commit/f6ad161f13c2ed728a8815271178fc823535abd0))
+
 ## [0.6.3](https://github.com/hortator-ai/Hortator/compare/v0.6.2...v0.6.3) (2026-02-17)
 
 
