@@ -51,3 +51,4 @@ sdk/python/.pytest_cache/
 # TypeScript SDK
 sdk/typescript/node_modules/
 sdk/typescript/dist/
+main
