@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.5](https://github.com/hortator-ai/Hortator/compare/v0.6.4...v0.6.5) (2026-02-17)
+
+
+### Bug Fixes
+
+* delete old pod during reincarnation (BUG-112) ([#98](https://github.com/hortator-ai/Hortator/issues/98)) ([3c84a09](https://github.com/hortator-ai/Hortator/commit/3c84a092e01ac5b21fcef81511fe179b3054cdc3))
+
 ## [0.6.4](https://github.com/hortator-ai/Hortator/compare/v0.6.3...v0.6.4) (2026-02-17)
 
 
