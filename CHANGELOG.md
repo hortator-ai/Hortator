@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/hortator-ai/Hortator/compare/v0.6.1...v0.6.2) (2026-02-17)
+
+
+### Bug Fixes
+
+* discover children for reincarnated parent in Waiting phase (BUG-112) ([#91](https://github.com/hortator-ai/Hortator/issues/91)) ([36b2142](https://github.com/hortator-ai/Hortator/commit/36b214231b7cdca2c19ff158f04e8f4238548f28))
+
 ## [0.6.1](https://github.com/hortator-ai/Hortator/compare/v0.6.0...v0.6.1) (2026-02-17)
 
 
