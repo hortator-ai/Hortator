@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.6](https://github.com/hortator-ai/Hortator/compare/v0.6.5...v0.6.6) (2026-02-17)
+
+
+### Bug Fixes
+
+* handle reincarnation race with stale pods (BUG-112) ([#100](https://github.com/hortator-ai/Hortator/issues/100)) ([3e2416b](https://github.com/hortator-ai/Hortator/commit/3e2416bd5f0bd4cebd8bdb5adbfd80b5f7a9a01f))
+
 ## [0.6.5](https://github.com/hortator-ai/Hortator/compare/v0.6.4...v0.6.5) (2026-02-17)
 
 
