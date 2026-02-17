@@ -1045,6 +1045,21 @@ func (r *AgentTaskReconciler) handleWaiting(ctx context.Context, task *corev1alp
 
 	if allDone && len(task.Status.PendingChildren) > 0 {
 		logger.Info("All children complete, reincarnating parent", "task", task.Name)
+
+		// Delete the old pod so handlePending can create a fresh one.
+		if task.Status.PodName != "" {
+			oldPod := &corev1.Pod{}
+			podKey := client.ObjectKey{Namespace: task.Namespace, Name: task.Status.PodName}
+			if err := r.Get(ctx, podKey, oldPod); err == nil {
+				if err := r.Delete(ctx, oldPod); err != nil && !errors.IsNotFound(err) {
+					logger.Error(err, "Failed to delete old pod during reincarnation", "pod", task.Status.PodName)
+				} else {
+					logger.Info("Deleted old pod for reincarnation", "pod", task.Status.PodName)
+				}
+			}
+			task.Status.PodName = ""
+		}
+
 		task.Status.Phase = corev1alpha1.AgentTaskPhasePending
 		task.Status.PendingChildren = nil // Clear for the next run
 		now := metav1.Now()
