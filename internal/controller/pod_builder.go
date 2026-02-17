@@ -567,12 +567,6 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 				Value: r.defaults.PresidioScoreThreshold,
 			})
 		}
-		if r.defaults.PresidioRequire {
-			env = append(env, corev1.EnvVar{
-				Name:  "HORTATOR_REQUIRE_PRESIDIO",
-				Value: "true",
-			})
-		}
 	}
 
 	// Build capability labels for NetworkPolicy matching
