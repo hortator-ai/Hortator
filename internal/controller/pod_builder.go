@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -597,7 +598,15 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 					Image:        image,
 					Env:          env,
 					Resources:    resources,
-					VolumeMounts: volumeMounts,
+					VolumeMounts: append(volumeMounts, corev1.VolumeMount{Name: "tmp", MountPath: "/tmp"}),
+					SecurityContext: &corev1.SecurityContext{
+						RunAsNonRoot:             ptr.To(true),
+						ReadOnlyRootFilesystem:   ptr.To(true),
+						AllowPrivilegeEscalation: ptr.To(false),
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
+					},
 				},
 			},
 			Volumes: volumes,
@@ -614,6 +623,7 @@ func (r *AgentTaskReconciler) buildVolumes(task *corev1alpha1.AgentTask) ([]core
 	pvcName := fmt.Sprintf("%s-storage", task.Name)
 
 	volumes := []corev1.Volume{
+		{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		{Name: "inbox-ephemeral", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		{Name: "storage", VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
