@@ -1009,7 +1009,8 @@ func (r *AgentTaskReconciler) handleWaiting(ctx context.Context, task *corev1alp
 		if err := r.List(ctx, childList, client.InNamespace(task.Namespace)); err == nil {
 			for i := range childList.Items {
 				child := &childList.Items[i]
-				if child.Spec.ParentTaskID == task.Name && child.Name != task.Name {
+				if child.Spec.ParentTaskID == task.Name && child.Name != task.Name &&
+					(task.Status.LastReincarnatedAt == nil || child.CreationTimestamp.After(task.Status.LastReincarnatedAt.Time)) {
 					task.Status.PendingChildren = append(task.Status.PendingChildren, child.Name)
 				}
 			}
@@ -1046,6 +1047,8 @@ func (r *AgentTaskReconciler) handleWaiting(ctx context.Context, task *corev1alp
 		logger.Info("All children complete, reincarnating parent", "task", task.Name)
 		task.Status.Phase = corev1alpha1.AgentTaskPhasePending
 		task.Status.PendingChildren = nil // Clear for the next run
+		now := metav1.Now()
+		task.Status.LastReincarnatedAt = &now
 		task.Status.Message = "Children completed, restarting agent"
 		r.Recorder.Event(task, corev1.EventTypeNormal, "TaskReincarnating", "All children done, restarting agent pod")
 		if err := r.updateStatusWithRetry(ctx, task); err != nil {

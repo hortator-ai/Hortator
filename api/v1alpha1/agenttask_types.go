@@ -370,6 +370,11 @@ type AgentTaskStatus struct {
 	// +optional
 	PendingChildren []string `json:"pendingChildren,omitempty"`
 
+	// LastReincarnatedAt records when the task was last reincarnated.
+	// Used to filter out stale children from prior iterations during child discovery.
+	// +optional
+	LastReincarnatedAt *metav1.Time `json:"lastReincarnatedAt,omitempty"`
+
 	// Message provides human-readable status information.
 	// +optional
 	Message string `json:"message,omitempty"`

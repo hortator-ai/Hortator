@@ -409,6 +409,10 @@ func (in *AgentTaskStatus) DeepCopyInto(out *AgentTaskStatus) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.LastReincarnatedAt != nil {
+		in, out := &in.LastReincarnatedAt, &out.LastReincarnatedAt
+		*out = (*in).DeepCopy()
+	}
 	if in.NextRetryTime != nil {
 		in, out := &in.NextRetryTime, &out.NextRetryTime
 		*out = (*in).DeepCopy()
