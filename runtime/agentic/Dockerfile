@@ -14,7 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates jq git nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /inbox /outbox /outbox/artifacts /workspace /memory
+RUN useradd -u 1000 -m -s /bin/bash hortator \
+    && mkdir -p /inbox /outbox /outbox/artifacts /workspace /memory \
+    && chown -R hortator:hortator /inbox /outbox /workspace /memory
 
 COPY --from=cli-builder /hortator /usr/local/bin/hortator
 
@@ -25,4 +27,5 @@ COPY runtime/agentic/*.py /opt/hortator/
 
 WORKDIR /opt/hortator
 
+USER 1000
 ENTRYPOINT ["python3", "/opt/hortator/main.py"]

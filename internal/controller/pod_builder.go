@@ -597,7 +597,12 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 		Spec: corev1.PodSpec{
 			RestartPolicy:      corev1.RestartPolicyNever,
 			ServiceAccountName: workerSAForCaps(effectiveCaps),
-			InitContainers:     initContainers,
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsUser:  ptr.To(int64(1000)),
+				RunAsGroup: ptr.To(int64(1000)),
+				FSGroup:    ptr.To(int64(1000)),
+			},
+			InitContainers: initContainers,
 			Containers: []corev1.Container{
 				{
 					Name:         "agent",
