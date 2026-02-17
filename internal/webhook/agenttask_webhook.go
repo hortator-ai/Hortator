@@ -48,15 +48,15 @@ func ValidateAgentTask(task *corev1alpha1.AgentTask, parent *corev1alpha1.AgentT
 	var allErrs field.ErrorList
 	specPath := field.NewPath("spec")
 
-	// model.name and model.endpoint are required
-	if task.Spec.Model == nil {
-		allErrs = append(allErrs, field.Required(specPath.Child("model"), "model is required"))
-	} else {
+	// Model validation is conditional: if spec.model is nil, we allow it
+	// because the operator will inject defaults from cluster config or AgentRole
+	// at reconcile time. If spec.model is set, validate its fields.
+	if task.Spec.Model != nil {
 		if task.Spec.Model.Name == "" {
-			allErrs = append(allErrs, field.Required(specPath.Child("model", "name"), "model name is required"))
+			allErrs = append(allErrs, field.Required(specPath.Child("model", "name"), "model name is required when model is specified"))
 		}
 		if task.Spec.Model.Endpoint == "" {
-			allErrs = append(allErrs, field.Required(specPath.Child("model", "endpoint"), "model endpoint is required"))
+			allErrs = append(allErrs, field.Required(specPath.Child("model", "endpoint"), "model endpoint is required when model is specified"))
 		}
 	}
 

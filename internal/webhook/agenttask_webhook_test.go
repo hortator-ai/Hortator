@@ -30,30 +30,30 @@ func validTask() *corev1alpha1.AgentTask {
 	}
 }
 
-func TestValidateAgentTask_ModelRequired(t *testing.T) {
+func TestValidateAgentTask_NilModelAllowed(t *testing.T) {
 	task := validTask()
 	task.Spec.Model = nil
 	errs := ValidateAgentTask(task, nil)
-	if len(errs) == 0 {
-		t.Error("expected error for missing model")
+	if len(errs) != 0 {
+		t.Errorf("expected nil model to be allowed (operator injects defaults), got %v", errs)
 	}
 }
 
-func TestValidateAgentTask_ModelNameRequired(t *testing.T) {
+func TestValidateAgentTask_ModelNameRequiredWhenModelSet(t *testing.T) {
 	task := validTask()
 	task.Spec.Model.Name = ""
 	errs := ValidateAgentTask(task, nil)
 	if len(errs) == 0 {
-		t.Error("expected error for empty model name")
+		t.Error("expected error for empty model name when model is specified")
 	}
 }
 
-func TestValidateAgentTask_ModelEndpointRequired(t *testing.T) {
+func TestValidateAgentTask_ModelEndpointRequiredWhenModelSet(t *testing.T) {
 	task := validTask()
 	task.Spec.Model.Endpoint = ""
 	errs := ValidateAgentTask(task, nil)
 	if len(errs) == 0 {
-		t.Error("expected error for empty model endpoint")
+		t.Error("expected error for empty model endpoint when model is specified")
 	}
 }
 
