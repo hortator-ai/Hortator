@@ -596,6 +596,17 @@ func (r *AgentTaskReconciler) handlePending(ctx context.Context, task *corev1alp
 
 	if err := r.Create(ctx, pod); err != nil {
 		if errors.IsAlreadyExists(err) {
+			// Check if the existing pod is stale (from a prior iteration).
+			// If so, delete it and requeue so we create a fresh one.
+			existingPod := &corev1.Pod{}
+			if getErr := r.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, existingPod); getErr == nil {
+				if task.Status.LastReincarnatedAt != nil &&
+					existingPod.CreationTimestamp.Before(task.Status.LastReincarnatedAt) {
+					logger.Info("Deleting stale pod from prior iteration", "pod", pod.Name)
+					_ = r.Delete(ctx, existingPod)
+					return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+				}
+			}
 			task.Status.Phase = corev1alpha1.AgentTaskPhaseRunning
 			task.Status.PodName = pod.Name
 			now := metav1.Now()
@@ -666,6 +677,15 @@ func (r *AgentTaskReconciler) handleRunning(ctx context.Context, task *corev1alp
 
 	switch pod.Status.Phase {
 	case corev1.PodSucceeded:
+		// Skip stale pods from before the last reincarnation — a concurrent
+		// reconciliation may still see the old succeeded pod while the task
+		// has already been reincarnated back to Pending.
+		if task.Status.LastReincarnatedAt != nil &&
+			pod.CreationTimestamp.Before(task.Status.LastReincarnatedAt) {
+			logger.Info("Ignoring stale pod from prior iteration", "pod", pod.Name)
+			return ctrl.Result{}, nil
+		}
+
 		logger.Info("Pod succeeded", "pod", pod.Name)
 
 		if task.Status.Output == "" {
