@@ -597,7 +597,12 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 		Spec: corev1.PodSpec{
 			RestartPolicy:      corev1.RestartPolicyNever,
 			ServiceAccountName: workerSAForCaps(effectiveCaps),
-			InitContainers:     initContainers,
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsUser:  ptr.To(int64(1000)),
+				RunAsGroup: ptr.To(int64(1000)),
+				FSGroup:    ptr.To(int64(1000)),
+			},
+			InitContainers: initContainers,
 			Containers: []corev1.Container{
 				{
 					Name:         "agent",
@@ -606,8 +611,7 @@ func (r *AgentTaskReconciler) buildPod(ctx context.Context, task *corev1alpha1.A
 					Resources:    resources,
 					VolumeMounts: append(volumeMounts, corev1.VolumeMount{Name: "tmp", MountPath: "/tmp"}),
 					SecurityContext: &corev1.SecurityContext{
-						// NOTE: RunAsNonRoot omitted — runtime images don't yet have a
-						// non-root USER. Add back once Dockerfiles are updated (post-launch).
+						RunAsNonRoot:             ptr.To(true),
 						ReadOnlyRootFilesystem:   ptr.To(true),
 						AllowPrivilegeEscalation: ptr.To(false),
 						Capabilities: &corev1.Capabilities{
