@@ -51,7 +51,7 @@ jobs:
           go test ./... -coverprofile=cover.out
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: cover.out
