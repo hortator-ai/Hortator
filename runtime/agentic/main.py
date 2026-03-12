@@ -345,6 +345,7 @@ def main():
         state_file=STATE_FILE,
         is_killed=lambda: _killed,
         presidio_redact_fn=presidio_redact if (presidio_ready and redact_input) else None,
+        capabilities=capabilities,
     )
 
     # Redact PII from output before reporting

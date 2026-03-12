@@ -44,6 +44,7 @@ def agentic_loop(
     state_file: str,
     is_killed: Callable,
     presidio_redact_fn: Callable | None = None,
+    capabilities: list[str] | None = None,
 ) -> LoopResult:
     """
     Run the tool-calling loop until the LLM produces a final answer,
@@ -158,7 +159,7 @@ def agentic_loop(
 
                 print(f"[hortator-agentic] Tool call: {func_name}({json.dumps(func_args)[:200]})")
 
-                result = execute_tool(func_name, func_args, task_name, task_ns)
+                result = execute_tool(func_name, func_args, task_name, task_ns, capabilities)
 
                 # Track spawned children
                 if func_name == "spawn_task" and result.get("success"):
