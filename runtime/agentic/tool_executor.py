@@ -4,14 +4,24 @@ Tool execution — translates tool calls into actual operations.
 spawn_task, check_status, get_result, cancel_task → shell out to `hortator` CLI
 run_shell → subprocess in /workspace/
 read_file, write_file → filesystem I/O
+Plugin tools → dispatched via plugin_loader
 """
 
 import json
 import os
 import subprocess
 
+from plugin_loader import dispatch_plugin_tool
+from plugins import ToolExecutionError
 
-def execute_tool(name: str, args: dict, task_name: str, task_ns: str) -> dict:
+
+def execute_tool(
+    name: str,
+    args: dict,
+    task_name: str,
+    task_ns: str,
+    capabilities: list[str] | None = None,
+) -> dict:
     """Execute a tool call and return the result as a dict."""
     try:
         match name:
@@ -34,6 +44,14 @@ def execute_tool(name: str, args: dict, task_name: str, task_ns: str) -> dict:
             case "write_file":
                 return _exec_write_file(args)
             case _:
+                # Try plugins before giving up
+                caps = capabilities if capabilities is not None else []
+                try:
+                    result = dispatch_plugin_tool(name, args, caps, dict(os.environ))
+                    if result is not None:
+                        return result
+                except ToolExecutionError as e:
+                    return {"success": False, "error": str(e)}
                 return {"success": False, "error": f"Unknown tool: {name}"}
     except Exception as e:
         return {"success": False, "error": str(e)}

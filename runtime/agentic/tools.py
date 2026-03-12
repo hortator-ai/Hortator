@@ -5,6 +5,8 @@ Tools are gated by the agent's capabilities (from AgentTask spec).
 Returns OpenAI-compatible tool schemas for the LLM.
 """
 
+from plugin_loader import get_plugin_tools
+
 
 def build_tools(capabilities: list[str], task_name: str, task_ns: str) -> list[dict]:
     """Build the list of available tools based on agent capabilities."""
@@ -29,6 +31,9 @@ def build_tools(capabilities: list[str], task_name: str, task_ns: str) -> list[d
     # spawn capability also gates role listing
     if "spawn" in capabilities:
         tools.append(_tool_list_roles())
+
+    # Append plugin tools
+    tools.extend(get_plugin_tools(capabilities))
 
     return tools
 
