@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/hortator-ai/Hortator/compare/v0.6.6...v0.7.0) (2026-03-27)
+
+
+### Features
+
+* add plugin system for external tool sets ([#113](https://github.com/hortator-ai/Hortator/issues/113)) ([bcbf53e](https://github.com/hortator-ai/Hortator/commit/bcbf53e5b2f7583f51f66db295390e75d4787897))
+
 ## [0.6.6](https://github.com/hortator-ai/Hortator/compare/v0.6.5...v0.6.6) (2026-02-17)
 
 
